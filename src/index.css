@@ -152,6 +152,16 @@
   html {
     scrollbar-gutter: stable;
   }
+  @media (min-width: 1920px) {
+    html {
+      font-size: 17px;
+    }
+  }
+  @media (min-width: 2400px) {
+    html {
+      font-size: 18px;
+    }
+  }
   * {
     @apply border-border;
   }

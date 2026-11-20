@@ -933,7 +933,7 @@ export function AdminPermissionsPage() {
                                 <span className="font-medium text-foreground">
                                   {zh ? perm.zh : perm.en}
                                 </span>
-                                <span className="text-[11px] text-muted-foreground">
+                                <span className="text-xs text-muted-foreground">
                                   ·{" "}
                                   {t(
                                     groupLabels[perm.group][0],

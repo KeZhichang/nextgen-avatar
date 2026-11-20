@@ -360,7 +360,7 @@ export function AdminOrdersPage() {
                   <span className="relative z-10">{item.label}</span>
                   <span
                     className={cn(
-                      "relative z-10 font-mono text-[11px] tabular-nums",
+                      "relative z-10 font-mono text-xs tabular-nums",
                       selected ? "text-white/80" : "text-muted-foreground/80"
                     )}
                   >

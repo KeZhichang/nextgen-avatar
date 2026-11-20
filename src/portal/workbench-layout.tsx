@@ -110,7 +110,7 @@ function WorkbenchSidebar({
               {group.label && (
                 <SidebarGroupLabel
                   className={cn(
-                    "px-2.5 text-[11px] font-semibold tracking-wider uppercase",
+                    "px-2.5 text-xs font-semibold tracking-wider uppercase",
                     team ? "text-white/50" : "text-muted-foreground"
                   )}
                 >
@@ -192,7 +192,7 @@ function WorkbenchSidebar({
                     <span className="truncate font-semibold">
                       {account.name}
                     </span>
-                    <span className="truncate text-[11px] opacity-75">
+                    <span className="truncate text-xs opacity-75">
                       {account.detail}
                     </span>
                   </div>
