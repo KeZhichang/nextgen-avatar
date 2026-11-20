@@ -218,12 +218,18 @@ function StripeForm({
 
 export function StripePreviewPayment({
   planId,
+  planName,
+  planPrice,
   extras,
+  addons,
   total,
   setBusy,
 }: {
   planId: string
+  planName?: string
+  planPrice?: number
   extras: CheckoutExtras
+  addons?: { name: string; price: number }[]
   total: number
   setBusy: (busy: boolean) => void
 }) {
@@ -232,6 +238,7 @@ export function StripePreviewPayment({
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const { script, duration } = extras
+  const addonsKey = JSON.stringify(addons ?? [])
   const [stripe] = useState(() => loadStripe(publishableKey!, { locale }))
 
   useEffect(() => {
@@ -243,7 +250,10 @@ export function StripePreviewPayment({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             planId,
+            planName,
+            planPrice,
             extras: { script, duration },
+            addons: addons?.length ? addons : undefined,
             locale,
           }),
           signal: abort.signal,
@@ -259,7 +269,17 @@ export function StripePreviewPayment({
       window.clearTimeout(start)
       abort.abort()
     }
-  }, [planId, script, duration, locale, attempt])
+  }, [
+    planId,
+    planName,
+    planPrice,
+    script,
+    duration,
+    addonsKey,
+    addons,
+    locale,
+    attempt,
+  ])
 
   function retry() {
     setFailed(false)

@@ -433,7 +433,7 @@ export function StatusBadge({ status }: { status: Status }) {
   > = {
     waiting_assets: {
       zh: "待传素材",
-      en: "Awaiting materials",
+      en: "Needs materials",
       badgeClass: "border-border bg-secondary text-secondary-foreground",
       dotClass: "bg-muted-foreground",
     },
@@ -445,20 +445,20 @@ export function StatusBadge({ status }: { status: Status }) {
     },
     waiting_confirm: {
       zh: "待确认",
-      en: "Awaiting review",
+      en: "Needs review",
       badgeClass:
         "border-brand-gold/40 bg-brand-gold/15 text-amber-900 dark:text-amber-200",
       dotClass: "bg-brand-gold",
     },
     revision: {
       zh: "需要修改",
-      en: "Changes requested",
+      en: "Needs changes",
       badgeClass: "border-destructive/25 bg-destructive/10 text-destructive",
       dotClass: "bg-destructive",
     },
     approved: {
-      zh: "已确认 · 待交付",
-      en: "Approved · Finalizing",
+      zh: "待交付",
+      en: "Ready to deliver",
       badgeClass:
         "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-200",
       dotClass: "bg-sky-500",
@@ -476,7 +476,7 @@ export function StatusBadge({ status }: { status: Status }) {
     <Badge
       variant="outline"
       className={cn(
-        "gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
+        "shrink-0 gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
         item.badgeClass
       )}
     >

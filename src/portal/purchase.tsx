@@ -58,7 +58,6 @@ import { CheckoutPayment } from "./checkout-payment"
 import {
   defaultQuote,
   stripePreviewPlans,
-  stripePreviewTotal,
   type StripePreviewReceipt,
 } from "./checkout-catalog"
 import { formatDollars, useDemo, usePortal, type Plan } from "./demo"
@@ -558,9 +557,14 @@ export function CheckoutPage() {
   const locked = Boolean(created || stripeSession) || busy
   const selected = plans.find((item) => item.id === choice) ?? plans[0]
   const plan =
-    stripePreviewPlans.find((item) => item.id === receipt?.planId) ?? selected
-  const addonsTotal = activeAddons.reduce(
-    (sum, item) => sum + (selectedAddons[item.id] ? item.price : 0),
+    plans.find((item) => item.id === receipt?.planId) ??
+    stripePreviewPlans.find((item) => item.id === receipt?.planId) ??
+    selected
+  const selectedAddonList = activeAddons.filter(
+    (item) => selectedAddons[item.id]
+  )
+  const addonsTotal = selectedAddonList.reduce(
+    (sum, item) => sum + item.price,
     0
   )
   const total = receipt?.total ?? plan.price + addonsTotal
@@ -568,23 +572,17 @@ export function CheckoutPage() {
     script: Boolean(selectedAddons.script),
     duration: Boolean(selectedAddons.duration),
   }
-  const hasCustomAddonsSelected = activeAddons.some(
-    (item) =>
-      selectedAddons[item.id] && item.id !== "script" && item.id !== "duration"
-  )
-  const previewPlan = stripePreviewPlans.find((item) => item.id === plan.id)
-  const useStripe =
-    stripePreviewConfigured &&
-    !hasCustomAddonsSelected &&
-    previewPlan &&
-    (plan.id !== "quote" || !quotedPlan) &&
-    plan.count === previewPlan.count &&
-    plan.price === previewPlan.price &&
-    stripePreviewTotal(previewPlan, stripeExtras) === total
+  const stripeAddonPayload = selectedAddonList.map((item) => ({
+    name: zh ? item.zh : item.en,
+    price: item.price,
+  }))
+  const useStripe = stripePreviewConfigured && total > 0
 
   function recordPayment(paid: StripePreviewReceipt) {
-    const paidPlan = stripePreviewPlans.find((item) => item.id === paid.planId)
-    if (!paidPlan) return
+    const paidPlan =
+      plans.find((item) => item.id === paid.planId) ??
+      stripePreviewPlans.find((item) => item.id === paid.planId) ??
+      plan
     setReceipt(paid)
     setChoice(paidPlan.id)
     setSelectedAddons(paid.extras)
@@ -592,6 +590,7 @@ export function CheckoutPage() {
       createOrder(paidPlan, paid.total, paid.method, {
         paymentSession: paid.id,
         projectName: queryProject || undefined,
+        addonIds: selectedAddonList.map((item) => item.id),
       })
     )
   }
@@ -886,9 +885,12 @@ export function CheckoutPage() {
               />
             ) : useStripe ? (
               <StripePreviewPayment
-                key={`${locale}:${plan.id}:${stripeExtras.script}:${stripeExtras.duration}`}
+                key={`${locale}:${plan.id}:${plan.price}:${total}`}
                 planId={plan.id}
+                planName={zh ? plan.zh : plan.en}
+                planPrice={plan.price}
                 extras={stripeExtras}
+                addons={stripeAddonPayload}
                 total={total}
                 setBusy={setBusy}
               />

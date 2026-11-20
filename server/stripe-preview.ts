@@ -5,7 +5,6 @@ import type { Plugin } from "vite"
 import {
   defaultAddons,
   stripePreviewPlans,
-  stripePreviewTotal,
   type CheckoutExtras,
   type StripePreviewReceipt,
 } from "../src/portal/checkout-catalog.ts"
@@ -77,28 +76,73 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
         sendJson(response, 400, { error: "invalid_selection" })
         return
       }
-      const planId = input.planId
-      const plan = stripePreviewPlans.find((item) => item.id === planId)
-      const extras = extrasFrom(input.extras)
-      if (!plan || !extras) {
+      const inputRecord = input as Record<string, unknown>
+      const planId =
+        typeof inputRecord.planId === "string" ? inputRecord.planId : ""
+      const presetPlan = stripePreviewPlans.find((item) => item.id === planId)
+      const extras = extrasFrom(inputRecord.extras) ?? {
+        script: false,
+        duration: false,
+      }
+      const locale = inputRecord.locale === "zh" ? "zh" : "en"
+      const zh = locale === "zh"
+      const customName =
+        typeof inputRecord.planName === "string" && inputRecord.planName.trim()
+          ? inputRecord.planName.trim().slice(0, 80)
+          : undefined
+      const customPrice =
+        typeof inputRecord.planPrice === "number" &&
+        Number.isFinite(inputRecord.planPrice) &&
+        inputRecord.planPrice > 0
+          ? inputRecord.planPrice
+          : undefined
+      const resolvedName =
+        customName ??
+        (presetPlan
+          ? zh
+            ? presetPlan.zh
+            : presetPlan.en
+          : "Production Package")
+      const resolvedPrice = customPrice ?? presetPlan?.price
+      if (!planId || !resolvedPrice || resolvedPrice <= 0) {
         sendJson(response, 400, { error: "invalid_selection" })
         return
       }
 
-      const locale = "locale" in input && input.locale === "zh" ? "zh" : "en"
-      const zh = locale === "zh"
-      const details = [{ name: zh ? plan.zh : plan.en, price: plan.price }]
-      if (extras.script)
-        details.push({
-          name: zh ? "额外口播脚本" : "Additional script",
-          price: defaultAddons.script,
-        })
-      if (extras.duration)
-        details.push({
-          name: zh ? "延长视频时长" : "Extended duration",
-          price: defaultAddons.duration,
-        })
-      const returnQuery = new URLSearchParams({ plan: plan.id })
+      const details: { name: string; price: number }[] = [
+        { name: resolvedName, price: resolvedPrice },
+      ]
+      const customAddons = Array.isArray(inputRecord.addons)
+        ? (inputRecord.addons as unknown[]).filter(
+            (item): item is { name: string; price: number } =>
+              Boolean(item) &&
+              typeof item === "object" &&
+              typeof (item as Record<string, unknown>).name === "string" &&
+              typeof (item as Record<string, unknown>).price === "number" &&
+              (item as Record<string, number>).price > 0
+          )
+        : null
+      if (customAddons) {
+        for (const addon of customAddons.slice(0, 10)) {
+          details.push({ name: addon.name.slice(0, 80), price: addon.price })
+        }
+      } else {
+        if (extras.script)
+          details.push({
+            name: zh ? "额外口播脚本" : "Additional script",
+            price: defaultAddons.script,
+          })
+        if (extras.duration)
+          details.push({
+            name: zh ? "延长视频时长" : "Extended duration",
+            price: defaultAddons.duration,
+          })
+      }
+      const expected = details.reduce(
+        (sum, item) => sum + Math.round(item.price * 100),
+        0
+      )
+      const returnQuery = new URLSearchParams({ plan: planId })
       if (extras.script) returnQuery.set("script", "1")
       if (extras.duration) returnQuery.set("duration", "1")
       const session = await stripe.checkout.sessions.create({
@@ -123,12 +167,11 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
         })),
         metadata: {
           purpose,
-          planId: plan.id,
+          planId,
           script: extras.script ? "1" : "0",
           duration: extras.duration ? "1" : "0",
         },
       })
-      const expected = Math.round(stripePreviewTotal(plan, extras) * 100)
       if (
         session.livemode ||
         !session.client_secret ||
@@ -154,9 +197,7 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
         expand: ["payment_intent.payment_method"],
       })
       const metadata = session.metadata
-      const plan = stripePreviewPlans.find(
-        (item) => item.id === metadata?.planId
-      )
+      const planId = metadata?.planId ?? ""
       const extras = {
         script: metadata?.script === "1",
         duration: metadata?.duration === "1",
@@ -164,10 +205,8 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
       if (
         session.livemode ||
         metadata?.purpose !== purpose ||
-        !plan ||
-        session.currency !== "usd" ||
-        session.amount_total !==
-          Math.round(stripePreviewTotal(plan, extras) * 100)
+        !planId ||
+        session.currency !== "usd"
       ) {
         sendJson(response, 404, { error: "invalid_session" })
         return
@@ -198,9 +237,9 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
                 : "open"
       const result: StripePreviewReceipt = {
         id,
-        planId: plan.id,
+        planId,
         extras,
-        total: session.amount_total / 100,
+        total: (session.amount_total ?? 0) / 100,
         method,
         status,
       }

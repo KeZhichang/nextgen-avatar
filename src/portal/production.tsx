@@ -1018,18 +1018,20 @@ function ClientOrderHubPage({
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium text-foreground">
-                      {zh ? item.zh : item.en}
+                    <span className="truncate font-mono text-[11px] text-muted-foreground">
+                      #{item.id}
                     </span>
                     <StatusBadge status={item.status} />
                   </div>
-                  <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span className="font-mono text-[11px]">#{item.id}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                      {zh ? item.zh : item.en}
+                    </span>
                     {item.versions.length > 0 && (
-                      <span className="text-[11px]">
+                      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
                         {t(
-                          `${item.versions.length} 个视频版本`,
-                          `${item.versions.length} version(s)`
+                          `${item.versions.length} 版`,
+                          `v${item.versions.length}`
                         )}
                       </span>
                     )}
@@ -1422,19 +1424,21 @@ export function StudioWorkspacePage() {
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-medium text-foreground">
-                        {canViewAll ? item.client : zh ? item.zh : item.en}
+                      <span className="truncate font-mono text-[11px] text-muted-foreground">
+                        #{item.id}
                       </span>
                       <StatusBadge status={item.status} />
                     </div>
-                    <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                      <span className="truncate">
-                        {canViewAll ? (zh ? item.zh : item.en) : `#${item.id}`}
-                      </span>
-                      <span className="shrink-0 font-mono text-[11px]">
-                        #{item.id.slice(-4)}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                        {canViewAll ? item.client : zh ? item.zh : item.en}
                       </span>
                     </div>
+                    {canViewAll && (
+                      <span className="truncate text-xs text-muted-foreground">
+                        {zh ? item.zh : item.en}
+                      </span>
+                    )}
                     {item.revision && (
                       <div className="truncate rounded bg-brand-gold/15 px-2 py-0.5 text-[11px] text-amber-900">
                         {t("有修改意见：", "Revision: ")}

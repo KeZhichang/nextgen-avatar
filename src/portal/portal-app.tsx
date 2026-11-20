@@ -114,12 +114,19 @@ function MarketingHome() {
   const frame = useRef<HTMLIFrameElement>(null)
 
   useEffect(() => {
-    function checkout(event: MessageEvent) {
+    function handleMessage(event: MessageEvent) {
       if (
         event.source !== frame.current?.contentWindow ||
         event.origin !== window.location.origin
       )
         return
+      if (event.data?.type === "nextgen-marketing-ready") {
+        frame.current?.contentWindow?.postMessage(
+          { type: "nextgen-marketing-catalog", plans: data.plans },
+          window.location.origin
+        )
+        return
+      }
       if (event.data?.type !== "nextgen-marketing-checkout") return
       const plan = event.data.plan
       if (typeof plan !== "string" || !plan.trim()) return
@@ -130,9 +137,9 @@ function MarketingHome() {
           encodeURIComponent(plan)
       )
     }
-    window.addEventListener("message", checkout)
-    return () => window.removeEventListener("message", checkout)
-  }, [locale, navigate])
+    window.addEventListener("message", handleMessage)
+    return () => window.removeEventListener("message", handleMessage)
+  }, [locale, navigate, data.plans])
 
   function sendCatalog() {
     frame.current?.contentWindow?.postMessage(
@@ -140,6 +147,13 @@ function MarketingHome() {
       window.location.origin
     )
   }
+
+  useEffect(() => {
+    frame.current?.contentWindow?.postMessage(
+      { type: "nextgen-marketing-catalog", plans: data.plans },
+      window.location.origin
+    )
+  }, [data.plans])
 
   return (
     <main className="relative h-dvh bg-card">
