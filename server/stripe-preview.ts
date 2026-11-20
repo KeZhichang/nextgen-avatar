@@ -1,0 +1,236 @@
+import type { IncomingMessage, ServerResponse } from "node:http"
+import Stripe from "stripe"
+import type { Plugin } from "vite"
+
+import {
+  defaultAddons,
+  stripePreviewPlans,
+  stripePreviewTotal,
+  type CheckoutExtras,
+  type StripePreviewReceipt,
+} from "../src/portal/checkout-catalog.ts"
+
+const purpose = "nextgen_avatar_checkout_preview"
+
+function sendJson(response: ServerResponse, status: number, body: unknown) {
+  response.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+  })
+  response.end(JSON.stringify(body))
+}
+
+async function readSelection(request: IncomingMessage): Promise<unknown> {
+  let body = ""
+  for await (const chunk of request) {
+    body += chunk.toString()
+    if (body.length > 4096) throw new Error("Request is too large")
+  }
+  return JSON.parse(body) as unknown
+}
+
+function extrasFrom(input: unknown): CheckoutExtras | undefined {
+  if (!input || typeof input !== "object") return
+  if (!("script" in input) || !("duration" in input)) return
+  if (typeof input.script !== "boolean" || typeof input.duration !== "boolean")
+    return
+  return { script: input.script, duration: input.duration }
+}
+
+export function stripePreviewPlugin(secret: string | undefined): Plugin {
+  const stripe =
+    secret && /^(?:sk|rk|rkcs)_test_/.test(secret)
+      ? new Stripe(secret, { timeout: 15000, maxNetworkRetries: 1 })
+      : undefined
+
+  async function handle(request: IncomingMessage, response: ServerResponse) {
+    const host = request.headers.host
+    if (
+      !host ||
+      !/^(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(host) ||
+      !stripe
+    ) {
+      sendJson(response, 503, { error: "preview_unavailable" })
+      return
+    }
+    const origin = `http://${host}`
+    if (request.headers.origin && request.headers.origin !== origin) {
+      sendJson(response, 403, { error: "invalid_origin" })
+      return
+    }
+    const path = new URL(request.url ?? "/", origin)
+
+    if (path.pathname === "/session" && request.method === "POST") {
+      let input: unknown
+      try {
+        input = await readSelection(request)
+      } catch {
+        sendJson(response, 400, { error: "invalid_selection" })
+        return
+      }
+      if (
+        !input ||
+        typeof input !== "object" ||
+        !("planId" in input) ||
+        !("extras" in input)
+      ) {
+        sendJson(response, 400, { error: "invalid_selection" })
+        return
+      }
+      const planId = input.planId
+      const plan = stripePreviewPlans.find((item) => item.id === planId)
+      const extras = extrasFrom(input.extras)
+      if (!plan || !extras) {
+        sendJson(response, 400, { error: "invalid_selection" })
+        return
+      }
+
+      const locale = "locale" in input && input.locale === "zh" ? "zh" : "en"
+      const zh = locale === "zh"
+      const details = [{ name: zh ? plan.zh : plan.en, price: plan.price }]
+      if (extras.script)
+        details.push({
+          name: zh ? "额外口播脚本" : "Additional script",
+          price: defaultAddons.script,
+        })
+      if (extras.duration)
+        details.push({
+          name: zh ? "延长视频时长" : "Extended duration",
+          price: defaultAddons.duration,
+        })
+      const returnQuery = new URLSearchParams({ plan: plan.id })
+      if (extras.script) returnQuery.set("script", "1")
+      if (extras.duration) returnQuery.set("duration", "1")
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        ui_mode: "elements",
+        excluded_payment_method_types: [
+          "affirm",
+          "amazon_pay",
+          "cashapp",
+          "klarna",
+        ],
+        locale,
+        return_url: `${origin}/${locale}/checkout?${returnQuery}&stripe_session={CHECKOUT_SESSION_ID}`,
+        customer_email: "checkout-preview@example.com",
+        line_items: details.map(({ name, price }) => ({
+          quantity: 1,
+          price_data: {
+            currency: "usd",
+            product_data: { name },
+            unit_amount: Math.round(price * 100),
+          },
+        })),
+        metadata: {
+          purpose,
+          planId: plan.id,
+          script: extras.script ? "1" : "0",
+          duration: extras.duration ? "1" : "0",
+        },
+      })
+      const expected = Math.round(stripePreviewTotal(plan, extras) * 100)
+      if (
+        session.livemode ||
+        !session.client_secret ||
+        session.amount_total !== expected
+      ) {
+        sendJson(response, 502, { error: "invalid_session" })
+        return
+      }
+      sendJson(response, 200, {
+        id: session.id,
+        clientSecret: session.client_secret,
+      })
+      return
+    }
+
+    if (path.pathname === "/session" && request.method === "GET") {
+      const id = path.searchParams.get("id")
+      if (!id || !/^cs_test_[A-Za-z0-9_]{1,180}$/.test(id)) {
+        sendJson(response, 400, { error: "invalid_session" })
+        return
+      }
+      const session = await stripe.checkout.sessions.retrieve(id, {
+        expand: ["payment_intent.payment_method"],
+      })
+      const metadata = session.metadata
+      const plan = stripePreviewPlans.find(
+        (item) => item.id === metadata?.planId
+      )
+      const extras = {
+        script: metadata?.script === "1",
+        duration: metadata?.duration === "1",
+      }
+      if (
+        session.livemode ||
+        metadata?.purpose !== purpose ||
+        !plan ||
+        session.currency !== "usd" ||
+        session.amount_total !==
+          Math.round(stripePreviewTotal(plan, extras) * 100)
+      ) {
+        sendJson(response, 404, { error: "invalid_session" })
+        return
+      }
+      const intent =
+        typeof session.payment_intent === "object"
+          ? session.payment_intent
+          : null
+      const payment =
+        intent && typeof intent.payment_method === "object"
+          ? intent.payment_method
+          : null
+      const method =
+        payment?.type === "us_bank_account"
+          ? "ach"
+          : payment?.card?.wallet?.type === "apple_pay"
+            ? "apple"
+            : "card"
+      const status =
+        session.payment_status === "paid"
+          ? "paid"
+          : session.status === "expired"
+            ? "expired"
+            : intent?.status === "processing"
+              ? "processing"
+              : session.status === "complete"
+                ? "failed"
+                : "open"
+      const result: StripePreviewReceipt = {
+        id,
+        planId: plan.id,
+        extras,
+        total: session.amount_total / 100,
+        method,
+        status,
+      }
+      sendJson(response, 200, result)
+      return
+    }
+
+    sendJson(response, 404, { error: "not_found" })
+  }
+
+  const middleware = (request: IncomingMessage, response: ServerResponse) => {
+    void handle(request, response).catch((error: unknown) => {
+      if (error instanceof Stripe.errors.StripeError) {
+        console.warn(
+          "Stripe preview request failed",
+          error.type,
+          error.code ?? "unspecified"
+        )
+      }
+      sendJson(response, 502, { error: "stripe_unavailable" })
+    })
+  }
+
+  return {
+    name: "nextgen-stripe-checkout-preview",
+    configureServer(server) {
+      server.middlewares.use("/api/stripe-preview", middleware)
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use("/api/stripe-preview", middleware)
+    },
+  }
+}

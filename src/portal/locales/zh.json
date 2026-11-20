@@ -1,0 +1,25 @@
+{
+  "language": "选择语言",
+  "navigation": "主导航",
+  "workspace": "客户工作台",
+  "admin": "制作后台",
+  "backHome": "返回首页",
+  "home": {
+    "title": "面向房地产行业的视频制作",
+    "description": "提交素材、在线审片、下载正式成片。"
+  },
+  "pages": {
+    "workspace": {
+      "title": "客户工作台",
+      "description": "客户登录与订单功能将在开发阶段接入。"
+    },
+    "admin": {
+      "title": "制作后台",
+      "description": "订单分配、版本审核与成片交付的统一入口。"
+    },
+    "notFound": {
+      "title": "找不到页面",
+      "description": "请返回首页继续操作。"
+    }
+  }
+}

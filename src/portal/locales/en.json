@@ -1,0 +1,25 @@
+{
+  "language": "Choose language",
+  "navigation": "Main navigation",
+  "workspace": "Client workspace",
+  "admin": "Team console",
+  "backHome": "Back to home",
+  "home": {
+    "title": "Video production for real estate",
+    "description": "Submit your materials, review drafts and download finished videos."
+  },
+  "pages": {
+    "workspace": {
+      "title": "Client workspace",
+      "description": "Client sign-in and orders will be connected during development."
+    },
+    "admin": {
+      "title": "Team console",
+      "description": "This is the route for order assignment, video review and delivery."
+    },
+    "notFound": {
+      "title": "Page not found",
+      "description": "Return to the homepage to continue."
+    }
+  }
+}
