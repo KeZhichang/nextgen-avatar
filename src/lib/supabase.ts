@@ -5,9 +5,6 @@ import type { Database } from "@/portal/database.types"
 const dataMode = (import.meta.env.VITE_DATA_MODE as string | undefined)
   ?.trim()
   .toLowerCase()
-const dataMode = (
-  import.meta.env.VITE_DATA_MODE as string | undefined
-)?.trim().toLowerCase()
 const supabaseUrl = (
   import.meta.env.VITE_SUPABASE_URL as string | undefined
 )?.trim()
