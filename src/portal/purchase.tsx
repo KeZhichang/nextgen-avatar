@@ -16,7 +16,6 @@ import { toast } from "sonner"
 import { cn } from "cn"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -29,14 +28,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import {
   Field,
   FieldGroup,
@@ -154,10 +145,15 @@ export function AuthPage() {
     const res = await signInWithGoogle(target)
     if (!res.ok) {
       toast.info(
-        t(
-          "Google 登录尚未开启，请先使用邮箱密码登录。",
-          "Google sign-in is not enabled yet. Please continue with email."
-        )
+        res.reason === "not_configured"
+          ? t(
+              "当前环境尚未配置云端登录服务，请确认已配置环境变量并重新部署。",
+              "Cloud sign-in is not configured in this environment yet."
+            )
+          : t(
+              "Google 登录暂时不可用，请稍后重试或使用邮箱密码登录。",
+              "Google sign-in is temporarily unavailable. Please try again or continue with email."
+            )
       )
     }
   }
@@ -291,85 +287,23 @@ export function AuthPage() {
                 >
                   {panel !== "forgot" && (
                     <div className="flex flex-col gap-4">
-                      {isLiveSupabase ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="lg"
-                          className="w-full"
-                          disabled={submitting}
-                          onClick={() => void handleGoogle()}
-                        >
-                          <img
-                            src="/portal-media/google-g.png"
-                            width={16}
-                            height={16}
-                            alt=""
-                            data-icon="inline-start"
-                          />
-                          {t("使用 Google 登录", "Continue with Google")}
-                        </Button>
-                      ) : (
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="lg"
-                              className="w-full"
-                            >
-                              <img
-                                src="/portal-media/google-g.png"
-                                width={16}
-                                height={16}
-                                alt=""
-                                data-icon="inline-start"
-                              />
-                              {t("使用 Google 登录", "Continue with Google")}
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="sm:max-w-sm">
-                            <DialogHeader>
-                              <DialogTitle>
-                                {t("选择账号", "Choose an account")}
-                              </DialogTitle>
-                              <DialogDescription>
-                                {t(
-                                  "选择 Google 账号登录 NextGen Avatar",
-                                  "Choose a Google account to continue to NextGen Avatar."
-                                )}
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="flex flex-col gap-2">
-                              {["sarah.lin@gmail.com", "sarah@apexlabs.io"].map(
-                                (address) => (
-                                  <Button
-                                    key={address}
-                                    variant="outline"
-                                    className="h-auto justify-start gap-3 px-3 py-2.5 text-left"
-                                    onClick={() =>
-                                      finishDemo(address, "Sarah Lin")
-                                    }
-                                  >
-                                    <Avatar className="size-8">
-                                      <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-                                        SL
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    <span className="flex min-w-0 flex-col">
-                                      <span className="truncate text-sm font-medium">
-                                        Sarah Lin
-                                      </span>
-                                      <span className="truncate text-xs text-muted-foreground">
-                                        {address}
-                                      </span>
-                                    </span>
-                                  </Button>
-                                )
-                              )}
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="lg"
+                        className="w-full"
+                        disabled={submitting}
+                        onClick={() => void handleGoogle()}
+                      >
+                        <img
+                          src="/portal-media/google-g.png"
+                          width={16}
+                          height={16}
+                          alt=""
+                          data-icon="inline-start"
+                        />
+                        {t("使用 Google 登录", "Continue with Google")}
+                      </Button>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <Separator className="min-w-0 flex-1" />
                         <span>

@@ -691,7 +691,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
 
   async function signInWithGoogle(redirectTo: string): Promise<AuthResult> {
     const sb = getSupabaseClient()
-    if (!sb) return { ok: true }
+    if (!sb) return { ok: false, reason: "not_configured" }
     const { error } = await sb.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo },
