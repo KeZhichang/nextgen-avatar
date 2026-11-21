@@ -2,7 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 import type { Addon, Plan } from "./checkout-catalog"
 import type { Database, OrderStatus, PaymentMethodType } from "./database.types"
-import type { Entry, EntryVersionRef, Order, Status, Version } from "./demo"
+import type {
+  ChatAttachment,
+  Entry,
+  EntryVersionRef,
+  Order,
+  Status,
+  Version,
+} from "./demo"
 import {
   defaultTeamRoles,
   type PermissionKey,
@@ -22,7 +29,13 @@ export type ClientDirectoryEntry = {
 }
 
 export type SupabaseSnapshot = {
-  account: { id: string; name: string; email: string; company: string }
+  account: {
+    id: string
+    name: string
+    email: string
+    company: string
+    avatarUrl?: string
+  }
   teamMemberId: string | null
   teamRoles: TeamRoleConfig[]
   teamMembers: TeamMember[]
@@ -127,6 +140,7 @@ export async function fetchAuthenticatedSnapshot(
       "User",
     email: profile?.email || fallbackEmail,
     company: profile?.company || "",
+    avatarUrl: profile?.avatar_url ?? undefined,
   }
 
   // 2. Load RBAC roles, permissions & team members if team user
@@ -270,29 +284,51 @@ export async function fetchAuthenticatedSnapshot(
     }
   }
 
-  // 5. Load messages, versions & notifications for accessible orders
+  // 5. Load messages, attachments, versions & notifications for accessible orders
   const orderIds = rawOrders.map((o) => o.id)
   if (orderIds.length > 0) {
-    const [{ data: msgRows }, { data: verRows }] = await Promise.all([
-      sb
-        .from("order_messages")
-        .select("*")
-        .in("order_id", orderIds)
-        .order("created_at", { ascending: true }),
-      sb
-        .from("video_versions")
-        .select("*")
-        .in("order_id", orderIds)
-        .order("created_at", { ascending: true }),
-    ])
+    const [{ data: msgRows }, { data: attRows }, { data: verRows }] =
+      await Promise.all([
+        sb
+          .from("order_messages")
+          .select("*")
+          .in("order_id", orderIds)
+          .order("created_at", { ascending: true }),
+        sb
+          .from("order_attachments")
+          .select("*")
+          .in("order_id", orderIds)
+          .eq("status", "ready")
+          .order("created_at", { ascending: true }),
+        sb
+          .from("video_versions")
+          .select("*")
+          .in("order_id", orderIds)
+          .order("created_at", { ascending: true }),
+      ])
+
+    const attachmentsByMsg = new Map<string, ChatAttachment[]>()
+    for (const a of attRows ?? []) {
+      if (!a.message_id) continue
+      const list = attachmentsByMsg.get(a.message_id) ?? []
+      list.push({
+        fileId: a.r2_key.startsWith("local:") ? a.r2_key.slice(6) : a.r2_key,
+        name: a.file_name,
+        type: a.mime_type || undefined,
+        size: a.size_bytes || undefined,
+      })
+      attachmentsByMsg.set(a.message_id, list)
+    }
 
     const messagesByOrder = new Map<string, Entry[]>()
     for (const m of msgRows ?? []) {
       const list = messagesByOrder.get(m.order_id) ?? []
+      const atts = attachmentsByMsg.get(m.id)
       list.push({
         id: m.id,
         side: m.sender_side,
         text: m.body,
+        attachments: atts?.length ? atts : undefined,
         versionRef: parseVersionRef(m.metadata),
       })
       messagesByOrder.set(m.order_id, list)
@@ -301,12 +337,17 @@ export async function fetchAuthenticatedSnapshot(
     const versionsByOrder = new Map<string, Version[]>()
     for (const v of verRows ?? []) {
       const list = versionsByOrder.get(v.order_id) ?? []
+      const resolvedFileId = v.r2_key?.startsWith("sb:")
+        ? v.r2_key
+        : v.r2_key?.startsWith("local:")
+          ? v.r2_key.slice(6)
+          : undefined
       list.push({
         id: v.version_code,
         type: v.version_type,
         note: v.notes,
         file: v.file_name || undefined,
-        fileId: v.r2_key?.startsWith("local:") ? v.r2_key.slice(6) : undefined,
+        fileId: resolvedFileId,
       })
       versionsByOrder.set(v.order_id, list)
     }
@@ -440,16 +481,36 @@ export async function insertMessageInDb(
   userId: string,
   side: "client" | "studio",
   body: string,
-  versionRef?: EntryVersionRef
+  versionRef?: EntryVersionRef,
+  attachments?: ChatAttachment[]
 ) {
-  const { error } = await sb.from("order_messages").insert({
-    order_id: orderId,
-    sender_user_id: userId,
-    sender_side: side,
-    body,
-    metadata: versionRef ? { versionRef } : {},
-  })
+  const { data: msgRow, error } = await sb
+    .from("order_messages")
+    .insert({
+      order_id: orderId,
+      sender_user_id: userId,
+      sender_side: side,
+      body,
+      metadata: versionRef ? { versionRef } : {},
+    })
+    .select("id")
+    .single()
   if (error) throw error
+
+  if (attachments?.length && msgRow?.id) {
+    const rows = attachments.map((att) => ({
+      order_id: orderId,
+      message_id: msgRow.id,
+      uploader_user_id: userId,
+      r2_key: att.fileId.startsWith("sb:") ? att.fileId : `local:${att.fileId}`,
+      file_name: att.name,
+      mime_type: att.type || "application/octet-stream",
+      size_bytes: att.size ?? 0,
+      status: "ready" as const,
+    }))
+    const { error: attErr } = await sb.from("order_attachments").insert(rows)
+    if (attErr) throw attErr
+  }
 }
 
 export async function insertVersionInDb(
@@ -458,11 +519,16 @@ export async function insertVersionInDb(
   userId: string,
   version: Version
 ) {
+  const r2Key = version.fileId
+    ? version.fileId.startsWith("sb:")
+      ? version.fileId
+      : `local:${version.fileId}`
+    : `sample:${version.id}`
   const { error } = await sb.from("video_versions").insert({
     order_id: orderId,
     version_code: version.id,
     version_type: version.type,
-    r2_key: version.fileId ? `local:${version.fileId}` : `sample:${version.id}`,
+    r2_key: r2Key,
     file_name: version.file ?? `${orderId}-${version.id}.mp4`,
     notes: version.note,
     uploaded_by: userId,
@@ -582,6 +648,16 @@ export function subscribeWorkspaceRealtime(sb: SbClient, onChange: () => void) {
     .on(
       "postgres_changes",
       { event: "INSERT", schema: "public", table: "order_messages" },
+      onChange
+    )
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "order_attachments" },
+      onChange
+    )
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "video_versions" },
       onChange
     )
     .on(

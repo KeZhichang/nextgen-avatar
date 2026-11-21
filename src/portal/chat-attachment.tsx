@@ -21,7 +21,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { usePortal, type ChatAttachment } from "./demo"
-import { downloadFile, getFile } from "./files"
+import { downloadFile, downloadOrderFile, resolveFileSource } from "./files"
 import { PortalVideo } from "./video"
 
 export function ChatAttachmentCard({
@@ -41,34 +41,69 @@ export function ChatAttachmentCard({
   compact?: boolean
 }) {
   const { t } = usePortal()
-  const [source, setSource] = useState<{ file: File; url: string } | null>()
+  const [source, setSource] = useState<{
+    url: string
+    blob?: Blob
+    mimeType?: string
+  } | null>()
   const fileId = attachment?.fileId
 
   useEffect(() => {
     let active = true
-    let url: string | undefined
-    const load = file ? Promise.resolve(file) : getFile(fileId!)
+    let revokeFn: (() => void) | undefined
+
+    const load = file
+      ? Promise.resolve().then(() => {
+          const url = URL.createObjectURL(file)
+          return {
+            url,
+            blob: file as Blob,
+            mimeType: file.type,
+            revoke: () => URL.revokeObjectURL(url),
+          }
+        })
+      : fileId
+        ? resolveFileSource(fileId).then((result) =>
+            result
+              ? {
+                  url: result.url,
+                  blob: result.blob,
+                  mimeType: result.blob?.type,
+                  revoke: result.revoke,
+                }
+              : null
+          )
+        : Promise.resolve(null)
+
     load
       .then((result) => {
-        if (!active) return
+        if (!active) {
+          result?.revoke?.()
+          return
+        }
         if (!result) {
           setSource(null)
           return
         }
-        url = URL.createObjectURL(result)
-        setSource({ file: result, url })
+        revokeFn = result.revoke
+        setSource({
+          url: result.url,
+          blob: result.blob,
+          mimeType: result.mimeType,
+        })
       })
       .catch(() => {
         if (active) setSource(null)
       })
+
     return () => {
       active = false
-      if (url) URL.revokeObjectURL(url)
+      revokeFn?.()
     }
   }, [file, fileId])
 
   const name = file?.name ?? attachment!.name
-  const type = file?.type || attachment?.type || source?.file.type || ""
+  const type = file?.type || attachment?.type || source?.mimeType || ""
   const isImage = type.startsWith("image/")
   const isVideo = type.startsWith("video/")
   const visual = isImage || isVideo
@@ -167,7 +202,15 @@ export function ChatAttachmentCard({
                 aria-label={downloadLabel}
                 disabled={!source}
                 onClick={() => {
-                  if (source) downloadFile(source.file, name)
+                  if (file) {
+                    downloadFile(file, name)
+                  } else if (attachment) {
+                    void downloadOrderFile(
+                      attachment.fileId,
+                      source?.url ?? "",
+                      name
+                    )
+                  }
                 }}
               >
                 <Download aria-hidden="true" />

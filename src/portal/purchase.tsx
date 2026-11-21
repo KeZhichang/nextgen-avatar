@@ -53,6 +53,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
+import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckoutPayment } from "./checkout-payment"
 import {
@@ -79,6 +80,7 @@ export function AuthPage() {
     update,
     data,
     isLiveSupabase,
+    authLoading,
     authUser,
     signInClient,
     signUpClient,
@@ -119,6 +121,14 @@ export function AuthPage() {
     return (
       href(checkout ? "checkout" : "workspace") +
       (checkout && next.size ? "?" + next.toString() : "")
+    )
+  }
+
+  if (isLiveSupabase && authLoading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-background">
+        <Spinner className="size-6 text-primary" />
+      </div>
     )
   }
 

@@ -70,6 +70,7 @@ export type ChatAttachment = {
   fileId: string
   name: string
   type?: string
+  size?: number
 }
 
 export type EntryVersionRef = {
@@ -155,7 +156,7 @@ type DemoState = {
   orders: Order[]
   role: Role
   unread: boolean
-  account: { name: string; email: string; company: string }
+  account: { name: string; email: string; company: string; avatarUrl?: string }
   addons: Addon[]
   teamRoles: TeamRoleConfig[]
   teamMembers: TeamMember[]
@@ -481,6 +482,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
             name: snapshot.account.name,
             email: snapshot.account.email,
             company: snapshot.account.company,
+            avatarUrl: snapshot.account.avatarUrl,
           },
           orders: snapshot.orders,
           teamRoles: snapshot.teamRoles,
@@ -875,11 +877,15 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     const user = authUserRef.current
     if (!sb || !user) return true
     try {
-      const attachmentText =
-        !text && attachments?.length
-          ? `[${attachments.map((a) => a.name).join(", ")}]`
-          : text
-      await insertMessageInDb(sb, orderId, user.id, side, attachmentText)
+      await insertMessageInDb(
+        sb,
+        orderId,
+        user.id,
+        side,
+        text,
+        undefined,
+        attachments
+      )
       if (shouldAdvance) {
         await updateOrderInDb(sb, orderId, { status: "producing" })
       }

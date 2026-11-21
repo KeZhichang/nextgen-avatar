@@ -75,7 +75,7 @@ import {
   usePortal,
   type Order,
 } from "./demo"
-import { downloadFile, getFile } from "./files"
+import { downloadFile, downloadOrderFile } from "./files"
 import { ActionLink, StatusBadge } from "./layout"
 import { EditableOrderTitle } from "./production"
 import { WorkbenchLayout } from "./workbench-layout"
@@ -201,7 +201,7 @@ export function ClientConsoleShell() {
       account={{
         name: data.account.name || data.account.email || "Client",
         detail: data.account.company || data.account.email,
-        image: clientImage,
+        image: data.account.avatarUrl || clientImage,
       }}
       onSignOut={
         isLiveSupabase
@@ -372,15 +372,13 @@ export function WorkspacePage() {
 
   async function getDelivery(value: Order) {
     const version = value.versions.findLast((item) => item.type === "final")
-    if (!version?.fileId) {
-      downloadFile(sampleVideo, `${value.id}.mp4`)
-      toast.success(t("开始下载成片", "Downloading final video"))
-      return
-    }
     try {
-      const file = await getFile(version.fileId)
-      if (!file) throw new Error("File unavailable")
-      downloadFile(file, file.name)
+      await downloadOrderFile(
+        version?.fileId,
+        sampleVideo,
+        version?.file ?? `${value.id}.mp4`
+      )
+      toast.success(t("开始下载成片", "Downloading final video"))
     } catch {
       toast.error(
         t(

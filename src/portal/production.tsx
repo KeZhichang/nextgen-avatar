@@ -107,7 +107,13 @@ import {
   type Order,
   type Version,
 } from "./demo"
-import { downloadFile, getFile, saveFile } from "./files"
+import {
+  downloadFile,
+  downloadOrderFile,
+  fetchFileBytes,
+  resolveFileSource,
+  uploadOrderFiles,
+} from "./files"
 import { ActionLink, FadeTransition, PageWidth, StatusBadge } from "./layout"
 import { TeamConsoleLayout } from "./team-console"
 import { PortalVideo } from "./video"
@@ -497,7 +503,7 @@ function ChatPanel({
           </MessageScrollerButton>
         </MessageScroller>
       </MessageScrollerProvider>
-      <ChatComposer side={side} onSend={send} />
+      <ChatComposer orderId={order.id} side={side} onSend={send} />
     </section>
   )
 }
@@ -511,7 +517,7 @@ function VideoPlayer({
   label: string
   active: boolean
 }) {
-  const [localSrc, setLocalSrc] = useState("")
+  const [resolvedSrc, setResolvedSrc] = useState("")
   const player = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!active) player.current?.querySelector("video")?.pause()
@@ -519,18 +525,22 @@ function VideoPlayer({
   useEffect(() => {
     if (!version.fileId) return
     let mounted = true
-    let url = ""
-    getFile(version.fileId)
-      .then((file) => {
-        if (file && mounted) {
-          url = URL.createObjectURL(file)
-          setLocalSrc(url)
+    let revokeFn: (() => void) | undefined
+    resolveFileSource(version.fileId)
+      .then((res) => {
+        if (!mounted) {
+          res?.revoke?.()
+          return
+        }
+        if (res) {
+          revokeFn = res.revoke
+          setResolvedSrc(res.url)
         }
       })
       .catch(() => undefined)
     return () => {
       mounted = false
-      if (url) URL.revokeObjectURL(url)
+      revokeFn?.()
     }
   }, [version.fileId])
   return (
@@ -540,7 +550,7 @@ function VideoPlayer({
     >
       <PortalVideo
         poster={coverImage}
-        src={version.fileId ? localSrc || undefined : sampleVideo}
+        src={version.fileId ? resolvedSrc || undefined : sampleVideo}
         label={label}
       />
       <Badge
@@ -625,10 +635,9 @@ function ReviewPanel({
   async function download() {
     if (!selected) return
     try {
-      const file = selected.fileId ? await getFile(selected.fileId) : undefined
-      if (selected.fileId && !file) throw new Error("Missing delivery")
-      downloadFile(
-        file ?? sampleVideo,
+      await downloadOrderFile(
+        selected.fileId,
+        sampleVideo,
         selected.file ?? `${order.id}-final.mp4`
       )
       toast.success(t("开始下载无水印成片", "Downloading final video"))
@@ -1251,7 +1260,10 @@ export function StudioWorkspacePage() {
       return
     setBusy(true)
     try {
-      const fileId = file ? await saveFile(file) : undefined
+      const uploaded = file
+        ? (await uploadOrderFiles(order.id, "videos", [file]))[0]
+        : undefined
+      const fileId = uploaded?.fileId
       const version: Version = {
         id:
           effectiveKind === "final"
@@ -1259,7 +1271,7 @@ export function StudioWorkspacePage() {
             : `v${order.versions.filter((item) => item.type === "preview").length + 1}`,
         type: effectiveKind,
         note: note.trim(),
-        file: file?.name,
+        file: uploaded?.name ?? file?.name,
         fileId,
       }
       const messageText =
@@ -1316,13 +1328,13 @@ export function StudioWorkspacePage() {
         Object.assign(content, Object.fromEntries(samples))
       }
       for (const attachment of attachments) {
-        const stored = await getFile(attachment.fileId)
-        if (!stored) continue
+        const bytes = await fetchFileBytes(attachment.fileId)
+        if (!bytes) continue
         const cleanName = attachment.name.replace(/[/\\]/g, "_")
         const uniqueName = Object.hasOwn(content, cleanName)
-          ? `${attachment.fileId.slice(0, 8)}-${cleanName}`
+          ? `${attachment.fileId.slice(-8)}-${cleanName}`
           : cleanName
-        content[uniqueName] = new Uint8Array(await stored.arrayBuffer())
+        content[uniqueName] = bytes
       }
       const result = await new Promise<Uint8Array<ArrayBuffer>>(
         (resolve, reject) =>

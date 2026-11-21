@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/tooltip"
 import { ChatAttachmentCard } from "./chat-attachment"
 import { usePortal, type ChatAttachment, type Entry } from "./demo"
-import { saveFiles } from "./files"
+import { uploadOrderFiles } from "./files"
 
 const allFileTypes =
   "image/*,video/*,audio/*,.txt,.doc,.docx,.pdf,.TXT,.DOC,.DOCX,.PDF"
@@ -83,9 +83,11 @@ const uploadCategories: UploadCategory[] = [
 ]
 
 export function ChatComposer({
+  orderId,
   side,
   onSend,
 }: {
+  orderId: string
   side: Entry["side"]
   onSend: (message: string, attachments?: ChatAttachment[]) => void
 }) {
@@ -129,14 +131,15 @@ export function ChatComposer({
     setBusy(true)
     setFailed(false)
     try {
-      const ids = await saveFiles(files)
+      const uploaded = await uploadOrderFiles(orderId, "attachments", files)
       onSend(
         text,
-        files.length
-          ? files.map((file, index) => ({
-              fileId: ids[index],
-              name: file.name,
-              type: file.type,
+        uploaded.length
+          ? uploaded.map((item) => ({
+              fileId: item.fileId,
+              name: item.name,
+              type: item.type,
+              size: item.size,
             }))
           : undefined
       )
