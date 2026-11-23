@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
+import type { User } from "@supabase/supabase-js"
 import { useTranslation } from "react-i18next"
 import { useParams } from "react-router"
 
@@ -57,6 +58,58 @@ export type { ClientDirectoryEntry } from "./supabase-sync"
 
 export const sampleOrder = "NGA-20261108"
 const storageKey = "nextgen-avatar-demo-v1"
+const hideSampleData =
+  (import.meta.env.VITE_HIDE_SAMPLE_DATA as string | undefined)
+    ?.trim()
+    .toLowerCase() === "true"
+
+export type AuthUser = {
+  id: string
+  email: string
+  fullName?: string
+  avatarUrl?: string
+}
+
+function readStringField(
+  record: Record<string, unknown> | undefined,
+  keys: string[]
+): string | undefined {
+  if (!record) return undefined
+  for (const key of keys) {
+    const value = record[key]
+    if (typeof value === "string" && value.trim()) {
+      return value.trim()
+    }
+  }
+  return undefined
+}
+
+function mapSupabaseUser(user: User, fallbackEmail = ""): AuthUser {
+  const meta = user.user_metadata as Record<string, unknown> | undefined
+  const googleIdentity = user.identities?.find(
+    (item) => item.provider === "google"
+  )?.identity_data as Record<string, unknown> | undefined
+  const firstIdentity = user.identities?.[0]?.identity_data as
+    | Record<string, unknown>
+    | undefined
+
+  const fullName =
+    readStringField(meta, ["full_name", "name", "user_name"]) ??
+    readStringField(googleIdentity, ["full_name", "name"]) ??
+    readStringField(firstIdentity, ["full_name", "name"])
+
+  const avatarUrl =
+    readStringField(meta, ["avatar_url", "picture"]) ??
+    readStringField(googleIdentity, ["avatar_url", "picture"]) ??
+    readStringField(firstIdentity, ["avatar_url", "picture"])
+
+  return {
+    id: user.id,
+    email: user.email ?? fallbackEmail,
+    fullName,
+    avatarUrl,
+  }
+}
 
 export type Status =
   | "waiting_assets"
@@ -110,6 +163,7 @@ export type Order = {
   entries: Entry[]
   versions: Version[]
   revision?: string
+  demo?: boolean
 }
 
 function order(
@@ -325,12 +379,60 @@ function restore(): DemoState {
   return initialDemo
 }
 
+function buildDemoOrdersForAccount(
+  accountName: string,
+  includeTeamSamples: boolean
+): Order[] {
+  const displayClient = accountName.trim() || "Client"
+  const source = includeTeamSamples
+    ? initialDemo.orders
+    : initialDemo.orders.filter((item) => item.client === "Sarah Lin")
+
+  return source.map((item) => ({
+    ...item,
+    client: item.client === "Sarah Lin" ? displayClient : item.client,
+    entries: item.entries.map((entry) => ({ ...entry })),
+    versions: item.versions.map((ver) => ({ ...ver })),
+    demo: true,
+  }))
+}
+
+function mergeWithSampleOrders(
+  realOrders: Order[],
+  existingOrders: Order[],
+  accountName: string,
+  includeTeamSamples: boolean
+): Order[] {
+  if (hideSampleData) return realOrders
+  const realIds = new Set(realOrders.map((item) => item.id))
+  const existingDemosById = new Map(
+    existingOrders.filter((item) => item.demo).map((item) => [item.id, item])
+  )
+  const displayClient = accountName.trim() || "Client"
+  const defaults = buildDemoOrdersForAccount(displayClient, includeTeamSamples)
+  const demoOrders = defaults
+    .filter((item) => !realIds.has(item.id))
+    .map((item) => {
+      const existing = existingDemosById.get(item.id)
+      if (!existing) return item
+      const isOwnSample = initialDemo.orders.some(
+        (preset) => preset.id === item.id && preset.client === "Sarah Lin"
+      )
+      return {
+        ...existing,
+        client: isOwnSample ? displayClient : existing.client,
+        demo: true,
+      }
+    })
+  return [...realOrders, ...demoOrders]
+}
+
 export type AuthResult = { ok: true } | { ok: false; reason: string }
 
 type DemoContextValue = {
   isLiveSupabase: boolean
   authLoading: boolean
-  authUser: { id: string; email: string } | null
+  authUser: AuthUser | null
   data: DemoState
   update: (fn: (current: DemoState) => DemoState) => void
   updateOrder: (id: string, fn: (value: Order) => Order) => void
@@ -418,12 +520,15 @@ const DemoContext = createContext<DemoContextValue | null>(null)
 export function DemoProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<DemoState>(restore)
   const [authLoading, setAuthLoading] = useState(supabaseConfigured)
-  const [authUser, setAuthUser] = useState<{
-    id: string
-    email: string
-  } | null>(null)
-  const authUserRef = useRef<{ id: string; email: string } | null>(null)
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null)
+  const authUserRef = useRef<AuthUser | null>(null)
   const dataRef = useRef(data)
+
+  function isDemoOrder(orderId: string): boolean {
+    return Boolean(
+      dataRef.current.orders.find((item) => item.id === orderId)?.demo
+    )
+  }
 
   useEffect(() => {
     dataRef.current = data
@@ -453,24 +558,33 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const loadSnapshotForUser = useCallback(
-    async (user: { id: string; email: string } | null) => {
-      const sb = getSupabaseClient()
-      if (!sb) return
-      if (!user) {
-        setData((current) => ({
-          ...initialLive,
-          plans: current.plans,
-          addons: current.addons,
-        }))
-        return
-      }
-      try {
-        const [catalog, snapshot] = await Promise.all([
-          fetchPublicCatalog(sb).catch(() => null),
-          fetchAuthenticatedSnapshot(sb, user.id, user.email),
-        ])
-        setData((current) => ({
+  const loadSnapshotForUser = useCallback(async (user: AuthUser | null) => {
+    const sb = getSupabaseClient()
+    if (!sb) return
+    if (!user) {
+      setData((current) => ({
+        ...initialLive,
+        plans: current.plans,
+        addons: current.addons,
+      }))
+      return
+    }
+    try {
+      const [catalog, snapshot] = await Promise.all([
+        fetchPublicCatalog(sb).catch(() => null),
+        fetchAuthenticatedSnapshot(sb, user.id, user.email, {
+          fullName: user.fullName,
+          avatarUrl: user.avatarUrl,
+        }),
+      ])
+      setData((current) => {
+        const mergedOrders = mergeWithSampleOrders(
+          snapshot.orders,
+          current.orders,
+          snapshot.account.name,
+          Boolean(snapshot.teamMemberId)
+        )
+        return {
           ...current,
           plans:
             catalog && catalog.plans.length > 0 ? catalog.plans : current.plans,
@@ -484,7 +598,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
             company: snapshot.account.company,
             avatarUrl: snapshot.account.avatarUrl,
           },
-          orders: snapshot.orders,
+          orders: mergedOrders,
           teamRoles: snapshot.teamRoles,
           teamMembers: snapshot.teamMembers,
           teamSession: snapshot.teamMemberId,
@@ -494,14 +608,16 @@ export function DemoProvider({ children }: { children: ReactNode }) {
               ? "admin"
               : "producer",
           clients: snapshot.clients,
-          unread: snapshot.unread,
-        }))
-      } catch {
-        // Ignore transient sync errors; user can retry or refresh
-      }
-    },
-    []
-  )
+          unread:
+            snapshot.unread ||
+            (!hideSampleData &&
+              mergedOrders.some((item) => item.demo && item.status === "waiting_confirm")),
+        }
+      })
+    } catch {
+      // Ignore transient sync errors; user can retry or refresh
+    }
+  }, [])
 
   const refreshFromSupabase = useCallback(async () => {
     await loadSnapshotForUser(authUserRef.current)
@@ -528,7 +644,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     void sb.auth.getSession().then(async ({ data: sessionData }) => {
       if (!active) return
       const user = sessionData.session?.user
-      const mapped = user ? { id: user.id, email: user.email ?? "" } : null
+      const mapped = user ? mapSupabaseUser(user) : null
       authUserRef.current = mapped
       setAuthUser(mapped)
       if (mapped) {
@@ -539,7 +655,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
 
     const { data: listener } = sb.auth.onAuthStateChange((_event, session) => {
       const user = session?.user
-      const mapped = user ? { id: user.id, email: user.email ?? "" } : null
+      const mapped = user ? mapSupabaseUser(user) : null
       authUserRef.current = mapped
       setAuthUser(mapped)
       void loadSnapshotForUser(mapped)
@@ -655,7 +771,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     if (error || !res.user) {
       return { ok: false, reason: "invalid_credentials" }
     }
-    const mapped = { id: res.user.id, email: res.user.email ?? email.trim() }
+    const mapped = mapSupabaseUser(res.user, email.trim())
     authUserRef.current = mapped
     setAuthUser(mapped)
     await loadSnapshotForUser(mapped)
@@ -680,7 +796,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       return { ok: false, reason: error.message }
     }
     if (res.session && res.user) {
-      const mapped = { id: res.user.id, email: res.user.email ?? email.trim() }
+      const mapped = mapSupabaseUser(res.user, email.trim())
       authUserRef.current = mapped
       setAuthUser(mapped)
       await loadSnapshotForUser(mapped)
@@ -742,7 +858,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       return { ok: false, reason: "account_disabled" }
     }
 
-    const mapped = { id: res.user.id, email: res.user.email ?? email.trim() }
+    const mapped = mapSupabaseUser(res.user, email.trim())
     authUserRef.current = mapped
     setAuthUser(mapped)
     await loadSnapshotForUser(mapped)
@@ -783,7 +899,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   }) {
     setData((current) => ({
       ...current,
-      account: profile,
+      account: {
+        ...profile,
+        avatarUrl: current.account.avatarUrl,
+      },
       orders: current.orders.map((value) =>
         value.client === current.account.name
           ? { ...value, client: profile.name }
@@ -805,9 +924,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   }
 
   async function renameOrder(orderId: string, title: string) {
+    const demoOnly = isDemoOrder(orderId)
     updateOrder(orderId, (value) => ({ ...value, zh: title, en: title }))
     const sb = getSupabaseClient()
-    if (!sb) return true
+    if (!sb || demoOnly) return true
     try {
       await updateOrderInDb(sb, orderId, { title_zh: title, title_en: title })
       return true
@@ -818,10 +938,11 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   }
 
   async function assignOrderOwner(orderId: string, ownerName: string) {
+    const demoOnly = isDemoOrder(orderId)
     const nextOwner = ownerName === "unassigned" ? "" : ownerName
     updateOrder(orderId, (value) => ({ ...value, owner: nextOwner }))
     const sb = getSupabaseClient()
-    if (!sb) return true
+    if (!sb || demoOnly) return true
     const matchedMember = dataRef.current.teamMembers.find(
       (m) => m.name === nextOwner
     )
@@ -837,12 +958,13 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   }
 
   async function startOrderProduction(orderId: string, messageText: string) {
+    const demoOnly = isDemoOrder(orderId)
     updateOrder(orderId, (value) =>
       appendEntry({ ...value, status: "producing" }, "studio", messageText)
     )
     const sb = getSupabaseClient()
     const user = authUserRef.current
-    if (!sb || !user) return true
+    if (!sb || !user || demoOnly) return true
     try {
       await updateOrderInDb(sb, orderId, { status: "producing" })
       await insertMessageInDb(sb, orderId, user.id, "studio", messageText)
@@ -860,6 +982,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     attachments?: ChatAttachment[]
   ) {
     const target = dataRef.current.orders.find((o) => o.id === orderId)
+    const demoOnly = Boolean(target?.demo)
     const shouldAdvance = Boolean(
       side === "client" &&
       attachments?.length &&
@@ -875,7 +998,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     )
     const sb = getSupabaseClient()
     const user = authUserRef.current
-    if (!sb || !user) return true
+    if (!sb || !user || demoOnly) return true
     try {
       await insertMessageInDb(
         sb,
@@ -901,6 +1024,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     version: Version,
     messageText: string
   ) {
+    const demoOnly = isDemoOrder(orderId)
     const nextStatus: Status =
       version.type === "final" ? "completed" : "waiting_confirm"
     const versionRef: EntryVersionRef = {
@@ -926,7 +1050,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
 
     const sb = getSupabaseClient()
     const user = authUserRef.current
-    if (!sb || !user) return true
+    if (!sb || !user || demoOnly) return true
     try {
       await insertVersionInDb(sb, orderId, user.id, version)
       await updateOrderInDb(sb, orderId, {
@@ -955,6 +1079,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     messageText: string,
     revisionNote?: string
   ) {
+    const demoOnly = isDemoOrder(orderId)
     const nextStatus: Status = action === "approve" ? "approved" : "revision"
     updateOrder(orderId, (value) =>
       appendEntry(
@@ -973,7 +1098,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
 
     const sb = getSupabaseClient()
     const user = authUserRef.current
-    if (!sb || !user) return true
+    if (!sb || !user || demoOnly) return true
     try {
       await updateOrderInDb(sb, orderId, {
         status: nextStatus,

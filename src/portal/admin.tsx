@@ -2017,7 +2017,11 @@ export function AdminSettingsPage() {
                       >
                         <div className="flex min-w-0 items-center gap-3">
                           <Avatar className="size-9 shrink-0">
-                            <AvatarImage src={meta?.avatar} alt="" />
+                            <AvatarImage
+                              src={meta?.avatar}
+                              alt=""
+                              referrerPolicy="no-referrer"
+                            />
                             <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
                               {name.slice(0, 2)}
                             </AvatarFallback>

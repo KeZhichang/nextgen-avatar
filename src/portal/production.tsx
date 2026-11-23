@@ -236,7 +236,11 @@ function ChatPanel({
   compactHeader?: boolean
 }) {
   const { t, zh } = usePortal()
-  const { sendChatMessage } = useDemo()
+  const { data, sendChatMessage } = useDemo()
+  const clientAvatar =
+    order.client === data.account.name && data.account.avatarUrl
+      ? data.account.avatarUrl
+      : clientImage
   const sample: Entry[] =
     order.id === sampleOrder
       ? [
@@ -381,8 +385,9 @@ function ChatPanel({
                       <MessageAvatar className="self-start">
                         <Avatar className="size-8">
                           <AvatarImage
-                            src={client ? clientImage : studioImage}
+                            src={client ? clientAvatar : studioImage}
                             alt=""
+                            referrerPolicy="no-referrer"
                           />
                           <AvatarFallback>{sender.slice(0, 1)}</AvatarFallback>
                         </Avatar>
@@ -503,7 +508,12 @@ function ChatPanel({
           </MessageScrollerButton>
         </MessageScroller>
       </MessageScrollerProvider>
-      <ChatComposer orderId={order.id} side={side} onSend={send} />
+      <ChatComposer
+        orderId={order.id}
+        side={side}
+        localOnly={Boolean(order.demo)}
+        onSend={send}
+      />
     </section>
   )
 }
@@ -1261,7 +1271,11 @@ export function StudioWorkspacePage() {
     setBusy(true)
     try {
       const uploaded = file
-        ? (await uploadOrderFiles(order.id, "videos", [file]))[0]
+        ? (
+            await uploadOrderFiles(order.id, "videos", [file], {
+              localOnly: Boolean(order.demo),
+            })
+          )[0]
         : undefined
       const fileId = uploaded?.fileId
       const version: Version = {

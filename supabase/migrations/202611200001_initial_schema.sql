@@ -156,7 +156,10 @@ begin
     new.id,
     coalesce(new.email, ''),
     v_name,
-    new.raw_user_meta_data ->> 'avatar_url',
+    coalesce(
+      nullif(trim(new.raw_user_meta_data ->> 'avatar_url'), ''),
+      nullif(trim(new.raw_user_meta_data ->> 'picture'), '')
+    ),
     v_locale
   )
   on conflict (id) do update

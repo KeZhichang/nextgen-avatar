@@ -183,7 +183,11 @@ function WorkbenchSidebar({
                   className="h-auto py-2 data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground"
                 >
                   <Avatar className="size-8 rounded-lg">
-                    <AvatarImage src={account.image} alt="" />
+                    <AvatarImage
+                      src={account.image}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                    />
                     <AvatarFallback className="rounded-lg">
                       {account.name.slice(0, 1)}
                     </AvatarFallback>

@@ -93,10 +93,11 @@ export async function getFile(id: string) {
 export async function uploadOrderFiles(
   orderId: string,
   folder: "attachments" | "videos",
-  files: File[]
+  files: File[],
+  options?: { localOnly?: boolean }
 ): Promise<UploadedFileRecord[]> {
   if (!files.length) return []
-  const sb = getSupabaseClient()
+  const sb = options?.localOnly ? null : getSupabaseClient()
   if (!sb) {
     const ids = await saveFiles(files)
     return files.map((file, index) => ({

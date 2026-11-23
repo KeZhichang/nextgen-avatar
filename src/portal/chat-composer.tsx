@@ -85,10 +85,12 @@ const uploadCategories: UploadCategory[] = [
 export function ChatComposer({
   orderId,
   side,
+  localOnly = false,
   onSend,
 }: {
   orderId: string
   side: Entry["side"]
+  localOnly?: boolean
   onSend: (message: string, attachments?: ChatAttachment[]) => void
 }) {
   const { t } = usePortal()
@@ -131,7 +133,9 @@ export function ChatComposer({
     setBusy(true)
     setFailed(false)
     try {
-      const uploaded = await uploadOrderFiles(orderId, "attachments", files)
+      const uploaded = await uploadOrderFiles(orderId, "attachments", files, {
+        localOnly,
+      })
       onSend(
         text,
         uploaded.length

@@ -116,7 +116,8 @@ export async function fetchPublicCatalog(sb: SbClient): Promise<{
 export async function fetchAuthenticatedSnapshot(
   sb: SbClient,
   userId: string,
-  fallbackEmail: string
+  fallbackEmail: string,
+  authMeta?: { fullName?: string; avatarUrl?: string }
 ): Promise<SupabaseSnapshot> {
   // 1. Load own profile & own team_members row
   const [{ data: profile }, { data: selfMemberRows }] = await Promise.all([
@@ -130,17 +131,38 @@ export async function fetchAuthenticatedSnapshot(
 
   const selfMember = selfMemberRows?.[0] ?? null
   const isTeam = Boolean(selfMember)
+  const resolvedEmail = profile?.email || fallbackEmail
+  const emailPrefix = resolvedEmail.split("@")[0] || ""
+  const dbName = profile?.full_name?.trim() || ""
+  const metaName = authMeta?.fullName?.trim() || ""
+  const metaAvatar = authMeta?.avatarUrl?.trim() || ""
+  const dbAvatar = profile?.avatar_url?.trim() || ""
+
+  const shouldSyncName = Boolean(metaName && (!dbName || dbName === emailPrefix))
+  const shouldSyncAvatar = Boolean(metaAvatar && !dbAvatar)
+
+  if (profile && (shouldSyncName || shouldSyncAvatar)) {
+    const patch: Database["public"]["Tables"]["profiles"]["Update"] = {}
+    if (shouldSyncName) patch.full_name = metaName
+    if (shouldSyncAvatar) patch.avatar_url = metaAvatar
+    void sb
+      .from("profiles")
+      .update(patch)
+      .eq("id", userId)
+      .then(() => undefined)
+  }
 
   const account = {
     id: userId,
     name:
-      profile?.full_name?.trim() ||
+      (shouldSyncName ? metaName : dbName) ||
+      metaName ||
       selfMember?.name ||
-      fallbackEmail.split("@")[0] ||
+      emailPrefix ||
       "User",
-    email: profile?.email || fallbackEmail,
+    email: resolvedEmail,
     company: profile?.company || "",
-    avatarUrl: profile?.avatar_url ?? undefined,
+    avatarUrl: dbAvatar || metaAvatar || undefined,
   }
 
   // 2. Load RBAC roles, permissions & team members if team user

@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -314,6 +315,120 @@ export function ClientConsoleShell() {
   )
 }
 
+function ProfileSettingsCard({
+  account,
+  title,
+  onSave,
+}: {
+  account: { name: string; email: string; company: string; avatarUrl?: string }
+  title: string
+  onSave: (profile: {
+    name: string
+    email: string
+    company: string
+  }) => Promise<boolean>
+}) {
+  const { t, href } = usePortal()
+  const [name, setName] = useState(account.name)
+  const [email, setEmail] = useState(account.email)
+  const [company, setCompany] = useState(account.company)
+
+  async function saveProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const ok = await onSave({
+      name: name.trim(),
+      email: email.trim(),
+      company: company.trim(),
+    })
+    if (ok) {
+      toast.success(t("个人设置已保存", "Profile settings saved"))
+    } else {
+      toast.error(
+        t("保存失败，请稍后重试。", "Could not save profile. Please try again.")
+      )
+    }
+  }
+
+  return (
+    <Card className="max-w-2xl shadow-xs">
+      <CardHeader>
+        <div className="flex items-center gap-3.5">
+          <Avatar className="size-12 rounded-xl border">
+            <AvatarImage
+              src={account.avatarUrl || clientImage}
+              alt=""
+              referrerPolicy="no-referrer"
+            />
+            <AvatarFallback className="rounded-xl text-sm font-semibold">
+              {(account.name || account.email || "U").slice(0, 1).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <CardTitle>
+              <h1>{title}</h1>
+            </CardTitle>
+            <CardDescription className="mt-1">
+              {t(
+                "更新个人与公司资料，或直接复用当前人物档案下单。",
+                "Update your account details or reuse your presenter profile for a new order."
+              )}
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <form onSubmit={(event) => void saveProfile(event)}>
+        <CardContent>
+          <FieldGroup className="max-w-md gap-4">
+            <Field>
+              <FieldLabel htmlFor="profile-name">
+                {t("姓名", "Name")}
+              </FieldLabel>
+              <Input
+                id="profile-name"
+                className="h-9"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="profile-email">
+                {t("邮箱", "Email")}
+              </FieldLabel>
+              <Input
+                id="profile-email"
+                className="h-9"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="profile-company">
+                {t("公司", "Company")}
+              </FieldLabel>
+              <Input
+                id="profile-company"
+                className="h-9"
+                value={company}
+                onChange={(event) => setCompany(event.target.value)}
+              />
+            </Field>
+          </FieldGroup>
+        </CardContent>
+        <CardFooter className="mt-6 flex-wrap gap-2.5">
+          <Button type="submit">{t("保存设置", "Save settings")}</Button>
+          <ActionLink to={href("checkout", { profile: name })}>
+            <FolderOpen data-icon="inline-start" aria-hidden="true" />
+            {t("复用人物档案下单", "Reuse this profile")}
+          </ActionLink>
+        </CardFooter>
+      </form>
+    </Card>
+  )
+}
+
 export function WorkspacePage() {
   const { t, href, zh } = usePortal()
   const { data, saveAccountProfile } = useDemo()
@@ -325,9 +440,6 @@ export function WorkspacePage() {
         ? "profile"
         : "overview"
   const [filter, setFilter] = useState("all")
-  const [name, setName] = useState(data.account.name)
-  const [email, setEmail] = useState(data.account.email)
-  const [company, setCompany] = useState(data.account.company)
   const orders = data.orders.filter(
     (value) => value.client === data.account.name
   )
@@ -352,22 +464,6 @@ export function WorkspacePage() {
     overview: t("工作台", "Workspace"),
     billing: t("账单与发票", "Billing & invoices"),
     profile: t("个人资料", "Profile"),
-  }
-
-  async function saveProfile(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const ok = await saveAccountProfile({
-      name: name.trim(),
-      email: email.trim(),
-      company: company.trim(),
-    })
-    if (ok) {
-      toast.success(t("个人设置已保存", "Profile settings saved"))
-    } else {
-      toast.error(
-        t("保存失败，请稍后重试。", "Could not save profile. Please try again.")
-      )
-    }
   }
 
   async function getDelivery(value: Order) {
@@ -712,68 +808,12 @@ export function WorkspacePage() {
         )}
 
         {tab === "profile" && (
-          <Card className="max-w-2xl shadow-xs">
-            <CardHeader>
-              <CardTitle>
-                <h1>{labels.profile}</h1>
-              </CardTitle>
-              <CardDescription>
-                {t(
-                  "更新个人与公司资料，或直接复用当前人物档案下单。",
-                  "Update your account details or reuse your presenter profile for a new order."
-                )}
-              </CardDescription>
-            </CardHeader>
-            <form onSubmit={(event) => void saveProfile(event)}>
-              <CardContent>
-                <FieldGroup className="max-w-md gap-4">
-                  <Field>
-                    <FieldLabel htmlFor="profile-name">
-                      {t("姓名", "Name")}
-                    </FieldLabel>
-                    <Input
-                      id="profile-name"
-                      className="h-9"
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      required
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="profile-email">
-                      {t("邮箱", "Email")}
-                    </FieldLabel>
-                    <Input
-                      id="profile-email"
-                      className="h-9"
-                      type="email"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      required
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="profile-company">
-                      {t("公司", "Company")}
-                    </FieldLabel>
-                    <Input
-                      id="profile-company"
-                      className="h-9"
-                      value={company}
-                      onChange={(event) => setCompany(event.target.value)}
-                    />
-                  </Field>
-                </FieldGroup>
-              </CardContent>
-              <CardFooter className="mt-6 flex-wrap gap-2.5">
-                <Button type="submit">{t("保存设置", "Save settings")}</Button>
-                <ActionLink to={href("checkout", { profile: name })}>
-                  <FolderOpen data-icon="inline-start" aria-hidden="true" />
-                  {t("复用人物档案下单", "Reuse this profile")}
-                </ActionLink>
-              </CardFooter>
-            </form>
-          </Card>
+          <ProfileSettingsCard
+            key={`${data.account.email}:${data.account.name}:${data.account.company}`}
+            account={data.account}
+            title={labels.profile}
+            onSave={saveAccountProfile}
+          />
         )}
       </div>
     </main>
