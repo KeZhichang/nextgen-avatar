@@ -1,14 +1,25 @@
 import { useState, type FormEvent } from "react"
 import { Link, useSearchParams } from "react-router"
 import {
+  AlertTriangle,
   Check,
+  CheckCircle2,
   Copy,
+  CreditCard,
+  Download,
   ExternalLink,
+  FileText,
+  Film,
   Inbox,
+  Mail,
+  MessageSquare,
+  Paperclip,
+  Play,
   Plus,
   Search,
   ShieldAlert,
   Trash2,
+  UserCheck,
 } from "lucide-react"
 import { toast } from "sonner"
 import { motion } from "motion/react"
@@ -79,6 +90,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
   TableBody,
@@ -89,7 +101,10 @@ import {
 } from "@/components/ui/table"
 import {
   clientImage,
+  entryAttachments,
   formatDollars,
+  sampleOrder,
+  sampleVideo,
   studioImage,
   useDemo,
   usePortal,
@@ -100,12 +115,14 @@ import {
   type Plan,
   type Status,
 } from "./demo"
+import { downloadOrderFile } from "./files"
 import {
   ActionLink,
   DataPagination,
   FadeTransition,
   StatusBadge,
 } from "./layout"
+import { EditableOrderTitle } from "./production"
 import { TeamConsoleLayout, type TeamNavKey } from "./team-console"
 
 const clientDirectoryMeta: Record<
@@ -192,9 +209,768 @@ function paymentChannelLabel(
   return `${channel} ${t("已付", "Paid")} ${formatDollars(total)}`
 }
 
+const workflowStages: {
+  id: Exclude<Status, "revision">
+  zh: string
+  en: string
+}[] = [
+  { id: "waiting_assets", zh: "素材", en: "Materials" },
+  { id: "producing", zh: "制作", en: "Production" },
+  { id: "waiting_confirm", zh: "审片", en: "Review" },
+  { id: "approved", zh: "已确认", en: "Approved" },
+  { id: "completed", zh: "已交付", en: "Delivered" },
+]
+
+function resolveStageIndex(status: Status): number {
+  switch (status) {
+    case "waiting_assets":
+      return 0
+    case "producing":
+      return 1
+    case "waiting_confirm":
+    case "revision":
+      return 2
+    case "approved":
+      return 3
+    case "completed":
+      return 4
+  }
+}
+
+function OrderDetailInspector({
+  order,
+  canAssign,
+  canWork,
+  canViewClients,
+  canViewFinance,
+  assignableMembers,
+  onAssign,
+  onStartProduction,
+}: {
+  order: Order
+  canAssign: boolean
+  canWork: boolean
+  canViewClients: boolean
+  canViewFinance: boolean
+  assignableMembers: { id: string; name: string }[]
+  onAssign: (id: string, owner: string) => void
+  onStartProduction: (order: Order) => Promise<void>
+}) {
+  const { t, href, zh } = usePortal()
+  const { data } = useDemo()
+  const [copiedKey, setCopiedKey] = useState<string>("")
+  const [starting, setStarting] = useState(false)
+
+  const stageIndex = resolveStageIndex(order.status)
+  const isRevision = order.status === "revision"
+
+  const matchedPlan = data.plans.find((item) => item.id === order.plan)
+  const planLabel = matchedPlan
+    ? zh
+      ? matchedPlan.zh
+      : matchedPlan.en
+    : t("定制报价", "Custom quote")
+
+  const dbClient = data.clients.find((item) => item.name === order.client)
+  const presetClient = clientDirectoryMeta[order.client]
+  const clientEmail =
+    dbClient?.email ||
+    presetClient?.email ||
+    (order.client === data.account.name ? data.account.email : "")
+  const clientCompany = (
+    dbClient?.company ||
+    presetClient?.company ||
+    (order.client === data.account.name ? data.account.company : "")
+  ).replace(" (US)", "")
+  const clientAvatar =
+    dbClient?.avatarUrl ||
+    presetClient?.avatar ||
+    (order.client === data.account.name ? data.account.avatarUrl : undefined) ||
+    clientImage
+
+  const usedCredits = order.status === "completed" ? 1 : 0
+  const remainingCredits = Math.max(0, order.count - usedCredits)
+  const creditPercent = order.count
+    ? Math.round((remainingCredits / order.count) * 100)
+    : 0
+
+  const uploadedAssets = order.entries.flatMap((entry) =>
+    entryAttachments(entry).map((att) => ({
+      ...att,
+      side: entry.side,
+    }))
+  )
+
+  const recentEntries = [
+    ...(order.id === sampleOrder && order.entries.length === 0
+      ? [
+          {
+            id: "inspector-sample-1",
+            side: "client" as const,
+            text: t(
+              "初稿 v1 00:24 处语速稍快，麻烦调整一下。",
+              "The pacing at 00:24 in v1 is a little fast. Could you slow it down?"
+            ),
+          },
+          {
+            id: "inspector-sample-2",
+            side: "studio" as const,
+            text: t(
+              "收到，修订版 v2 已上传，请在线审片确认或继续提出修改意见。",
+              "Updated pacing and uploaded v2. Please review and approve or leave revision notes."
+            ),
+          },
+        ]
+      : []),
+    ...order.entries,
+  ]
+    .filter((item) => item.text.trim())
+    .slice(-3)
+    .reverse()
+
+  const orderedVersions = [...order.versions].reverse()
+
+  function copyValue(key: string, value: string, label: string) {
+    if (!value) return
+    void navigator.clipboard?.writeText(value).then(
+      () => {
+        setCopiedKey(key)
+        toast.success(label)
+        window.setTimeout(() => {
+          setCopiedKey((current) => (current === key ? "" : current))
+        }, 1600)
+      },
+      () => {
+        toast.error(t("复制失败，请手动复制", "Could not copy to clipboard"))
+      }
+    )
+  }
+
+  function copyOrderSummary() {
+    const lines = [
+      `Order: #${order.id}`,
+      `Project: ${zh ? order.zh : order.en}`,
+      `Client: ${order.client}${clientCompany ? ` (${clientCompany})` : ""}`,
+      `Status: ${order.status}`,
+      `Assigned: ${order.owner || "Unassigned"}`,
+      `Package: ${planLabel} (${remainingCredits}/${order.count} credits)`,
+      ...(canViewFinance ? [`Payment: ${paymentChannelLabel(order.method, order.total, t)}`] : []),
+    ]
+    copyValue(
+      "summary",
+      lines.join("\n"),
+      t("已复制订单摘要", "Order summary copied")
+    )
+  }
+
+  async function handleStart() {
+    if (starting) return
+    setStarting(true)
+    try {
+      await onStartProduction(order)
+    } finally {
+      setStarting(false)
+    }
+  }
+
+  async function handleDownloadVersion(
+    fileId: string | undefined,
+    fileName: string
+  ) {
+    try {
+      await downloadOrderFile(fileId, sampleVideo, fileName)
+      toast.success(t("开始下载视频", "Downloading video"))
+    } catch {
+      toast.error(
+        t("该视频暂不可下载，请稍后重试。", "Video is temporarily unavailable.")
+      )
+    }
+  }
+
+  async function handleDownloadAsset(fileId: string, fileName: string) {
+    if (!fileId) return
+    try {
+      await downloadOrderFile(fileId, "", fileName)
+      toast.success(t("开始下载素材", "Downloading file"))
+    } catch {
+      toast.error(
+        t("该素材暂不可下载，请稍后重试。", "File is temporarily unavailable.")
+      )
+    }
+  }
+
+  return (
+    <SheetContent
+      side="right"
+      className="flex w-full flex-col gap-0 p-0 sm:max-w-lg"
+      closeLabel={t("关闭详情", "Close details")}
+    >
+      {/* 1. Actionable SaaS Header */}
+      <SheetHeader className="gap-2 border-b bg-card px-5 pt-5 pb-4">
+        <div className="flex flex-wrap items-center gap-2 pr-7">
+          <button
+            type="button"
+            onClick={() =>
+              copyValue(
+                "order-id",
+                order.id,
+                t(`已复制订单号 #${order.id}`, `Copied #${order.id}`)
+              )
+            }
+            className="inline-flex items-center gap-1.5 rounded-md border border-border/80 bg-muted/50 px-2 py-0.5 font-mono text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+            title={t("点击复制订单号", "Copy order ID")}
+          >
+            <span>#{order.id}</span>
+            {copiedKey === "order-id" ? (
+              <Check className="size-3 text-emerald-600" aria-hidden="true" />
+            ) : (
+              <Copy
+                className="size-3 text-muted-foreground"
+                aria-hidden="true"
+              />
+            )}
+          </button>
+          <StatusBadge status={order.status} />
+        </div>
+        <SheetTitle className="sr-only">#{order.id}</SheetTitle>
+        <div className="min-w-0">
+          <EditableOrderTitle order={order} />
+        </div>
+        <SheetDescription className="sr-only">
+          {zh ? order.zh : order.en}
+        </SheetDescription>
+      </SheetHeader>
+
+      {/* Scrollable Inspector Body */}
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-muted/20 px-5 py-4">
+        {/* 2. Workflow Pipeline Stepper */}
+        <section className="rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs">
+          <div className="mb-2.5 flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-foreground">
+              {t("交付流水线进度", "Delivery pipeline")}
+            </span>
+            <span className="font-mono text-xs text-muted-foreground tabular-nums">
+              {stageIndex + 1} / {workflowStages.length}
+            </span>
+          </div>
+          <ol className="grid grid-cols-5 gap-1">
+            {workflowStages.map((stage, idx) => {
+              const done = idx < stageIndex || order.status === "completed"
+              const active = idx === stageIndex && order.status !== "completed"
+              const warn = active && isRevision
+              return (
+                <li key={stage.id} className="flex flex-col items-center gap-1.5">
+                  <div className="flex w-full items-center">
+                    <div
+                      className={cn(
+                        "h-0.5 flex-1",
+                        idx === 0
+                          ? "bg-transparent"
+                          : idx <= stageIndex
+                            ? "bg-primary"
+                            : "bg-border"
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        "flex size-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold transition-colors",
+                        done
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : warn
+                            ? "border-amber-500 bg-amber-500/15 text-amber-700"
+                            : active
+                              ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/20"
+                              : "border-border bg-background text-muted-foreground"
+                      )}
+                    >
+                      {done ? (
+                        <Check className="size-3" aria-hidden="true" />
+                      ) : warn ? (
+                        <AlertTriangle className="size-3" aria-hidden="true" />
+                      ) : (
+                        idx + 1
+                      )}
+                    </span>
+                    <div
+                      className={cn(
+                        "h-0.5 flex-1",
+                        idx === workflowStages.length - 1
+                          ? "bg-transparent"
+                          : idx < stageIndex
+                            ? "bg-primary"
+                            : "bg-border"
+                      )}
+                    />
+                  </div>
+                  <span
+                    className={cn(
+                      "text-center text-[11px] leading-tight",
+                      done || active
+                        ? warn
+                          ? "font-semibold text-amber-800"
+                          : "font-semibold text-foreground"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    {zh ? stage.zh : stage.en}
+                  </span>
+                </li>
+              )
+            })}
+          </ol>
+
+          {order.status === "waiting_assets" && canWork && (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+              <span className="text-xs text-foreground">
+                {t(
+                  "已确认素材齐备？可直接推进至制作中。",
+                  "Materials ready? Move directly into production."
+                )}
+              </span>
+              <Button
+                size="xs"
+                disabled={starting}
+                onClick={() => void handleStart()}
+              >
+                <Play data-icon="inline-start" aria-hidden="true" />
+                {starting
+                  ? t("处理中…", "Updating…")
+                  : t("开始制作", "Start production")}
+              </Button>
+            </div>
+          )}
+
+          {order.revision && (
+            <div className="mt-3 rounded-lg border border-brand-gold/40 bg-brand-gold/10 p-3">
+              <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-amber-900">
+                <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+                {t("最新修改意见", "Latest revision note")}
+              </div>
+              <p className="text-xs leading-relaxed text-amber-950">
+                {order.revision}
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* 3A. Client & Assignment Card */}
+        <section className="rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs font-semibold text-foreground">
+              {t("客户与负责人", "Client & assignment")}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <Avatar className="size-9 rounded-lg border">
+                <AvatarImage
+                  src={clientAvatar}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                />
+                <AvatarFallback className="rounded-lg text-xs font-semibold">
+                  {order.client.slice(0, 1).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium text-foreground">
+                  {order.client}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {clientCompany ||
+                    (canViewClients && clientEmail
+                      ? clientEmail
+                      : t("个人客户", "Individual client"))}
+                </div>
+              </div>
+            </div>
+
+            {canViewClients && clientEmail && (
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={() =>
+                  copyValue(
+                    "client-email",
+                    clientEmail,
+                    t("已复制客户邮箱", "Client email copied")
+                  )
+                }
+                title={clientEmail}
+              >
+                {copiedKey === "client-email" ? (
+                  <Check
+                    data-icon="inline-start"
+                    className="text-emerald-600"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Mail data-icon="inline-start" aria-hidden="true" />
+                )}
+                {t("复制邮箱", "Copy email")}
+              </Button>
+            )}
+          </div>
+
+          <Separator className="my-3" />
+
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <UserCheck className="size-3.5" aria-hidden="true" />
+              <span>{t("负责制作师", "Assigned producer")}</span>
+            </div>
+            {canAssign ? (
+              <Select
+                value={order.owner || "unassigned"}
+                onValueChange={(value) => onAssign(order.id, value)}
+              >
+                <SelectTrigger size="sm" className="h-8 w-40 bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="unassigned">
+                      {t("待分配", "Unassigned")}
+                    </SelectItem>
+                    {assignableMembers.map((item) => (
+                      <SelectItem key={item.id} value={item.name}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            ) : (
+              <Badge variant="secondary" className="font-medium">
+                {order.owner || t("待分配", "Unassigned")}
+              </Badge>
+            )}
+          </div>
+        </section>
+
+        {/* 3B. Package, Payment & Credits Card */}
+        {canViewFinance && (
+          <section className="rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-foreground">
+                {t("套餐与财务信息", "Package & billing")}
+              </span>
+              <Badge
+                variant="outline"
+                className="border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700"
+              >
+                <CreditCard className="mr-1 size-3" aria-hidden="true" />
+                {paymentChannelLabel(order.method, order.total, t)}
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="rounded-lg bg-muted/40 px-3 py-2">
+                <div className="text-[11px] text-muted-foreground">
+                  {t("所选套餐", "Package")}
+                </div>
+                <div className="mt-0.5 truncate text-xs font-semibold text-foreground">
+                  {planLabel}
+                </div>
+              </div>
+              <div className="rounded-lg bg-muted/40 px-3 py-2">
+                <div className="text-[11px] text-muted-foreground">
+                  {t("已交付 / 总配额", "Delivered / total")}
+                </div>
+                <div className="mt-0.5 font-mono text-xs font-semibold text-foreground tabular-nums">
+                  {usedCredits} / {order.count} {t("条", "videos")}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-col gap-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">
+                  {t("剩余可用配额", "Remaining video credits")}
+                </span>
+                <span className="font-mono font-semibold text-foreground tabular-nums">
+                  {remainingCredits} / {order.count}
+                </span>
+              </div>
+              <Progress value={creditPercent} className="h-1.5" />
+            </div>
+
+            {order.paymentSession && (
+              <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2.5 text-xs">
+                <span className="text-muted-foreground">
+                  {t("Stripe 交易号", "Stripe session")}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    copyValue(
+                      "stripe-session",
+                      order.paymentSession ?? "",
+                      t("已复制交易号", "Stripe session copied")
+                    )
+                  }
+                  className="inline-flex max-w-52 items-center gap-1 truncate font-mono text-[11px] text-foreground hover:text-primary"
+                >
+                  <span className="truncate">{order.paymentSession}</span>
+                  {copiedKey === "stripe-session" ? (
+                    <Check
+                      className="size-3 shrink-0 text-emerald-600"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Copy
+                      className="size-3 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                  )}
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* 4. Deliverables & Materials / Activity Tabs */}
+        <section className="rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs">
+          <Tabs defaultValue="deliverables" className="gap-3">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="deliverables" className="gap-1.5 text-xs">
+                <Film className="size-3.5" aria-hidden="true" />
+                {t("交付版本", "Deliverables")}
+                <span className="font-mono text-[11px] opacity-70">
+                  ({order.versions.length})
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="activity" className="gap-1.5 text-xs">
+                <Paperclip className="size-3.5" aria-hidden="true" />
+                {t("素材与动态", "Assets & activity")}
+                <span className="font-mono text-[11px] opacity-70">
+                  ({uploadedAssets.length + recentEntries.length})
+                </span>
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="deliverables" className="m-0">
+              {orderedVersions.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {orderedVersions.map((ver) => (
+                    <div
+                      key={ver.id}
+                      className="flex items-start justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 p-2.5"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <Badge
+                            variant={
+                              ver.type === "final" ? "default" : "secondary"
+                            }
+                            className="h-5 px-1.5 font-mono text-[10px] uppercase"
+                          >
+                            {ver.type === "final"
+                              ? t("正式版", "Final")
+                              : ver.id}
+                          </Badge>
+                          <span className="truncate text-xs font-medium text-foreground">
+                            {ver.file ||
+                              (ver.type === "final"
+                                ? `${order.id}-final.mp4`
+                                : `${order.id}-${ver.id}.mp4`)}
+                          </span>
+                        </div>
+                        {ver.note && (
+                          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                            {ver.note}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="shrink-0"
+                        title={t("下载视频", "Download video")}
+                        aria-label={t("下载视频", "Download video")}
+                        onClick={() =>
+                          void handleDownloadVersion(
+                            ver.fileId,
+                            ver.file || `${order.id}-${ver.id}.mp4`
+                          )
+                        }
+                      >
+                        <Download className="size-3.5" aria-hidden="true" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-6 text-center">
+                  <Film
+                    className="mb-1.5 size-5 text-muted-foreground/60"
+                    aria-hidden="true"
+                  />
+                  <div className="text-xs font-medium text-foreground">
+                    {t("暂无交付版本", "No video versions yet")}
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {t(
+                      "进入制作协同工作台即可上传初稿或正式成片。",
+                      "Open studio inbox to upload a draft or final video."
+                    )}
+                  </p>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="activity" className="m-0 flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center justify-between rounded-lg bg-muted/40 px-2.5 py-2 text-xs">
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <Paperclip className="size-3.5" aria-hidden="true" />
+                    {t("已传素材", "Files")}
+                  </span>
+                  <span className="font-mono font-semibold tabular-nums">
+                    {uploadedAssets.length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-muted/40 px-2.5 py-2 text-xs">
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <MessageSquare className="size-3.5" aria-hidden="true" />
+                    {t("沟通记录", "Messages")}
+                  </span>
+                  <span className="font-mono font-semibold tabular-nums">
+                    {recentEntries.length}
+                  </span>
+                </div>
+              </div>
+
+              {uploadedAssets.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                    {t("客户上传文件", "Uploaded files")}
+                  </div>
+                  {uploadedAssets.slice(0, 4).map((asset) => (
+                    <div
+                      key={asset.fileId + asset.name}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-muted/20 px-2.5 py-1.5 text-xs"
+                    >
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <FileText
+                          className="size-3.5 shrink-0 text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                        <span className="truncate font-medium">
+                          {asset.name}
+                        </span>
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={t("下载文件", "Download file")}
+                        onClick={() =>
+                          void handleDownloadAsset(asset.fileId, asset.name)
+                        }
+                      >
+                        <Download className="size-3" aria-hidden="true" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {recentEntries.length > 0 ? (
+                <div className="flex flex-col gap-1.5">
+                  <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                    {t("最新沟通摘要", "Recent activity")}
+                  </div>
+                  {recentEntries.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="rounded-lg border border-border/70 bg-muted/20 px-2.5 py-2 text-xs"
+                    >
+                      <div className="mb-0.5 flex items-center gap-1.5">
+                        <span
+                          className={cn(
+                            "inline-flex size-1.5 rounded-full",
+                            entry.side === "client"
+                              ? "bg-primary"
+                              : "bg-emerald-500"
+                          )}
+                        />
+                        <span className="font-semibold text-foreground">
+                          {entry.side === "client"
+                            ? order.client
+                            : t("制作团队", "Studio team")}
+                        </span>
+                      </div>
+                      <p className="line-clamp-2 leading-relaxed text-muted-foreground">
+                        {entry.text}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                uploadedAssets.length === 0 && (
+                  <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-6 text-center">
+                    <CheckCircle2
+                      className="mb-1.5 size-5 text-muted-foreground/60"
+                      aria-hidden="true"
+                    />
+                    <div className="text-xs font-medium text-foreground">
+                      {t("暂无素材或沟通记录", "No files or messages yet")}
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {t(
+                        "客户上传参考素材或留言后会实时同步显示在此。",
+                        "Client uploads and messages will appear here in real time."
+                      )}
+                    </p>
+                  </div>
+                )
+              )}
+            </TabsContent>
+          </Tabs>
+        </section>
+      </div>
+
+      {/* 5. Sticky Action Footer */}
+      <SheetFooter className="flex-row items-center justify-between gap-2.5 border-t bg-card px-5 py-3.5">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={copyOrderSummary}
+        >
+          {copiedKey === "summary" ? (
+            <Check
+              data-icon="inline-start"
+              className="text-emerald-600"
+              aria-hidden="true"
+            />
+          ) : (
+            <Copy data-icon="inline-start" aria-hidden="true" />
+          )}
+          {t("复制摘要", "Copy summary")}
+        </Button>
+        {canWork && (
+          <ActionLink
+            primary
+            size="sm"
+            className="flex-1 sm:flex-none"
+            to={href("admin-workspace", { order: order.id })}
+          >
+            {t("打开制作协同会话", "Open in studio inbox")}
+          </ActionLink>
+        )}
+      </SheetFooter>
+    </SheetContent>
+  )
+}
+
 export function AdminOrdersPage() {
   const { t, href, zh } = usePortal()
-  const { data, assignOrderOwner } = useDemo()
+  const { data, assignOrderOwner, startOrderProduction } = useDemo()
   const { member, can } = useTeamAuth()
   const [query, setQuery] = useSearchParams()
   const [detailId, setDetailId] = useState("")
@@ -206,6 +982,7 @@ export function AdminOrdersPage() {
   const canViewAll = can("orders:view_all")
   const canAssign = can("orders:assign")
   const canWork = can("production:work")
+  const canViewClients = can("settings:clients")
 
   const allowed = canViewAll
     ? data.orders
@@ -629,119 +1406,32 @@ export function AdminOrdersPage() {
         }}
       >
         {current && (
-          <SheetContent
-            side="right"
-            className="w-full sm:max-w-md"
-            closeLabel={t("关闭详情", "Close details")}
-          >
-            <SheetHeader className="border-b pb-4">
-              <div className="flex items-center gap-2">
-                <SheetTitle className="font-mono text-base">
-                  #{current.id}
-                </SheetTitle>
-                <StatusBadge status={current.status} />
-              </div>
-              <SheetDescription>
-                {zh ? current.zh : current.en}
-              </SheetDescription>
-            </SheetHeader>
-
-            <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4">
-              <dl className="flex flex-col gap-3 text-sm">
-                <div className="flex items-center justify-between gap-4">
-                  <dt className="text-muted-foreground">
-                    {t("下单客户", "Client")}
-                  </dt>
-                  <dd className="font-medium">
-                    {current.client}
-                    {clientDirectoryMeta[current.client]
-                      ? ` · ${clientDirectoryMeta[current.client].company.replace(" (US)", "")}`
-                      : ""}
-                  </dd>
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between gap-4">
-                  <dt className="text-muted-foreground">
-                    {t("所选套餐", "Package")}
-                  </dt>
-                  <dd className="font-medium">
-                    {(() => {
-                      const matched = data.plans.find(
-                        (item) => item.id === current.plan
-                      )
-                      return matched
-                        ? zh
-                          ? matched.zh
-                          : matched.en
-                        : t("定制报价", "Custom quote")
-                    })()}
-                  </dd>
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between gap-4">
-                  <dt className="text-muted-foreground">
-                    {t("Stripe 付款状态", "Payment")}
-                  </dt>
-                  <dd className="font-medium text-emerald-700 tabular-nums">
-                    {paymentChannelLabel(current.method, current.total, t)}
-                  </dd>
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between gap-4">
-                  <dt className="text-muted-foreground">
-                    {t("负责人", "Assigned to")}
-                  </dt>
-                  <dd className="font-medium">
-                    {current.owner || t("待分配", "Unassigned")}
-                  </dd>
-                </div>
-                <Separator />
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <dt className="text-muted-foreground">
-                      {t("视频配额余量", "Remaining video credits")}
-                    </dt>
-                    <dd className="font-mono font-medium tabular-nums">
-                      {current.count - (current.status === "completed" ? 1 : 0)}{" "}
-                      / {current.count}
-                    </dd>
-                  </div>
-                  <Progress
-                    value={Math.round(
-                      ((current.count -
-                        (current.status === "completed" ? 1 : 0)) /
-                        current.count) *
-                        100
-                    )}
-                    className="h-1.5"
-                  />
-                </div>
-              </dl>
-
-              {current.revision && (
-                <div className="rounded-lg border border-brand-gold/40 bg-brand-gold/10 p-3.5 text-sm">
-                  <div className="mb-1 text-xs font-semibold text-amber-900">
-                    {t("最新修改意见", "Latest revision note")}
-                  </div>
-                  <p className="text-xs leading-relaxed text-amber-950">
-                    {current.revision}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {canWork && (
-              <SheetFooter className="border-t bg-muted/30">
-                <ActionLink
-                  primary
-                  className="w-full"
-                  to={href("admin-workspace", { order: current.id })}
-                >
-                  {t("打开制作协同会话", "Open in studio inbox")}
-                </ActionLink>
-              </SheetFooter>
-            )}
-          </SheetContent>
+          <OrderDetailInspector
+            key={current.id}
+            order={current}
+            canAssign={canAssign}
+            canWork={canWork}
+            canViewClients={canViewClients}
+            canViewFinance={canViewAll}
+            assignableMembers={assignableMembers}
+            onAssign={assign}
+            onStartProduction={async (targetOrder) => {
+              const ok = await startOrderProduction(
+                targetOrder.id,
+                t(
+                  "已确认素材并正式开始制作。",
+                  "Materials confirmed. Production has started."
+                )
+              )
+              if (ok) {
+                toast.success(t("订单已进入制作中", "Order moved to production"))
+              } else {
+                toast.error(
+                  t("状态更新失败，请稍后重试。", "Could not update status.")
+                )
+              }
+            }}
+          />
         )}
       </Sheet>
     </TeamConsoleLayout>
