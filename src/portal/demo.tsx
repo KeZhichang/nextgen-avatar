@@ -63,11 +63,17 @@ const hideSampleData =
     ?.trim()
     .toLowerCase() === "true"
 
+export const demoExperienceEnabled = !hideSampleData
+export const demoClientEmail = "sarah.lin@gmail.com"
+export const demoClientPassword = "nextgen-demo"
+export const demoTeamPassword = "studio-demo"
+
 export type AuthUser = {
   id: string
   email: string
   fullName?: string
   avatarUrl?: string
+  isDemo?: boolean
 }
 
 function readStringField(
@@ -460,6 +466,8 @@ type DemoContextValue = {
     email: string,
     password: string
   ) => Promise<AuthResult>
+  signInDemoClient: (email?: string, name?: string) => void
+  signInDemoTeam: (memberId: string) => boolean
   signOutAll: () => Promise<void>
   // Persisted domain mutations
   saveCatalog: (plans: Plan[], addons: Addon[]) => Promise<boolean>
@@ -528,6 +536,13 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     return Boolean(
       dataRef.current.orders.find((item) => item.id === orderId)?.demo
     )
+  }
+
+  function getLiveDbUser() {
+    const sb = getSupabaseClient()
+    const user = authUserRef.current
+    if (!sb || !user || user.isDemo) return null
+    return { sb, user }
   }
 
   useEffect(() => {
@@ -668,7 +683,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   }, [loadSnapshotForUser])
 
   useEffect(() => {
-    if (!supabaseConfigured || !authUser) return
+    if (!supabaseConfigured || !authUser || authUser.isDemo) return
     const sb = getSupabaseClient()
     if (!sb) return
     let timer: number | undefined
@@ -720,6 +735,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     const titleZh = cleanProject || `${plan.zh} · ${shortDate}`
     const titleEn = cleanProject || `${plan.en} · ${shortDate}`
 
+    const live = getLiveDbUser()
     const createdOrder: Order = {
       ...order(
         id,
@@ -734,6 +750,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       total,
       method,
       paymentSession,
+      ...(!live && supabaseConfigured ? { demo: true } : {}),
     }
 
     setData((current) =>
@@ -747,11 +764,14 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           }
     )
 
-    const sb = getSupabaseClient()
-    const user = authUserRef.current
-    if (sb && user) {
-      void createOrderInDb(sb, user.id, createdOrder, options?.addonIds ?? [])
-        .then(() => loadSnapshotForUser(user))
+    if (live) {
+      void createOrderInDb(
+        live.sb,
+        live.user.id,
+        createdOrder,
+        options?.addonIds ?? []
+      )
+        .then(() => loadSnapshotForUser(live.user))
         .catch(() => undefined)
     }
 
@@ -865,9 +885,63 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     return { ok: true }
   }
 
+  function signInDemoClient(email?: string, name?: string) {
+    const resolvedEmail = email?.trim() || demoClientEmail
+    const resolvedName = name?.trim() || initialDemo.account.name
+    const demoUser: AuthUser = {
+      id: "demo-client",
+      email: resolvedEmail,
+      fullName: resolvedName,
+      isDemo: true,
+    }
+    authUserRef.current = demoUser
+    setAuthUser(demoUser)
+    setData((current) => ({
+      ...current,
+      account: {
+        name: resolvedName,
+        email: resolvedEmail,
+        company: initialDemo.account.company,
+      },
+      orders: buildDemoOrdersForAccount(resolvedName, false),
+      unread: true,
+    }))
+  }
+
+  function signInDemoTeam(memberId: string) {
+    const pool =
+      dataRef.current.teamMembers.length > 0
+        ? dataRef.current.teamMembers
+        : defaultTeamMembers
+    const target = pool.find((item) => item.id === memberId && item.active)
+    if (!target) return false
+    setData((current) => {
+      const members =
+        current.teamMembers.length > 0
+          ? current.teamMembers
+          : defaultTeamMembers
+      const accountName = current.account.name || initialDemo.account.name
+      return {
+        ...current,
+        teamMembers: members,
+        teamRoles:
+          current.teamRoles.length > 0 ? current.teamRoles : defaultTeamRoles,
+        teamSession: target.id,
+        role: target.roleId === "admin" ? "admin" : "producer",
+        orders:
+          current.orders.length > 0
+            ? current.orders
+            : buildDemoOrdersForAccount(accountName, true),
+        unread: true,
+      }
+    })
+    return true
+  }
+
   async function signOutAll() {
     const sb = getSupabaseClient()
-    if (sb) {
+    const isRealUser = Boolean(authUserRef.current && !authUserRef.current.isDemo)
+    if (sb && isRealUser) {
       await sb.auth.signOut()
     }
     authUserRef.current = null
@@ -881,10 +955,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
 
   async function saveCatalog(plans: Plan[], addons: Addon[]) {
     setData((current) => ({ ...current, plans, addons }))
-    const sb = getSupabaseClient()
-    if (!sb) return true
+    const live = getLiveDbUser()
+    if (!live) return true
     try {
-      await saveCatalogToDb(sb, plans, addons)
+      await saveCatalogToDb(live.sb, plans, addons)
       return true
     } catch {
       await loadCatalog()
@@ -909,11 +983,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           : value
       ),
     }))
-    const sb = getSupabaseClient()
-    const user = authUserRef.current
-    if (!sb || !user) return true
+    const live = getLiveDbUser()
+    if (!live) return true
     try {
-      await saveProfileInDb(sb, user.id, {
+      await saveProfileInDb(live.sb, live.user.id, {
         name: profile.name,
         company: profile.company,
       })
@@ -926,10 +999,13 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   async function renameOrder(orderId: string, title: string) {
     const demoOnly = isDemoOrder(orderId)
     updateOrder(orderId, (value) => ({ ...value, zh: title, en: title }))
-    const sb = getSupabaseClient()
-    if (!sb || demoOnly) return true
+    const live = getLiveDbUser()
+    if (!live || demoOnly) return true
     try {
-      await updateOrderInDb(sb, orderId, { title_zh: title, title_en: title })
+      await updateOrderInDb(live.sb, orderId, {
+        title_zh: title,
+        title_en: title,
+      })
       return true
     } catch {
       await refreshFromSupabase()
@@ -941,13 +1017,13 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     const demoOnly = isDemoOrder(orderId)
     const nextOwner = ownerName === "unassigned" ? "" : ownerName
     updateOrder(orderId, (value) => ({ ...value, owner: nextOwner }))
-    const sb = getSupabaseClient()
-    if (!sb || demoOnly) return true
+    const live = getLiveDbUser()
+    if (!live || demoOnly) return true
     const matchedMember = dataRef.current.teamMembers.find(
       (m) => m.name === nextOwner
     )
     try {
-      await updateOrderInDb(sb, orderId, {
+      await updateOrderInDb(live.sb, orderId, {
         assigned_member_id: matchedMember?.id ?? null,
       })
       return true
@@ -962,12 +1038,17 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     updateOrder(orderId, (value) =>
       appendEntry({ ...value, status: "producing" }, "studio", messageText)
     )
-    const sb = getSupabaseClient()
-    const user = authUserRef.current
-    if (!sb || !user || demoOnly) return true
+    const live = getLiveDbUser()
+    if (!live || demoOnly) return true
     try {
-      await updateOrderInDb(sb, orderId, { status: "producing" })
-      await insertMessageInDb(sb, orderId, user.id, "studio", messageText)
+      await updateOrderInDb(live.sb, orderId, { status: "producing" })
+      await insertMessageInDb(
+        live.sb,
+        orderId,
+        live.user.id,
+        "studio",
+        messageText
+      )
       return true
     } catch {
       await refreshFromSupabase()
@@ -996,21 +1077,20 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         attachments
       )
     )
-    const sb = getSupabaseClient()
-    const user = authUserRef.current
-    if (!sb || !user || demoOnly) return true
+    const live = getLiveDbUser()
+    if (!live || demoOnly) return true
     try {
       await insertMessageInDb(
-        sb,
+        live.sb,
         orderId,
-        user.id,
+        live.user.id,
         side,
         text,
         undefined,
         attachments
       )
       if (shouldAdvance) {
-        await updateOrderInDb(sb, orderId, { status: "producing" })
+        await updateOrderInDb(live.sb, orderId, { status: "producing" })
       }
       return true
     } catch {
@@ -1048,20 +1128,19 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     )
     setData((state) => ({ ...state, unread: true }))
 
-    const sb = getSupabaseClient()
-    const user = authUserRef.current
-    if (!sb || !user || demoOnly) return true
+    const live = getLiveDbUser()
+    if (!live || demoOnly) return true
     try {
-      await insertVersionInDb(sb, orderId, user.id, version)
-      await updateOrderInDb(sb, orderId, {
+      await insertVersionInDb(live.sb, orderId, live.user.id, version)
+      await updateOrderInDb(live.sb, orderId, {
         status: nextStatus,
         latest_revision_note: null,
         ...(version.type === "final" ? { video_credits_used: 1 } : {}),
       })
       await insertMessageInDb(
-        sb,
+        live.sb,
         orderId,
-        user.id,
+        live.user.id,
         "studio",
         messageText,
         versionRef
@@ -1096,16 +1175,21 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       setData((state) => ({ ...state, unread: true }))
     }
 
-    const sb = getSupabaseClient()
-    const user = authUserRef.current
-    if (!sb || !user || demoOnly) return true
+    const live = getLiveDbUser()
+    if (!live || demoOnly) return true
     try {
-      await updateOrderInDb(sb, orderId, {
+      await updateOrderInDb(live.sb, orderId, {
         status: nextStatus,
         latest_revision_note:
           action === "revision" ? (revisionNote ?? null) : null,
       })
-      await insertMessageInDb(sb, orderId, user.id, "client", messageText)
+      await insertMessageInDb(
+        live.sb,
+        orderId,
+        live.user.id,
+        "client",
+        messageText
+      )
       return true
     } catch {
       await refreshFromSupabase()
@@ -1120,11 +1204,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     videoCount: number
     amountDollars: number
   }) {
-    const sb = getSupabaseClient()
-    const user = authUserRef.current
-    if (!sb || !user) return true
+    const live = getLiveDbUser()
+    if (!live) return true
     try {
-      await saveCustomQuoteInDb(sb, user.id, quote)
+      await saveCustomQuoteInDb(live.sb, live.user.id, quote)
       return true
     } catch {
       return false
@@ -1149,10 +1232,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       ),
     }))
 
-    const sb = getSupabaseClient()
-    if (!sb) return true
+    const live = getLiveDbUser()
+    if (!live) return true
     try {
-      await syncRolePermissionsInDb(sb, roleId, nextPermissions)
+      await syncRolePermissionsInDb(live.sb, roleId, nextPermissions)
       return true
     } catch {
       await refreshFromSupabase()
@@ -1162,12 +1245,12 @@ export function DemoProvider({ children }: { children: ReactNode }) {
 
   async function resetTeamRolePermissions() {
     setData((current) => ({ ...current, teamRoles: defaultTeamRoles }))
-    const sb = getSupabaseClient()
-    if (!sb) return true
+    const live = getLiveDbUser()
+    if (!live) return true
     try {
       for (const role of defaultTeamRoles) {
         if (!role.locked) {
-          await syncRolePermissionsInDb(sb, role.id, role.permissions)
+          await syncRolePermissionsInDb(live.sb, role.id, role.permissions)
         }
       }
       return true
@@ -1182,8 +1265,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     email: string
     roleId: TeamRoleId
   }) {
-    const sb = getSupabaseClient()
-    if (!sb) {
+    const live = getLiveDbUser()
+    if (!live) {
       setData((current) => ({
         ...current,
         teamMembers: [
@@ -1200,7 +1283,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       return true
     }
     try {
-      const inserted = await addTeamMemberInDb(sb, member)
+      const inserted = await addTeamMemberInDb(live.sb, member)
       setData((current) => ({
         ...current,
         teamMembers: [
@@ -1230,10 +1313,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         item.id === memberId ? { ...item, ...patch } : item
       ),
     }))
-    const sb = getSupabaseClient()
-    if (!sb) return true
+    const live = getLiveDbUser()
+    if (!live) return true
     try {
-      await updateTeamMemberInDb(sb, memberId, {
+      await updateTeamMemberInDb(live.sb, memberId, {
         ...(patch.roleId !== undefined ? { role_id: patch.roleId } : {}),
         ...(patch.active !== undefined ? { active: patch.active } : {}),
       })
@@ -1246,11 +1329,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
 
   async function markAllNotificationsRead() {
     setData((current) => ({ ...current, unread: false }))
-    const sb = getSupabaseClient()
-    const user = authUserRef.current
-    if (!sb || !user) return
+    const live = getLiveDbUser()
+    if (!live) return
     try {
-      await markNotificationsReadInDb(sb, user.id)
+      await markNotificationsReadInDb(live.sb, live.user.id)
     } catch {
       // Ignore
     }
@@ -1272,6 +1354,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         signInWithGoogle,
         sendPasswordReset,
         signInTeamWithPassword,
+        signInDemoClient,
+        signInDemoTeam,
         signOutAll,
         saveCatalog,
         saveAccountProfile,
@@ -1307,6 +1391,7 @@ export function useTeamAuth() {
     isLiveSupabase,
     authLoading,
     signInTeamWithPassword,
+    signInDemoTeam,
     signOutAll,
   } = useDemo()
   const member = data.teamSession
@@ -1323,6 +1408,9 @@ export function useTeamAuth() {
   }
 
   function signInTeam(memberId: string) {
+    if (isLiveSupabase) {
+      return signInDemoTeam(memberId)
+    }
     const target = data.teamMembers.find(
       (item) => item.id === memberId && item.active
     )

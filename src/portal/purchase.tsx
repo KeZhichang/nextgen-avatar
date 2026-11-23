@@ -52,7 +52,15 @@ import {
   stripePreviewPlans,
   type StripePreviewReceipt,
 } from "./checkout-catalog"
-import { formatDollars, useDemo, usePortal, type Plan } from "./demo"
+import {
+  demoClientEmail,
+  demoClientPassword,
+  demoExperienceEnabled,
+  formatDollars,
+  useDemo,
+  usePortal,
+  type Plan,
+} from "./demo"
 import {
   StripePreviewPayment,
   StripePreviewStatus,
@@ -76,16 +84,22 @@ export function AuthPage() {
     signInClient,
     signUpClient,
     signInWithGoogle,
+    signInDemoClient,
     sendPasswordReset,
   } = useDemo()
   const [mode, setMode] = useState<AuthMode>(() =>
     query.get("mode") === "register" ? "register" : "login"
   )
+  const shouldPrefillDemo = !isLiveSupabase || demoExperienceEnabled
   const [email, setEmail] = useState(() =>
-    isLiveSupabase ? "" : data.account.email
+    shouldPrefillDemo && query.get("mode") !== "register"
+      ? data.account.email || demoClientEmail
+      : ""
   )
   const [password, setPassword] = useState(() =>
-    isLiveSupabase ? "" : "nextgen-demo"
+    shouldPrefillDemo && query.get("mode") !== "register"
+      ? demoClientPassword
+      : ""
   )
   const [showPassword, setShowPassword] = useState(false)
   const [name, setName] = useState("")
@@ -195,6 +209,18 @@ export function AuthPage() {
       return
     }
 
+    if (
+      mode === "login" &&
+      demoExperienceEnabled &&
+      email.trim().toLowerCase() === demoClientEmail &&
+      password === demoClientPassword
+    ) {
+      signInDemoClient(demoClientEmail)
+      toast.success(t("已进入演示工作台", "Signed in to demo workspace"))
+      void navigate(resolveDestination(), { replace: true })
+      return
+    }
+
     setSubmitting(true)
     try {
       const res =
@@ -264,9 +290,27 @@ export function AuthPage() {
             <Tabs
               value={mode}
               onValueChange={(value) => {
-                setMode(value as AuthMode)
+                const nextMode = value as AuthMode
+                setMode(nextMode)
                 setShowPassword(false)
                 setResetSent(false)
+                setError("")
+                if (
+                  nextMode === "register" &&
+                  email.trim().toLowerCase() === demoClientEmail &&
+                  password === demoClientPassword
+                ) {
+                  setEmail("")
+                  setPassword("")
+                } else if (
+                  nextMode === "login" &&
+                  shouldPrefillDemo &&
+                  !email.trim() &&
+                  !password
+                ) {
+                  setEmail(demoClientEmail)
+                  setPassword(demoClientPassword)
+                }
               }}
             >
               <TabsList

@@ -84,6 +84,8 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  demoExperienceEnabled,
+  demoTeamPassword,
   sampleOrder,
   studioImage,
   useDemo,
@@ -92,7 +94,12 @@ import {
   type PermissionKey,
   type TeamRoleId,
 } from "./demo"
-import { allPermissions, getRoleConfig, type PermissionMeta } from "./rbac"
+import {
+  allPermissions,
+  defaultTeamMembers,
+  getRoleConfig,
+  type PermissionMeta,
+} from "./rbac"
 import {
   ActionLink,
   BrandMark,
@@ -334,11 +341,14 @@ export function AdminLoginPage() {
   } = useTeamAuth()
   const [query] = useSearchParams()
   const navigate = useNavigate()
+  const demoMembers =
+    data.teamMembers.length > 0 ? data.teamMembers : defaultTeamMembers
+  const showDemoTeam = !isLiveSupabase || demoExperienceEnabled
   const [email, setEmail] = useState(() =>
-    isLiveSupabase ? "" : (data.teamMembers[0]?.email ?? "")
+    showDemoTeam ? (demoMembers[0]?.email ?? "") : ""
   )
   const [password, setPassword] = useState(() =>
-    isLiveSupabase ? "" : "studio-demo"
+    showDemoTeam ? demoTeamPassword : ""
   )
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
@@ -375,6 +385,15 @@ export function AdminLoginPage() {
     if (submitting) return
 
     if (isLiveSupabase) {
+      const normalized = email.trim().toLowerCase()
+      const matchedDemo =
+        demoExperienceEnabled && password === demoTeamPassword
+          ? demoMembers.find((item) => item.email.toLowerCase() === normalized)
+          : undefined
+      if (matchedDemo) {
+        loginWithMemberId(matchedDemo.id)
+        return
+      }
       setSubmitting(true)
       try {
         const res = await signInTeamWithPassword(email.trim(), password)
@@ -553,7 +572,7 @@ export function AdminLoginPage() {
               </FieldGroup>
             </form>
 
-            {!isLiveSupabase && (
+            {showDemoTeam && (
               <>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <Separator className="min-w-0 flex-1" />
@@ -562,7 +581,7 @@ export function AdminLoginPage() {
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  {data.teamMembers.map((item) => {
+                  {demoMembers.map((item) => {
                     const role = getRoleConfig(data.teamRoles, item.roleId)
                     return (
                       <Button
