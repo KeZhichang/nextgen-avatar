@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/empty"
 import { AdminOrdersPage, AdminSettingsPage } from "./admin"
 import { DemoProvider, useDemo, usePortal, useTeamAuth } from "./demo"
-import { isLocale, readLocalePreference, setDocumentLocale } from "./i18n"
+import { defaultLocale, isLocale, setDocumentLocale } from "./i18n"
 import { ActionLink, FadeTransition, LanguageSwitch, PageWidth } from "./layout"
 import {
   OrderChatPage,
@@ -54,7 +54,7 @@ function RootRedirect() {
   const { search, hash } = useLocation()
   return (
     <Navigate
-      to={{ pathname: "/" + readLocalePreference(), search, hash }}
+      to={{ pathname: "/" + defaultLocale, search, hash }}
       replace
     />
   )
