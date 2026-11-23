@@ -18,6 +18,7 @@ type StripePreviewReceipt = {
   total: number
   method: "card" | "apple" | "ach"
   status: "paid" | "processing" | "open" | "expired" | "failed"
+  receiptUrl?: string
 }
 
 type Req = IncomingMessage & {
@@ -211,7 +212,7 @@ export default async function handler(req: Req, res: ServerResponse) {
         return
       }
       const session = await stripe.checkout.sessions.retrieve(id, {
-        expand: ["payment_intent.payment_method"],
+        expand: ["payment_intent.payment_method", "payment_intent.latest_charge"],
       })
       const metadata = session.metadata
       const planId = metadata?.planId ?? ""
@@ -231,6 +232,12 @@ export default async function handler(req: Req, res: ServerResponse) {
       const intent =
         typeof session.payment_intent === "object"
           ? session.payment_intent
+          : null
+      const latestCharge =
+        intent &&
+        typeof intent.latest_charge === "object" &&
+        intent.latest_charge !== null
+          ? intent.latest_charge
           : null
       const payment =
         intent && typeof intent.payment_method === "object"
@@ -264,6 +271,7 @@ export default async function handler(req: Req, res: ServerResponse) {
         total,
         method,
         status,
+        receiptUrl: latestCharge?.receipt_url ?? undefined,
       }
       sendJson(res, 200, result)
       return

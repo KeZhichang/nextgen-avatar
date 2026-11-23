@@ -8,6 +8,8 @@ import {
 } from "react-router"
 import { motion } from "motion/react"
 import {
+  Check,
+  Clapperboard,
   ClipboardList,
   DollarSign,
   Eye,
@@ -17,16 +19,32 @@ import {
   LockKeyhole,
   LogIn,
   Mail,
+  MoreHorizontal,
   RotateCcw,
+  Search,
   Shield,
   ShieldAlert,
   ShieldCheck,
+  UserCheck,
   UserPlus,
   Users,
 } from "lucide-react"
 import { toast } from "sonner"
+import { cn } from "cn"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -40,6 +58,7 @@ import {
 } from "@/components/ui/card"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -47,6 +66,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Empty,
   EmptyContent,
@@ -83,6 +111,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   demoExperienceEnabled,
   demoTeamPassword,
@@ -652,6 +681,11 @@ export function AdminPermissionsPage() {
   const [newName, setNewName] = useState("")
   const [newEmail, setNewEmail] = useState("")
   const [newRoleId, setNewRoleId] = useState<TeamRoleId>("producer")
+  const [focusedRole, setFocusedRole] = useState<TeamRoleId | null>(null)
+  const [memberQuery, setMemberQuery] = useState("")
+  const [memberRoleFilter, setMemberRoleFilter] = useState<"all" | TeamRoleId>(
+    "all"
+  )
   const [memberPage, setMemberPage] = useState(1)
   const [memberPageSize, setMemberPageSize] = useState(10)
 
@@ -802,16 +836,41 @@ export function AdminPermissionsPage() {
     )
   }
 
-  const pagedMembers = data.teamMembers.slice(
-    (memberPage - 1) * memberPageSize,
-    memberPage * memberPageSize
+  const normalizedMemberQuery = memberQuery.trim().toLowerCase()
+  const filteredMembers = data.teamMembers.filter((item) => {
+    if (memberRoleFilter !== "all" && item.roleId !== memberRoleFilter) {
+      return false
+    }
+    if (!normalizedMemberQuery) return true
+    return (
+      item.name.toLowerCase().includes(normalizedMemberQuery) ||
+      item.email.toLowerCase().includes(normalizedMemberQuery)
+    )
+  })
+  const safeMemberPage = Math.min(
+    memberPage,
+    Math.max(1, Math.ceil(filteredMembers.length / memberPageSize))
+  )
+  const pagedMembers = filteredMembers.slice(
+    (safeMemberPage - 1) * memberPageSize,
+    safeMemberPage * memberPageSize
   )
 
-  const groupLabels: Record<PermissionMeta["group"], [string, string]> = {
-    orders: ["订单管理", "Orders"],
-    production: ["制作协同", "Production"],
-    operations: ["运营配置", "Operations"],
-    system: ["系统安全", "System"],
+  const permissionGroups: {
+    id: PermissionMeta["group"]
+    zh: string
+    en: string
+  }[] = [
+    { id: "orders", zh: "订单管理", en: "Orders" },
+    { id: "production", zh: "制作协同", en: "Production" },
+    { id: "operations", zh: "运营配置", en: "Operations" },
+    { id: "system", zh: "系统安全", en: "System & access" },
+  ]
+
+  function roleIcon(roleId: TeamRoleId) {
+    if (roleId === "admin") return ShieldCheck
+    if (roleId === "lead") return UserCheck
+    return Clapperboard
   }
 
   return (
@@ -820,21 +879,52 @@ export function AdminPermissionsPage() {
       heading={<h1>{t("权限与成员", "Roles & access")}</h1>}
     >
       <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-5 py-6 sm:px-8">
-        <Tabs value={tab} onValueChange={setTab} className="gap-4">
+        <Tabs value={tab} onValueChange={setTab} className="gap-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <TabsList>
               <TabsTrigger value="roles">
-                {t("角色权限矩阵", "Role permissions")}
+                <Shield data-icon="inline-start" aria-hidden="true" />
+                {t("角色权限", "Roles & permissions")}
               </TabsTrigger>
               <TabsTrigger value="members">
+                <Users data-icon="inline-start" aria-hidden="true" />
                 {t("团队成员", "Team members")} ({data.teamMembers.length})
               </TabsTrigger>
             </TabsList>
             {tab === "roles" ? (
-              <Button variant="outline" size="sm" onClick={resetRoles}>
-                <RotateCcw data-icon="inline-start" aria-hidden="true" />
-                {t("恢复默认", "Reset defaults")}
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <RotateCcw data-icon="inline-start" aria-hidden="true" />
+                    {t("恢复默认权限", "Reset defaults")}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogMedia className="bg-amber-500/12 text-amber-600">
+                      <RotateCcw aria-hidden="true" />
+                    </AlertDialogMedia>
+                    <AlertDialogTitle>
+                      {t("恢复默认角色权限？", "Reset default role permissions?")}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {t(
+                        "将把「制作主管」与「制作师」的所有权限开关还原为系统默认配置，且立即生效。",
+                        "This restores Producer and Lead permissions to their system defaults immediately."
+                      )}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{t("取消", "Cancel")}</AlertDialogCancel>
+                    <AlertDialogAction
+                      variant="destructive"
+                      onClick={resetRoles}
+                    >
+                      {t("确认恢复", "Reset defaults")}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             ) : (
               <Dialog open={addOpen} onOpenChange={setAddOpen}>
                 <DialogTrigger asChild>
@@ -911,6 +1001,11 @@ export function AdminPermissionsPage() {
                       </Field>
                     </FieldGroup>
                     <DialogFooter>
+                      <DialogClose asChild>
+                        <Button type="button" variant="outline">
+                          {t("取消", "Cancel")}
+                        </Button>
+                      </DialogClose>
                       <Button type="submit">
                         {t("创建账号", "Create account")}
                       </Button>
@@ -921,7 +1016,7 @@ export function AdminPermissionsPage() {
             )}
           </div>
 
-          <TabsContent value="roles">
+          <TabsContent value="roles" className="m-0">
             <FadeTransition key="roles">
               <Card className="gap-0 overflow-hidden py-0 shadow-xs">
                 <CardContent className="p-0">
@@ -929,65 +1024,129 @@ export function AdminPermissionsPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="px-5">
-                          {t("功能权限", "Permission")}
+                          {t("权限项与说明", "Capability")}
                         </TableHead>
-                        {data.teamRoles.map((role) => (
-                          <TableHead
-                            key={role.id}
-                            className="w-36 px-4 text-center"
-                          >
-                            <span className="font-medium text-foreground">
-                              {zh ? role.zh : role.en}
-                            </span>
-                          </TableHead>
-                        ))}
+                        {data.teamRoles.map((role) => {
+                          const RoleIcon = roleIcon(role.id)
+                          const countMembers = data.teamMembers.filter(
+                            (item) => item.roleId === role.id && item.active
+                          ).length
+                          const selected = focusedRole === role.id
+                          return (
+                            <TableHead
+                              key={role.id}
+                              className={cn(
+                                "w-40 px-4 py-3 text-center",
+                                selected && "bg-primary/5"
+                              )}
+                            >
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setFocusedRole((current) =>
+                                    current === role.id ? null : role.id
+                                  )
+                                }
+                                title={zh ? role.descriptionZh : role.descriptionEn}
+                                className="inline-flex flex-col items-center gap-0.5 transition-colors hover:text-primary"
+                              >
+                                <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                                  <RoleIcon
+                                    className="size-3.5 text-muted-foreground"
+                                    aria-hidden="true"
+                                  />
+                                  <span>{zh ? role.zh : role.en}</span>
+                                  {role.locked && (
+                                    <LockKeyhole
+                                      className="size-3 text-muted-foreground"
+                                      aria-hidden="true"
+                                    />
+                                  )}
+                                </span>
+                                <span className="font-normal text-xs text-muted-foreground">
+                                  {t(
+                                    `${countMembers} 人`,
+                                    `${countMembers} ${countMembers === 1 ? "member" : "members"}`
+                                  )}
+                                </span>
+                              </button>
+                            </TableHead>
+                          )
+                        })}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {allPermissions.map((perm) => (
-                        <TableRow key={perm.key}>
-                          <TableCell className="px-5 py-3.5 whitespace-normal">
-                            <div className="flex flex-col gap-0.5">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-medium text-foreground">
-                                  {zh ? perm.zh : perm.en}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  ·{" "}
-                                  {t(
-                                    groupLabels[perm.group][0],
-                                    groupLabels[perm.group][1]
-                                  )}
-                                </span>
-                              </div>
-                              <span className="text-xs text-muted-foreground">
-                                {zh ? perm.descZh : perm.descEn}
-                              </span>
-                            </div>
-                          </TableCell>
-                          {data.teamRoles.map((role) => {
-                            const checked =
-                              role.locked || role.permissions.includes(perm.key)
-                            return (
-                              <TableCell
-                                key={role.id}
-                                className="px-4 text-center"
-                              >
-                                <div className="flex justify-center">
-                                  <Switch
-                                    checked={checked}
-                                    disabled={role.locked}
-                                    aria-label={`${zh ? role.zh : role.en} - ${zh ? perm.zh : perm.en}`}
-                                    onCheckedChange={() =>
-                                      togglePermission(role.id, perm.key)
-                                    }
-                                  />
+                      {permissionGroups.map((group) => {
+                        const items = allPermissions.filter(
+                          (perm) => perm.group === group.id
+                        )
+                        return [
+                          <TableRow
+                            key={`group-${group.id}`}
+                            className="bg-muted/35 hover:bg-muted/35"
+                          >
+                            <TableCell
+                              colSpan={data.teamRoles.length + 1}
+                              className="px-5 py-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+                            >
+                              {zh ? group.zh : group.en}
+                            </TableCell>
+                          </TableRow>,
+                          ...items.map((perm) => (
+                            <TableRow key={perm.key}>
+                              <TableCell className="px-5 py-3.5 whitespace-normal">
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="font-medium text-foreground">
+                                    {zh ? perm.zh : perm.en}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {zh ? perm.descZh : perm.descEn}
+                                  </span>
                                 </div>
                               </TableCell>
-                            )
-                          })}
-                        </TableRow>
-                      ))}
+                              {data.teamRoles.map((role) => {
+                                const checked =
+                                  role.locked ||
+                                  role.permissions.includes(perm.key)
+                                return (
+                                  <TableCell
+                                    key={role.id}
+                                    className={cn(
+                                      "px-4 text-center",
+                                      focusedRole === role.id && "bg-primary/5"
+                                    )}
+                                  >
+                                    {role.locked ? (
+                                      <span
+                                        className="inline-flex size-6 items-center justify-center rounded-full bg-primary/10 text-primary"
+                                        title={t(
+                                          "管理员默认拥有全部权限",
+                                          "Administrators always have full access"
+                                        )}
+                                      >
+                                        <Check
+                                          className="size-3.5"
+                                          aria-hidden="true"
+                                        />
+                                      </span>
+                                    ) : (
+                                      <div className="flex justify-center">
+                                        <Switch
+                                          checked={checked}
+                                          aria-label={`${zh ? role.zh : role.en} - ${zh ? perm.zh : perm.en}`}
+                                          onCheckedChange={() =>
+                                            togglePermission(role.id, perm.key)
+                                          }
+                                        />
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                )
+                              })}
+                            </TableRow>
+                          )),
+                        ]
+                      })}
                     </TableBody>
                   </Table>
                 </CardContent>
@@ -995,108 +1154,255 @@ export function AdminPermissionsPage() {
             </FadeTransition>
           </TabsContent>
 
-          <TabsContent value="members">
+          <TabsContent value="members" className="m-0">
             <FadeTransition key="members">
-              <Card className="gap-0 overflow-hidden py-0 shadow-xs">
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="px-5">
-                          {t("成员", "Member")}
-                        </TableHead>
-                        <TableHead>{t("工作邮箱", "Work email")}</TableHead>
-                        <TableHead>{t("所属角色", "Role")}</TableHead>
-                        <TableHead className="px-5 text-right">
-                          {t("状态", "Status")}
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {pagedMembers.map((item) => {
-                        const isSelf = item.id === member?.id
-                        return (
-                          <TableRow key={item.id}>
-                            <TableCell className="px-5">
-                              <div className="flex items-center gap-2.5">
-                                <Avatar className="size-8">
-                                  <AvatarFallback className="bg-brand-navy text-xs font-semibold text-white">
-                                    {item.name.slice(0, 1)}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <span className="font-medium">{item.name}</span>
-                                {isSelf && (
-                                  <Badge variant="secondary">
-                                    {t("当前登录", "You")}
-                                  </Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-mono text-xs text-muted-foreground">
-                              {item.email}
-                            </TableCell>
-                            <TableCell>
-                              <Select
-                                value={item.roleId}
-                                disabled={isSelf}
-                                onValueChange={(value) =>
-                                  changeMemberRole(item.id, value as TeamRoleId)
-                                }
-                              >
-                                <SelectTrigger
-                                  size="sm"
-                                  className="w-36 bg-card"
-                                >
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectGroup>
-                                    {data.teamRoles.map((role) => (
-                                      <SelectItem key={role.id} value={role.id}>
-                                        {zh ? role.zh : role.en}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectGroup>
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell className="px-5">
-                              <div className="flex items-center justify-end gap-2.5">
-                                <span className="text-xs text-muted-foreground">
-                                  {item.active
-                                    ? t("启用", "Active")
-                                    : t("停用", "Disabled")}
-                                </span>
-                                <Switch
-                                  checked={item.active}
-                                  disabled={isSelf}
-                                  aria-label={t(
-                                    `切换 ${item.name} 账号状态`,
-                                    `Toggle ${item.name} status`
-                                  )}
-                                  onCheckedChange={(checked) =>
-                                    toggleMemberActive(item.id, checked)
-                                  }
-                                />
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                  <DataPagination
-                    page={memberPage}
-                    pageSize={memberPageSize}
-                    total={data.teamMembers.length}
-                    onPageChange={setMemberPage}
-                    onPageSizeChange={(size) => {
-                      setMemberPageSize(size)
-                      setMemberPage(1)
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <ToggleGroup
+                    type="single"
+                    size="sm"
+                    variant="outline"
+                    value={memberRoleFilter}
+                    onValueChange={(value) => {
+                      if (value) {
+                        setMemberRoleFilter(value as "all" | TeamRoleId)
+                        setMemberPage(1)
+                      }
                     }}
-                  />
-                </CardContent>
-              </Card>
+                  >
+                    <ToggleGroupItem value="all" className="px-3 text-xs">
+                      {t("全部", "All")} ({data.teamMembers.length})
+                    </ToggleGroupItem>
+                    {data.teamRoles.map((role) => (
+                      <ToggleGroupItem
+                        key={role.id}
+                        value={role.id}
+                        className="px-3 text-xs"
+                      >
+                        {zh ? role.zh : role.en}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+
+                  <InputGroup className="h-9 w-full bg-card sm:w-64">
+                    <InputGroupAddon>
+                      <Search aria-hidden="true" />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      value={memberQuery}
+                      onChange={(event) => {
+                        setMemberQuery(event.target.value)
+                        setMemberPage(1)
+                      }}
+                      placeholder={t(
+                        "搜索成员姓名或邮箱…",
+                        "Search member name or email…"
+                      )}
+                      aria-label={t("搜索团队成员", "Search team members")}
+                    />
+                  </InputGroup>
+                </div>
+
+                <Card className="gap-0 overflow-hidden py-0 shadow-xs">
+                  <CardContent className="p-0">
+                    {pagedMembers.length > 0 ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="px-5">
+                              {t("成员", "Member")}
+                            </TableHead>
+                            <TableHead>{t("角色", "Role")}</TableHead>
+                            <TableHead>{t("账号状态", "Status")}</TableHead>
+                            <TableHead className="w-20 px-5 text-right">
+                              {t("操作", "Actions")}
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {pagedMembers.map((item) => {
+                            const isSelf = item.id === member?.id
+                            const roleMeta = getRoleConfig(
+                              data.teamRoles,
+                              item.roleId
+                            )
+                            return (
+                              <TableRow key={item.id}>
+                                <TableCell className="px-5 py-3.5">
+                                  <div className="flex items-center gap-3">
+                                    <Avatar className="size-9">
+                                      <AvatarFallback className="bg-brand-navy text-xs font-semibold text-white">
+                                        {item.name.slice(0, 1).toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex min-w-0 flex-col">
+                                      <div className="flex items-center gap-2">
+                                        <span className="truncate font-medium text-foreground">
+                                          {item.name}
+                                        </span>
+                                        {isSelf && (
+                                          <Badge variant="secondary">
+                                            {t("当前登录", "You")}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <span className="truncate font-mono text-xs text-muted-foreground">
+                                        {item.email}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant={
+                                      item.roleId === "admin"
+                                        ? "default"
+                                        : "outline"
+                                    }
+                                  >
+                                    {roleMeta
+                                      ? zh
+                                        ? roleMeta.zh
+                                        : roleMeta.en
+                                      : item.roleId}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="inline-flex items-center gap-1.5 text-xs font-medium">
+                                    <span
+                                      className={cn(
+                                        "size-2 rounded-full",
+                                        item.active
+                                          ? "bg-emerald-500"
+                                          : "bg-muted-foreground/40"
+                                      )}
+                                    />
+                                    <span
+                                      className={
+                                        item.active
+                                          ? "text-foreground"
+                                          : "text-muted-foreground"
+                                      }
+                                    >
+                                      {item.active
+                                        ? t("已启用", "Active")
+                                        : t("已停用", "Disabled")}
+                                    </span>
+                                  </span>
+                                </TableCell>
+                                <TableCell className="px-5 text-right">
+                                  {isSelf ? (
+                                    <span className="text-xs text-muted-foreground">
+                                      {t("受保护", "Protected")}
+                                    </span>
+                                  ) : (
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          aria-label={t(
+                                            `管理 ${item.name}`,
+                                            `Manage ${item.name}`
+                                          )}
+                                        >
+                                          <MoreHorizontal aria-hidden="true" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent
+                                        align="end"
+                                        className="w-48"
+                                      >
+                                        <DropdownMenuLabel className="text-xs text-muted-foreground">
+                                          {t("变更角色", "Change role")}
+                                        </DropdownMenuLabel>
+                                        <DropdownMenuGroup>
+                                          {data.teamRoles.map((role) => (
+                                            <DropdownMenuItem
+                                              key={role.id}
+                                              onSelect={() => {
+                                                if (role.id !== item.roleId) {
+                                                  changeMemberRole(
+                                                    item.id,
+                                                    role.id
+                                                  )
+                                                }
+                                              }}
+                                            >
+                                              <Check
+                                                className={cn(
+                                                  "size-3.5",
+                                                  role.id === item.roleId
+                                                    ? "opacity-100"
+                                                    : "opacity-0"
+                                                )}
+                                                aria-hidden="true"
+                                              />
+                                              {zh ? role.zh : role.en}
+                                            </DropdownMenuItem>
+                                          ))}
+                                        </DropdownMenuGroup>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuGroup>
+                                          <DropdownMenuItem
+                                            variant={
+                                              item.active
+                                                ? "destructive"
+                                                : "default"
+                                            }
+                                            onSelect={() =>
+                                              toggleMemberActive(
+                                                item.id,
+                                                !item.active
+                                              )
+                                            }
+                                          >
+                                            {item.active
+                                              ? t("停用账号", "Disable account")
+                                              : t("重新启用", "Re-enable account")}
+                                          </DropdownMenuItem>
+                                        </DropdownMenuGroup>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <Empty className="py-12">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon">
+                            <Users aria-hidden="true" />
+                          </EmptyMedia>
+                          <EmptyTitle>
+                            {t("没有匹配的团队成员", "No matching members")}
+                          </EmptyTitle>
+                          <EmptyDescription>
+                            {t(
+                              "尝试清除搜索或切换角色筛选。",
+                              "Clear the search filter or select All roles."
+                            )}
+                          </EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
+                    )}
+                    <DataPagination
+                      page={safeMemberPage}
+                      pageSize={memberPageSize}
+                      total={filteredMembers.length}
+                      onPageChange={setMemberPage}
+                      onPageSizeChange={(size) => {
+                        setMemberPageSize(size)
+                        setMemberPage(1)
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
             </FadeTransition>
           </TabsContent>
         </Tabs>

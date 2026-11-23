@@ -99,4 +99,5 @@ export type StripePreviewReceipt = {
   total: number
   method: "card" | "apple" | "ach"
   status: "paid" | "processing" | "open" | "expired" | "failed"
+  receiptUrl?: string
 }

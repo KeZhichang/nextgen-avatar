@@ -15,6 +15,7 @@ import {
   Clock,
   CreditCard,
   Download,
+  ExternalLink,
   FolderOpen,
   Inbox,
   LayoutGrid,
@@ -111,8 +112,13 @@ export function RequireClientAuth() {
 
 export function ClientConsoleShell() {
   const { t, href, zh } = usePortal()
-  const { data, isLiveSupabase, signOutAll, markAllNotificationsRead } =
-    useDemo()
+  const {
+    data,
+    isLiveSupabase,
+    signOutAll,
+    markNotificationRead,
+    markAllNotificationsRead,
+  } = useDemo()
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [query] = useSearchParams()
@@ -120,6 +126,8 @@ export function ClientConsoleShell() {
   const orders = data.orders.filter(
     (value) => value.client === data.account.name
   )
+  const unreadNotifications = data.notifications.filter((item) => !item.isRead)
+  const unreadCount = unreadNotifications.length
   const pendingReview = orders.filter(
     (value) => value.status === "waiting_confirm"
   ).length
@@ -234,9 +242,9 @@ export function ClientConsoleShell() {
                 aria-label={t("通知", "Notifications")}
               >
                 <Bell aria-hidden="true" />
-                {data.unread && (
+                {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary font-mono text-[10px] font-semibold text-primary-foreground">
-                    {Math.min(orders.length, 3) || 1}
+                    {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
               </Button>
@@ -248,7 +256,7 @@ export function ClientConsoleShell() {
                     {t("消息通知", "Notifications")}
                   </PopoverTitle>
                 </PopoverHeader>
-                {data.unread && (
+                {unreadCount > 0 && (
                   <Button
                     variant="ghost"
                     size="xs"
@@ -267,29 +275,61 @@ export function ClientConsoleShell() {
                 )}
               </div>
               <Separator />
-              <div className="flex flex-col divide-y">
-                {orders.slice(0, 3).map((value) => (
-                  <Link
-                    key={value.id}
-                    to={href(
-                      value.status === "waiting_confirm"
-                        ? "video-review"
-                        : "order-chat",
-                      { order: value.id }
-                    )}
-                    className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm transition-colors hover:bg-muted/60"
-                  >
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                      <span className="truncate font-medium">
-                        {zh ? value.zh : value.en}
-                      </span>
-                      <span className="font-mono text-xs text-muted-foreground">
-                        #{value.id}
-                      </span>
-                    </div>
-                    <StatusBadge status={value.status} />
-                  </Link>
-                ))}
+              <div className="flex max-h-80 flex-col divide-y overflow-y-auto">
+                {data.notifications.length > 0 ? (
+                  data.notifications.slice(0, 8).map((item) => {
+                    const targetOrder = item.orderId
+                      ? orders.find((o) => o.id === item.orderId)
+                      : undefined
+                    const dest = item.orderId
+                      ? href(
+                          item.eventType === "draft_ready" ||
+                            targetOrder?.status === "waiting_confirm"
+                            ? "video-review"
+                            : "order-chat",
+                          { order: item.orderId }
+                        )
+                      : href("workspace")
+                    return (
+                      <Link
+                        key={item.id}
+                        to={dest}
+                        onClick={() => {
+                          if (!item.isRead) void markNotificationRead(item.id)
+                        }}
+                        className="flex items-start gap-2.5 px-3.5 py-2.5 text-sm transition-colors hover:bg-muted/60"
+                      >
+                        <span
+                          className={
+                            item.isRead
+                              ? "mt-1.5 size-1.5 shrink-0 rounded-full bg-transparent"
+                              : "mt-1.5 size-1.5 shrink-0 rounded-full bg-primary"
+                          }
+                        />
+                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span
+                            className={
+                              item.isRead
+                                ? "truncate text-xs font-medium text-muted-foreground"
+                                : "truncate text-xs font-semibold text-foreground"
+                            }
+                          >
+                            {zh ? item.titleZh : item.titleEn}
+                          </span>
+                          {(zh ? item.bodyZh : item.bodyEn) && (
+                            <span className="line-clamp-2 text-xs text-muted-foreground">
+                              {zh ? item.bodyZh : item.bodyEn}
+                            </span>
+                          )}
+                        </div>
+                      </Link>
+                    )
+                  })
+                ) : (
+                  <p className="px-4 py-6 text-center text-xs text-muted-foreground">
+                    {t("暂无消息通知", "No notifications yet")}
+                  </p>
+                )}
               </div>
             </PopoverContent>
           </Popover>
@@ -776,28 +816,44 @@ export function WorkspacePage() {
                         {formatDollars(value.total)}
                       </TableCell>
                       <TableCell className="px-4 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            downloadFile(
-                              new Blob(
-                                [
-                                  `NextGen Avatar Receipt\nOrder: ${value.id}\nAmount Paid (USD): ${formatDollars(value.total)}`,
-                                ],
-                                { type: "text/plain" }
-                              ),
-                              `${value.id}-invoice.txt`
-                            )
-                            toast.success(t("收据已下载", "Receipt downloaded"))
-                          }}
-                        >
-                          <Download
-                            data-icon="inline-start"
-                            aria-hidden="true"
-                          />
-                          {t("下载收据", "Download receipt")}
-                        </Button>
+                        {value.receiptUrl ? (
+                          <Button asChild variant="ghost" size="sm">
+                            <a
+                              href={value.receiptUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <ExternalLink
+                                data-icon="inline-start"
+                                aria-hidden="true"
+                              />
+                              {t("官方收据", "Stripe receipt")}
+                            </a>
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              downloadFile(
+                                new Blob(
+                                  [
+                                    `NextGen Avatar Receipt\nOrder: ${value.id}\nAmount Paid (USD): ${formatDollars(value.total)}`,
+                                  ],
+                                  { type: "text/plain" }
+                                ),
+                                `${value.id}-invoice.txt`
+                              )
+                              toast.success(t("收据已下载", "Receipt downloaded"))
+                            }}
+                          >
+                            <Download
+                              data-icon="inline-start"
+                              aria-hidden="true"
+                            />
+                            {t("下载收据", "Download receipt")}
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

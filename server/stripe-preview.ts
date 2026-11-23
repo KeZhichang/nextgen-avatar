@@ -194,7 +194,7 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
         return
       }
       const session = await stripe.checkout.sessions.retrieve(id, {
-        expand: ["payment_intent.payment_method"],
+        expand: ["payment_intent.payment_method", "payment_intent.latest_charge"],
       })
       const metadata = session.metadata
       const planId = metadata?.planId ?? ""
@@ -214,6 +214,12 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
       const intent =
         typeof session.payment_intent === "object"
           ? session.payment_intent
+          : null
+      const latestCharge =
+        intent &&
+        typeof intent.latest_charge === "object" &&
+        intent.latest_charge !== null
+          ? intent.latest_charge
           : null
       const payment =
         intent && typeof intent.payment_method === "object"
@@ -242,6 +248,7 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
         total: (session.amount_total ?? 0) / 100,
         method,
         status,
+        receiptUrl: latestCharge?.receipt_url ?? undefined,
       }
       sendJson(response, 200, result)
       return

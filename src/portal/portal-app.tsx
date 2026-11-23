@@ -23,31 +23,70 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { AdminOrdersPage, AdminSettingsPage } from "./admin"
 import { DemoProvider, useDemo, usePortal, useTeamAuth } from "./demo"
 import { defaultLocale, isLocale, setDocumentLocale } from "./i18n"
 import { ActionLink, FadeTransition, LanguageSwitch, PageWidth } from "./layout"
-import {
-  OrderChatPage,
-  StudioWorkspacePage,
-  VideoReviewPage,
-} from "./production"
-import {
-  AdminLoginPage,
-  AdminPermissionsPage,
-  RequireTeamAuth,
-} from "./team-console"
-import {
-  ClientConsoleShell,
-  RequireClientAuth,
-  WorkspacePage,
-} from "./workspace"
 
 const AuthPage = lazy(() =>
   import("./purchase").then(({ AuthPage }) => ({ default: AuthPage }))
 )
 const CheckoutPage = lazy(() =>
   import("./purchase").then(({ CheckoutPage }) => ({ default: CheckoutPage }))
+)
+const ClientConsoleShell = lazy(() =>
+  import("./workspace").then(({ ClientConsoleShell }) => ({
+    default: ClientConsoleShell,
+  }))
+)
+const RequireClientAuth = lazy(() =>
+  import("./workspace").then(({ RequireClientAuth }) => ({
+    default: RequireClientAuth,
+  }))
+)
+const WorkspacePage = lazy(() =>
+  import("./workspace").then(({ WorkspacePage }) => ({
+    default: WorkspacePage,
+  }))
+)
+const OrderChatPage = lazy(() =>
+  import("./production").then(({ OrderChatPage }) => ({
+    default: OrderChatPage,
+  }))
+)
+const VideoReviewPage = lazy(() =>
+  import("./production").then(({ VideoReviewPage }) => ({
+    default: VideoReviewPage,
+  }))
+)
+const StudioWorkspacePage = lazy(() =>
+  import("./production").then(({ StudioWorkspacePage }) => ({
+    default: StudioWorkspacePage,
+  }))
+)
+const AdminLoginPage = lazy(() =>
+  import("./team-console").then(({ AdminLoginPage }) => ({
+    default: AdminLoginPage,
+  }))
+)
+const AdminPermissionsPage = lazy(() =>
+  import("./team-console").then(({ AdminPermissionsPage }) => ({
+    default: AdminPermissionsPage,
+  }))
+)
+const RequireTeamAuth = lazy(() =>
+  import("./team-console").then(({ RequireTeamAuth }) => ({
+    default: RequireTeamAuth,
+  }))
+)
+const AdminOrdersPage = lazy(() =>
+  import("./admin").then(({ AdminOrdersPage }) => ({
+    default: AdminOrdersPage,
+  }))
+)
+const AdminSettingsPage = lazy(() =>
+  import("./admin").then(({ AdminSettingsPage }) => ({
+    default: AdminSettingsPage,
+  }))
 )
 
 function RootRedirect() {

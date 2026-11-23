@@ -22,6 +22,7 @@ export type TeamRoleConfig = {
 
 export type TeamMember = {
   id: string
+  userId?: string
   name: string
   email: string
   roleId: TeamRoleId

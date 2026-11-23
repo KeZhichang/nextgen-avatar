@@ -33,9 +33,13 @@ import {
   addTeamMemberInDb,
   createOrderInDb,
   fetchAuthenticatedSnapshot,
+  fetchCustomQuoteInDb,
   fetchPublicCatalog,
   insertMessageInDb,
+  insertNotificationInDb,
   insertVersionInDb,
+  markCustomQuotePaidInDb,
+  markNotificationReadInDb,
   markNotificationsReadInDb,
   saveCatalogToDb,
   saveCustomQuoteInDb,
@@ -45,6 +49,8 @@ import {
   updateOrderInDb,
   updateTeamMemberInDb,
   type ClientDirectoryEntry,
+  type CustomQuoteRecord,
+  type NotificationItem,
 } from "./supabase-sync"
 
 export type { Addon, Plan } from "./checkout-catalog"
@@ -54,7 +60,11 @@ export type {
   TeamRoleConfig,
   TeamRoleId,
 } from "./rbac"
-export type { ClientDirectoryEntry } from "./supabase-sync"
+export type {
+  ClientDirectoryEntry,
+  CustomQuoteRecord,
+  NotificationItem,
+} from "./supabase-sync"
 
 export const sampleOrder = "NGA-20261108"
 const storageKey = "nextgen-avatar-demo-v1"
@@ -159,12 +169,14 @@ export type Order = {
   zh: string
   en: string
   client: string
+  clientId?: string
   status: Status
   plan: string
   count: number
   total: number
   method: string
   paymentSession?: string
+  receiptUrl?: string
   owner: string
   entries: Entry[]
   versions: Version[]
@@ -216,13 +228,72 @@ type DemoState = {
   orders: Order[]
   role: Role
   unread: boolean
+  notifications: NotificationItem[]
   account: { name: string; email: string; company: string; avatarUrl?: string }
   addons: Addon[]
   teamRoles: TeamRoleConfig[]
   teamMembers: TeamMember[]
   teamSession: string | null
   clients: ClientDirectoryEntry[]
+  customQuotes: CustomQuoteRecord[]
 }
+
+const defaultDemoQuotes: CustomQuoteRecord[] = [
+  {
+    id: "QUOTE-9021",
+    clientEmail: "michael@eduscale.io",
+    projectName: "EduScale Q4 Course Series",
+    videoCount: 10,
+    amountDollars: 1250,
+    status: "open",
+    createdAt: new Date(Date.now() - 4 * 3600_000).toISOString(),
+  },
+  {
+    id: "QUOTE-8842",
+    clientEmail: "sarah@apexlabs.io",
+    projectName: "Apex Labs Launch Pack",
+    videoCount: 15,
+    amountDollars: 1650,
+    status: "paid",
+    createdAt: new Date(Date.now() - 3 * 24 * 3600_000).toISOString(),
+  },
+]
+
+const defaultDemoNotifications: NotificationItem[] = [
+  {
+    id: "demo-notif-review",
+    orderId: sampleOrder,
+    eventType: "draft_ready",
+    titleZh: "修订版 v2 已上传，等待审片",
+    titleEn: "Revision v2 is ready for review",
+    bodyZh: "Q4 新品发布会口播 · 请在线审片确认或提交修改意见",
+    bodyEn: "Q4 product launch video · Review and approve or request changes",
+    isRead: false,
+    createdAt: new Date(Date.now() - 25 * 60_000).toISOString(),
+  },
+  {
+    id: "demo-notif-assets",
+    orderId: "NGA-20261115",
+    eventType: "awaiting_assets",
+    titleZh: "请上传素材以启动制作",
+    titleEn: "Upload materials to start production",
+    bodyZh: "Black Friday 大促口播 · 发送照片、干声与台词即可开工",
+    bodyEn: "Black Friday campaign · Share photos, audio, and script in chat",
+    isRead: false,
+    createdAt: new Date(Date.now() - 2 * 3600_000).toISOString(),
+  },
+  {
+    id: "demo-notif-delivered",
+    orderId: "NGA-20261024",
+    eventType: "final_delivered",
+    titleZh: "正式无水印成片已交付",
+    titleEn: "Watermark-free final video delivered",
+    bodyZh: "创始人年度致辞 · 可在工作台随时下载 1080P 成片",
+    bodyEn: "Founder's annual message · Download your 1080P final anytime",
+    isRead: true,
+    createdAt: new Date(Date.now() - 24 * 3600_000).toISOString(),
+  },
+]
 
 const initialDemo: DemoState = {
   plans: defaultPlans,
@@ -266,6 +337,7 @@ const initialDemo: DemoState = {
   ],
   role: "admin",
   unread: true,
+  notifications: defaultDemoNotifications,
   account: {
     name: "Sarah Lin",
     email: "sarah.lin@gmail.com",
@@ -276,6 +348,7 @@ const initialDemo: DemoState = {
   teamMembers: defaultTeamMembers,
   teamSession: null,
   clients: [],
+  customQuotes: defaultDemoQuotes,
 }
 
 const initialLive: DemoState = {
@@ -283,12 +356,14 @@ const initialLive: DemoState = {
   orders: [],
   role: "producer",
   unread: false,
+  notifications: [],
   account: { name: "", email: "", company: "" },
   addons: defaultAddonItems,
   teamRoles: defaultTeamRoles,
   teamMembers: [],
   teamSession: null,
   clients: [],
+  customQuotes: [],
 }
 
 function normalizePlans(raw: unknown): Plan[] {
@@ -450,9 +525,12 @@ type DemoContextValue = {
       paymentSession?: string
       projectName?: string
       addonIds?: string[]
+      customQuoteId?: string
+      receiptUrl?: string
     }
   ) => string
   refreshFromSupabase: () => Promise<void>
+  loadCustomQuote: (quoteId: string) => Promise<CustomQuoteRecord | null>
   // Auth
   signInClient: (email: string, password: string) => Promise<AuthResult>
   signUpClient: (
@@ -520,6 +598,7 @@ type DemoContextValue = {
     memberId: string,
     patch: { roleId?: TeamRoleId; active?: boolean }
   ) => Promise<boolean>
+  markNotificationRead: (notificationId: string) => Promise<void>
   markAllNotificationsRead: () => Promise<void>
 }
 
@@ -623,10 +702,29 @@ export function DemoProvider({ children }: { children: ReactNode }) {
               ? "admin"
               : "producer",
           clients: snapshot.clients,
+          customQuotes:
+            snapshot.customQuotes.length > 0
+              ? snapshot.customQuotes
+              : !hideSampleData
+                ? current.customQuotes.length > 0
+                  ? current.customQuotes
+                  : defaultDemoQuotes
+                : [],
+          notifications:
+            snapshot.notifications.length > 0
+              ? snapshot.notifications
+              : !hideSampleData
+                ? current.notifications.length > 0
+                  ? current.notifications
+                  : defaultDemoNotifications
+                : [],
           unread:
-            snapshot.unread ||
-            (!hideSampleData &&
-              mergedOrders.some((item) => item.demo && item.status === "waiting_confirm")),
+            snapshot.notifications.length > 0
+              ? snapshot.unread
+              : !hideSampleData &&
+                (current.notifications.length > 0
+                  ? current.notifications.some((item) => !item.isRead)
+                  : defaultDemoNotifications.some((item) => !item.isRead)),
         }
       })
     } catch {
@@ -716,6 +814,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       paymentSession?: string
       projectName?: string
       addonIds?: string[]
+      customQuoteId?: string
+      receiptUrl?: string
     }
   ) {
     const paymentSession = options?.paymentSession
@@ -745,12 +845,26 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         "waiting_assets",
         ""
       ),
+      clientId: live?.user.id,
       plan: plan.id,
       count: plan.count,
       total,
       method,
       paymentSession,
+      receiptUrl: options?.receiptUrl,
       ...(!live && supabaseConfigured ? { demo: true } : {}),
+    }
+
+    const orderNotif: NotificationItem = {
+      id: "notif-" + crypto.randomUUID().slice(0, 8),
+      orderId: id,
+      eventType: "order_created",
+      titleZh: "新订单已创建，请上传制作素材",
+      titleEn: "Order created — upload materials to begin",
+      bodyZh: `${titleZh} (#${id})`,
+      bodyEn: `${titleEn} (#${id})`,
+      isRead: false,
+      createdAt: now.toISOString(),
     }
 
     setData((current) =>
@@ -760,6 +874,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         : {
             ...current,
             unread: true,
+            notifications: [orderNotif, ...current.notifications].slice(0, 20),
             orders: [createdOrder, ...current.orders],
           }
     )
@@ -769,13 +884,45 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         live.sb,
         live.user.id,
         createdOrder,
-        options?.addonIds ?? []
+        options?.addonIds ?? [],
+        {
+          customQuoteId: options?.customQuoteId,
+          receiptUrl: options?.receiptUrl,
+        }
       )
-        .then(() => loadSnapshotForUser(live.user))
+        .then(async () => {
+          if (options?.customQuoteId) {
+            await markCustomQuotePaidInDb(live.sb, options.customQuoteId).catch(
+              () => undefined
+            )
+          }
+          await insertNotificationInDb(live.sb, {
+            recipientUserId: live.user.id,
+            orderId: id,
+            eventType: "order_created",
+            titleZh: orderNotif.titleZh,
+            titleEn: orderNotif.titleEn,
+            bodyZh: orderNotif.bodyZh,
+            bodyEn: orderNotif.bodyEn,
+          }).catch(() => undefined)
+          await loadSnapshotForUser(live.user)
+        })
         .catch(() => undefined)
     }
 
     return id
+  }
+
+  async function loadCustomQuote(
+    quoteId: string
+  ): Promise<CustomQuoteRecord | null> {
+    const sb = getSupabaseClient()
+    if (!sb || !quoteId.trim()) return null
+    try {
+      return await fetchCustomQuoteInDb(sb, quoteId.trim())
+    } catch {
+      return null
+    }
   }
 
   async function signInClient(
@@ -904,6 +1051,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         company: initialDemo.account.company,
       },
       orders: buildDemoOrdersForAccount(resolvedName, false),
+      notifications: defaultDemoNotifications,
       unread: true,
     }))
   }
@@ -932,6 +1080,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           current.orders.length > 0
             ? current.orders
             : buildDemoOrdersForAccount(accountName, true),
+        customQuotes:
+          current.customQuotes.length > 0
+            ? current.customQuotes
+            : defaultDemoQuotes,
         unread: true,
       }
     })
@@ -1026,6 +1178,18 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       await updateOrderInDb(live.sb, orderId, {
         assigned_member_id: matchedMember?.id ?? null,
       })
+      if (matchedMember?.userId && matchedMember.userId !== live.user.id) {
+        const targetOrder = dataRef.current.orders.find((o) => o.id === orderId)
+        await insertNotificationInDb(live.sb, {
+          recipientUserId: matchedMember.userId,
+          orderId,
+          eventType: "order_assigned",
+          titleZh: "你收到一个新的制作任务指派",
+          titleEn: "New production order assigned to you",
+          bodyZh: `${targetOrder?.zh ?? orderId} (#${orderId})`,
+          bodyEn: `${targetOrder?.en ?? orderId} (#${orderId})`,
+        }).catch(() => undefined)
+      }
       return true
     } catch {
       await refreshFromSupabase()
@@ -1035,6 +1199,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
 
   async function startOrderProduction(orderId: string, messageText: string) {
     const demoOnly = isDemoOrder(orderId)
+    const targetOrder = dataRef.current.orders.find((o) => o.id === orderId)
     updateOrder(orderId, (value) =>
       appendEntry({ ...value, status: "producing" }, "studio", messageText)
     )
@@ -1049,6 +1214,17 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         "studio",
         messageText
       )
+      if (targetOrder?.clientId && targetOrder.clientId !== live.user.id) {
+        await insertNotificationInDb(live.sb, {
+          recipientUserId: targetOrder.clientId,
+          orderId,
+          eventType: "production_started",
+          titleZh: "制作团队已确认素材并开始制作",
+          titleEn: "Production has started on your order",
+          bodyZh: `${targetOrder.zh} (#${orderId})`,
+          bodyEn: `${targetOrder.en} (#${orderId})`,
+        }).catch(() => undefined)
+      }
       return true
     } catch {
       await refreshFromSupabase()
@@ -1128,6 +1304,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     )
     setData((state) => ({ ...state, unread: true }))
 
+    const targetOrder = dataRef.current.orders.find((o) => o.id === orderId)
     const live = getLiveDbUser()
     if (!live || demoOnly) return true
     try {
@@ -1145,6 +1322,24 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         messageText,
         versionRef
       )
+      if (targetOrder?.clientId && targetOrder.clientId !== live.user.id) {
+        await insertNotificationInDb(live.sb, {
+          recipientUserId: targetOrder.clientId,
+          orderId,
+          eventType:
+            version.type === "final" ? "final_delivered" : "draft_ready",
+          titleZh:
+            version.type === "final"
+              ? "正式无水印成片已交付"
+              : `预览版 ${version.id} 已上传，等待审片`,
+          titleEn:
+            version.type === "final"
+              ? "Your final video has been delivered"
+              : `Preview ${version.id} is ready for review`,
+          bodyZh: `${targetOrder.zh} (#${orderId})`,
+          bodyEn: `${targetOrder.en} (#${orderId})`,
+        }).catch(() => undefined)
+      }
       return true
     } catch {
       await refreshFromSupabase()
@@ -1204,6 +1399,24 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     videoCount: number
     amountDollars: number
   }) {
+    const localRecord: CustomQuoteRecord = {
+      id: quote.id,
+      clientEmail: quote.clientEmail.includes("@")
+        ? quote.clientEmail
+        : undefined,
+      projectName: quote.projectName || quote.id,
+      videoCount: quote.videoCount,
+      amountDollars: quote.amountDollars,
+      status: "open",
+      createdAt: new Date().toISOString(),
+    }
+    setData((current) => ({
+      ...current,
+      customQuotes: [
+        localRecord,
+        ...current.customQuotes.filter((item) => item.id !== quote.id),
+      ],
+    }))
     const live = getLiveDbUser()
     if (!live) return true
     try {
@@ -1327,8 +1540,37 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function markNotificationRead(notificationId: string) {
+    setData((current) => {
+      const next = current.notifications.map((item) =>
+        item.id === notificationId ? { ...item, isRead: true } : item
+      )
+      return {
+        ...current,
+        notifications: next,
+        unread: next.some((item) => !item.isRead),
+      }
+    })
+    if (notificationId.startsWith("demo-") || notificationId.startsWith("notif-"))
+      return
+    const live = getLiveDbUser()
+    if (!live) return
+    try {
+      await markNotificationReadInDb(live.sb, live.user.id, notificationId)
+    } catch {
+      // Ignore
+    }
+  }
+
   async function markAllNotificationsRead() {
-    setData((current) => ({ ...current, unread: false }))
+    setData((current) => ({
+      ...current,
+      unread: false,
+      notifications: current.notifications.map((item) => ({
+        ...item,
+        isRead: true,
+      })),
+    }))
     const live = getLiveDbUser()
     if (!live) return
     try {
@@ -1349,6 +1591,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         updateOrder,
         createOrder,
         refreshFromSupabase,
+        loadCustomQuote,
         signInClient,
         signUpClient,
         signInWithGoogle,
@@ -1370,6 +1613,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         resetTeamRolePermissions,
         addTeamMember,
         updateTeamMember,
+        markNotificationRead,
         markAllNotificationsRead,
       }}
     >

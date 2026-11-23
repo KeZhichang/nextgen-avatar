@@ -2,6 +2,28 @@ import { getSupabaseClient } from "@/lib/supabase"
 
 export const STORAGE_BUCKET = "order-media"
 export const CLOUD_FILE_PREFIX = "sb:"
+export const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024 // 100 MB per material file
+export const MAX_VIDEO_BYTES = 500 * 1024 * 1024 // 500 MB per preview/final video
+
+export type FileValidationResult =
+  | { ok: true }
+  | { ok: false; reason: "empty" | "too_large"; maxMb: number }
+
+export function validateOrderFile(
+  file: File,
+  kind: "attachment" | "video"
+): FileValidationResult {
+  const maxBytes =
+    kind === "video" ? MAX_VIDEO_BYTES : MAX_ATTACHMENT_BYTES
+  const maxMb = Math.round(maxBytes / (1024 * 1024))
+  if (file.size <= 0) {
+    return { ok: false, reason: "empty", maxMb }
+  }
+  if (file.size > maxBytes) {
+    return { ok: false, reason: "too_large", maxMb }
+  }
+  return { ok: true }
+}
 
 export type UploadedFileRecord = {
   fileId: string
@@ -94,12 +116,28 @@ export async function uploadOrderFiles(
   orderId: string,
   folder: "attachments" | "videos",
   files: File[],
-  options?: { localOnly?: boolean }
+  options?: {
+    localOnly?: boolean
+    onProgress?: (percent: number, done: number, total: number) => void
+  }
 ): Promise<UploadedFileRecord[]> {
   if (!files.length) return []
+  const kind = folder === "videos" ? "video" : "attachment"
+  for (const file of files) {
+    const check = validateOrderFile(file, kind)
+    if (!check.ok) {
+      throw new Error(
+        check.reason === "too_large"
+          ? `File exceeds ${check.maxMb}MB limit`
+          : "Empty file"
+      )
+    }
+  }
+  options?.onProgress?.(8, 0, files.length)
   const sb = options?.localOnly ? null : getSupabaseClient()
   if (!sb) {
     const ids = await saveFiles(files)
+    options?.onProgress?.(100, files.length, files.length)
     return files.map((file, index) => ({
       fileId: ids[index],
       storageKey: `local:${ids[index]}`,
@@ -110,7 +148,8 @@ export async function uploadOrderFiles(
   }
 
   const results: UploadedFileRecord[] = []
-  for (const file of files) {
+  for (let idx = 0; idx < files.length; idx += 1) {
+    const file = files[idx]
     const safeName = sanitizeStorageFileName(file.name)
     const objectPath = `orders/${orderId}/${folder}/${crypto.randomUUID()}-${safeName}`
     const { error } = await sb.storage
@@ -129,6 +168,8 @@ export async function uploadOrderFiles(
       type: file.type,
       size: file.size,
     })
+    const percent = Math.round(((idx + 1) / files.length) * 100)
+    options?.onProgress?.(percent, idx + 1, files.length)
   }
   return results
 }

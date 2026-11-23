@@ -28,6 +28,28 @@ export type ClientDirectoryEntry = {
   avatarUrl?: string
 }
 
+export type NotificationItem = {
+  id: string
+  orderId?: string
+  eventType: string
+  titleZh: string
+  titleEn: string
+  bodyZh: string
+  bodyEn: string
+  isRead: boolean
+  createdAt: string
+}
+
+export type CustomQuoteRecord = {
+  id: string
+  clientEmail?: string
+  projectName: string
+  videoCount: number
+  amountDollars: number
+  status: "open" | "paid" | "expired" | "cancelled"
+  createdAt?: string
+}
+
 export type SupabaseSnapshot = {
   account: {
     id: string
@@ -41,6 +63,8 @@ export type SupabaseSnapshot = {
   teamMembers: TeamMember[]
   orders: Order[]
   clients: ClientDirectoryEntry[]
+  customQuotes: CustomQuoteRecord[]
+  notifications: NotificationItem[]
   unread: boolean
 }
 
@@ -199,6 +223,7 @@ export async function fetchAuthenticatedSnapshot(
     if (memberRows && memberRows.length > 0) {
       teamMembers = memberRows.map((item) => ({
         id: item.id,
+        userId: item.user_id ?? undefined,
         name: item.name,
         email: item.email,
         roleId: item.role_id as TeamRoleId,
@@ -208,6 +233,7 @@ export async function fetchAuthenticatedSnapshot(
       teamMembers = [
         {
           id: selfMember.id,
+          userId: selfMember.user_id ?? undefined,
           name: selfMember.name,
           email: selfMember.email,
           roleId: selfMember.role_id as TeamRoleId,
@@ -290,12 +316,14 @@ export async function fetchAuthenticatedSnapshot(
         zh: row.title_zh,
         en: row.title_en,
         client: clientNameById.get(row.client_id) ?? account.name,
+        clientId: row.client_id,
         status: row.status as Status,
         plan: row.plan_id ?? (row.custom_quote_id ? "quote" : "pro"),
         count: row.video_credits_total,
         total: centsToDollars(row.amount_cents),
         method: row.payment_method,
         paymentSession: row.stripe_checkout_session_id ?? undefined,
+        receiptUrl: row.receipt_url ?? undefined,
         owner: row.assigned_member_id
           ? (memberNameById.get(row.assigned_member_id) ?? "")
           : "",
@@ -380,11 +408,53 @@ export async function fetchAuthenticatedSnapshot(
     }
   }
 
-  const { count: unreadCount } = await sb
+  const { data: notificationRows } = await sb
     .from("notifications")
-    .select("id", { count: "exact", head: true })
+    .select("*")
     .eq("recipient_user_id", userId)
-    .eq("is_read", false)
+    .order("created_at", { ascending: false })
+    .limit(20)
+
+  const notifications: NotificationItem[] = (notificationRows ?? []).map(
+    (row) => ({
+      id: row.id,
+      orderId: row.order_id ?? undefined,
+      eventType: row.event_type,
+      titleZh: row.title_zh,
+      titleEn: row.title_en,
+      bodyZh: row.body_zh,
+      bodyEn: row.body_en,
+      isRead: row.is_read,
+      createdAt: row.created_at,
+    })
+  )
+
+  const canViewQuotes = Boolean(
+    isTeam &&
+      selfMember &&
+      (() => {
+        const myRole = teamRoles.find((r) => r.id === selfMember.role_id)
+        return myRole?.locked || myRole?.permissions.includes("settings:quotes")
+      })()
+  )
+
+  let customQuotes: CustomQuoteRecord[] = []
+  if (canViewQuotes) {
+    const { data: quoteRows } = await sb
+      .from("custom_quotes")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(20)
+    customQuotes = (quoteRows ?? []).map((row) => ({
+      id: row.id,
+      clientEmail: row.client_email ?? undefined,
+      projectName: row.project_name,
+      videoCount: row.video_count,
+      amountDollars: centsToDollars(row.amount_cents),
+      status: row.status,
+      createdAt: row.created_at,
+    }))
+  }
 
   return {
     account,
@@ -393,7 +463,9 @@ export async function fetchAuthenticatedSnapshot(
     teamMembers,
     orders: rawOrders,
     clients,
-    unread: Boolean(unreadCount && unreadCount > 0),
+    customQuotes,
+    notifications,
+    unread: notifications.some((item) => !item.isRead),
   }
 }
 
@@ -466,7 +538,8 @@ export async function createOrderInDb(
   sb: SbClient,
   userId: string,
   order: Order,
-  addonIds: string[] = []
+  addonIds: string[] = [],
+  options?: { customQuoteId?: string; receiptUrl?: string }
 ) {
   const method: PaymentMethodType =
     order.method === "apple" || order.method === "ach" ? order.method : "card"
@@ -477,6 +550,7 @@ export async function createOrderInDb(
     title_en: order.en,
     status: order.status as OrderStatus,
     plan_id: order.plan === "quote" ? null : order.plan,
+    custom_quote_id: options?.customQuoteId ?? null,
     addon_ids: addonIds,
     video_credits_total: order.count,
     video_credits_used: 0,
@@ -484,6 +558,7 @@ export async function createOrderInDb(
     currency: "usd",
     payment_method: method,
     stripe_checkout_session_id: order.paymentSession ?? null,
+    receipt_url: options?.receiptUrl ?? order.receiptUrl ?? null,
   })
   if (error) throw error
 }
@@ -647,6 +722,71 @@ export async function updateTeamMemberInDb(
     .from("team_members")
     .update(patch)
     .eq("id", memberId)
+  if (error) throw error
+}
+
+export async function fetchCustomQuoteInDb(
+  sb: SbClient,
+  quoteId: string
+): Promise<CustomQuoteRecord | null> {
+  const { data, error } = await sb
+    .from("custom_quotes")
+    .select("*")
+    .eq("id", quoteId)
+    .maybeSingle()
+  if (error || !data) return null
+  return {
+    id: data.id,
+    clientEmail: data.client_email ?? undefined,
+    projectName: data.project_name,
+    videoCount: data.video_count,
+    amountDollars: centsToDollars(data.amount_cents),
+    status: data.status,
+  }
+}
+
+export async function markCustomQuotePaidInDb(sb: SbClient, quoteId: string) {
+  await sb
+    .from("custom_quotes")
+    .update({ status: "paid" })
+    .eq("id", quoteId)
+    .eq("status", "open")
+}
+
+export async function insertNotificationInDb(
+  sb: SbClient,
+  payload: {
+    recipientUserId: string
+    orderId?: string
+    eventType: string
+    titleZh: string
+    titleEn: string
+    bodyZh: string
+    bodyEn: string
+  }
+) {
+  await sb.from("notifications").insert({
+    recipient_user_id: payload.recipientUserId,
+    order_id: payload.orderId ?? null,
+    event_type: payload.eventType,
+    title_zh: payload.titleZh,
+    title_en: payload.titleEn,
+    body_zh: payload.bodyZh,
+    body_en: payload.bodyEn,
+    is_read: false,
+  })
+}
+
+export async function markNotificationReadInDb(
+  sb: SbClient,
+  userId: string,
+  notificationId: string
+) {
+  const { error } = await sb
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("recipient_user_id", userId)
+    .eq("id", notificationId)
   if (error) throw error
 }
 

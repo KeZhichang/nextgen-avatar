@@ -15,7 +15,6 @@ import {
   Video,
   X,
 } from "lucide-react"
-import { zip } from "fflate"
 import { toast } from "sonner"
 import { cn } from "cn"
 
@@ -28,6 +27,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
+  AlertDialogMedia,
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
@@ -113,6 +113,7 @@ import {
   fetchFileBytes,
   resolveFileSource,
   uploadOrderFiles,
+  validateOrderFile,
 } from "./files"
 import { ActionLink, FadeTransition, PageWidth, StatusBadge } from "./layout"
 import { TeamConsoleLayout } from "./team-console"
@@ -244,47 +245,47 @@ function ChatPanel({
   const sample: Entry[] =
     order.id === sampleOrder
       ? [
-          {
-            id: "sample-client",
-            side: "client",
-            text: t(
-              "初稿 v1 00:24 处语速稍快，麻烦调整一下。",
-              "The pacing at 00:24 in v1 is a little fast. Could you slow it down?"
+        {
+          id: "sample-client",
+          side: "client",
+          text: t(
+            "初稿 v1 00:24 处语速稍快，麻烦调整一下。",
+            "The pacing at 00:24 in v1 is a little fast. Could you slow it down?"
+          ),
+        },
+        {
+          id: "sample-team",
+          side: "studio",
+          text: t(
+            "收到，修订版 v2 已上传，请在线审片确认或继续提出修改意见。",
+            "Updated pacing and uploaded v2. Please review and approve or leave revision notes."
+          ),
+          versionRef: {
+            id: "v2",
+            type: "preview",
+            note: t(
+              "已优化 00:24 处语速与开场镜头节奏",
+              "Updated pacing and opening shot"
             ),
           },
+        },
+      ]
+      : order.id === "NGA-20261024"
+        ? [
           {
-            id: "sample-team",
+            id: "sample-final-delivery",
             side: "studio",
             text: t(
-              "收到，修订版 v2 已上传，请在线审片确认或继续提出修改意见。",
-              "Updated pacing and uploaded v2. Please review and approve or leave revision notes."
+              "正式无水印成片已交付，可在审片页或工作台随时下载。",
+              "Your watermark-free final video has been delivered."
             ),
             versionRef: {
-              id: "v2",
-              type: "preview",
-              note: t(
-                "已优化 00:24 处语速与开场镜头节奏",
-                "Updated pacing and opening shot"
-              ),
+              id: "final",
+              type: "final",
+              note: t("1080P 无水印正式交付版", "1080P watermark-free final"),
             },
           },
         ]
-      : order.id === "NGA-20261024"
-        ? [
-            {
-              id: "sample-final-delivery",
-              side: "studio",
-              text: t(
-                "正式无水印成片已交付，可在审片页或工作台随时下载。",
-                "Your watermark-free final video has been delivered."
-              ),
-              versionRef: {
-                id: "final",
-                type: "final",
-                note: t("1080P 无水印正式交付版", "1080P watermark-free final"),
-              },
-            },
-          ]
         : []
   const entries = [...sample, ...order.entries]
   const latestVersion = order.versions.at(-1)
@@ -454,7 +455,7 @@ function ChatPanel({
                                   size="xs"
                                   variant={
                                     entry.versionRef.type === "preview" &&
-                                    order.status === "waiting_confirm"
+                                      order.status === "waiting_confirm"
                                       ? "default"
                                       : "outline"
                                   }
@@ -467,9 +468,9 @@ function ChatPanel({
                                     ? t("查看并下载成片", "View & download")
                                     : order.status === "waiting_confirm"
                                       ? t(
-                                          "去审片 / 提意见",
-                                          "Review & feedback"
-                                        )
+                                        "去审片 / 提意见",
+                                        "Review & feedback"
+                                      )
                                       : t("查看该版本", "View version")}
                                 </Button>
                               )}
@@ -836,6 +837,9 @@ function ReviewPanel({
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
+                        <AlertDialogMedia className="bg-primary/10 text-primary">
+                          <CheckCircle2 aria-hidden="true" />
+                        </AlertDialogMedia>
                         <AlertDialogTitle>
                           {t(
                             "确认通过当前初稿？",
@@ -1272,10 +1276,10 @@ export function StudioWorkspacePage() {
     try {
       const uploaded = file
         ? (
-            await uploadOrderFiles(order.id, "videos", [file], {
-              localOnly: Boolean(order.demo),
-            })
-          )[0]
+          await uploadOrderFiles(order.id, "videos", [file], {
+            localOnly: Boolean(order.demo),
+          })
+        )[0]
         : undefined
       const fileId = uploaded?.fileId
       const version: Version = {
@@ -1300,9 +1304,9 @@ export function StudioWorkspacePage() {
         effectiveKind === "final"
           ? t("正式成片已交付至客户工作台。", "Final delivery published.")
           : t(
-              "初稿已推送至客户审片页。",
-              "The draft is ready in the client review page."
-            )
+            "初稿已推送至客户审片页。",
+            "The draft is ready in the client review page."
+          )
       )
     } catch {
       toast.error(
@@ -1350,6 +1354,7 @@ export function StudioWorkspacePage() {
           : cleanName
         content[uniqueName] = bytes
       }
+      const { zip } = await import("fflate")
       const result = await new Promise<Uint8Array<ArrayBuffer>>(
         (resolve, reject) =>
           zip(content, { level: 0 }, (error, bytes) => {
@@ -1618,7 +1623,26 @@ export function StudioWorkspacePage() {
 
                 <FileUpload
                   value={files}
-                  onValueChange={(next) => setFiles(next.slice(-1))}
+                  onValueChange={(next) => {
+                    const candidate = next.slice(-1)[0]
+                    if (!candidate) {
+                      setFiles([])
+                      return
+                    }
+                    const check = validateOrderFile(candidate, "video")
+                    if (!check.ok) {
+                      toast.warning(
+                        check.reason === "too_large"
+                          ? t(
+                              `视频超过 ${check.maxMb}MB 上限，请压缩后再上传。`,
+                              `Video exceeds the ${check.maxMb}MB limit.`
+                            )
+                          : t("所选视频文件为空。", "Selected video file is empty.")
+                      )
+                      return
+                    }
+                    setFiles([candidate])
+                  }}
                   accept="video/*"
                   maxFiles={1}
                   disabled={busy || order.status === "completed"}
@@ -1708,6 +1732,9 @@ export function StudioWorkspacePage() {
               >
                 <AlertDialogContent>
                   <AlertDialogHeader>
+                    <AlertDialogMedia className="bg-primary/10 text-primary">
+                      <Upload aria-hidden="true" />
+                    </AlertDialogMedia>
                     <AlertDialogTitle>
                       {t("确认交付正式成片？", "Deliver final video now?")}
                     </AlertDialogTitle>

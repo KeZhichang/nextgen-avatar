@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router"
 import {
   Check,
@@ -59,6 +59,7 @@ import {
   formatDollars,
   useDemo,
   usePortal,
+  type CustomQuoteRecord,
   type Plan,
 } from "./demo"
 import {
@@ -494,23 +495,43 @@ export function AuthPage() {
 export function CheckoutPage() {
   const { href, t, zh, locale } = usePortal()
   const [query, setQuery] = useSearchParams()
-  const { data, createOrder } = useDemo()
+  const { data, createOrder, loadCustomQuote } = useDemo()
   const amount = Number(query.get("amount"))
   const quota = Number(query.get("quota"))
-  const quote = query.get("quote")
+  const quote = query.get("quote")?.trim() || ""
   const queryProject = query.get("project")?.trim().slice(0, 80) ?? ""
+  const [dbQuote, setDbQuote] = useState<CustomQuoteRecord | null>(null)
+
+  useEffect(() => {
+    if (!quote) return
+    let active = true
+    void loadCustomQuote(quote).then((record) => {
+      if (active) setDbQuote(record)
+    })
+    return () => {
+      active = false
+    }
+  }, [quote, loadCustomQuote])
+
+  const activeDbQuote = dbQuote && dbQuote.id === quote ? dbQuote : null
+  const quoteBlocked =
+    activeDbQuote !== null && activeDbQuote.status !== "open"
+  const resolvedQuoteAmount = activeDbQuote?.amountDollars ?? amount
+  const resolvedQuoteQuota = activeDbQuote?.videoCount ?? quota
+  const resolvedQuoteName = activeDbQuote?.projectName || queryProject || quote
   const quotedPlan: Plan | undefined =
     quote &&
-    Number.isFinite(amount) &&
-    amount > 0 &&
-    Number.isSafeInteger(quota) &&
-    quota > 0
+    !quoteBlocked &&
+    Number.isFinite(resolvedQuoteAmount) &&
+    resolvedQuoteAmount > 0 &&
+    Number.isSafeInteger(resolvedQuoteQuota) &&
+    resolvedQuoteQuota > 0
       ? {
           id: "quote",
-          zh: "定制报价 · " + (queryProject || quote),
-          en: "Custom quote · " + (queryProject || quote),
-          count: quota,
-          price: amount,
+          zh: "定制报价 · " + resolvedQuoteName,
+          en: "Custom quote · " + resolvedQuoteName,
+          count: resolvedQuoteQuota,
+          price: resolvedQuoteAmount,
           active: true,
         }
       : undefined
@@ -577,8 +598,13 @@ export function CheckoutPage() {
     setCreated(
       createOrder(paidPlan, paid.total, paid.method, {
         paymentSession: paid.id,
-        projectName: queryProject || undefined,
+        projectName:
+          paidPlan.id === "quote"
+            ? resolvedQuoteName
+            : queryProject || undefined,
         addonIds: selectedAddonList.map((item) => item.id),
+        customQuoteId: paidPlan.id === "quote" && quote ? quote : undefined,
+        receiptUrl: paid.receiptUrl,
       })
     )
   }
@@ -629,6 +655,24 @@ export function CheckoutPage() {
               </span>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
+              {quoteBlocked && (
+                <Alert variant="destructive">
+                  <AlertTitle>
+                    {t("该定制报价链接已失效", "This custom quote is no longer open")}
+                  </AlertTitle>
+                  <AlertDescription>
+                    {activeDbQuote?.status === "paid"
+                      ? t(
+                          "该报价单已完成支付，无需重复付款。您可以直接前往工作台查看订单，或选择下方标准套餐。",
+                          "This quote has already been paid. Open your workspace to view the order, or pick a standard package below."
+                        )
+                      : t(
+                          "该报价单已过期或取消，请联系制作团队重新生成链接。",
+                          "This quote has expired or been cancelled. Contact the studio for an updated link."
+                        )}
+                  </AlertDescription>
+                </Alert>
+              )}
               {query.get("profile") && (
                 <Alert className="border-primary/20 bg-accent/60">
                   <UserRound aria-hidden="true" className="text-primary" />

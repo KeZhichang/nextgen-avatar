@@ -26,6 +26,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group"
+import { Progress } from "@/components/ui/progress"
 import { Spinner } from "@/components/ui/spinner"
 import {
   Tooltip,
@@ -34,7 +35,7 @@ import {
 } from "@/components/ui/tooltip"
 import { ChatAttachmentCard } from "./chat-attachment"
 import { usePortal, type ChatAttachment, type Entry } from "./demo"
-import { uploadOrderFiles } from "./files"
+import { uploadOrderFiles, validateOrderFile } from "./files"
 
 const allFileTypes =
   "image/*,video/*,audio/*,.txt,.doc,.docx,.pdf,.TXT,.DOC,.DOCX,.PDF"
@@ -97,16 +98,41 @@ export function ChatComposer({
   const [message, setMessage] = useState("")
   const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
+  const [uploadPercent, setUploadPercent] = useState(0)
   const [failed, setFailed] = useState(false)
   const sending = useRef(false)
   const input = useRef<HTMLInputElement>(null)
   const picker = useRef<HTMLInputElement>(null)
 
+  function filterValidFiles(incoming: File[]): File[] {
+    const accepted: File[] = []
+    for (const file of incoming) {
+      const check = validateOrderFile(file, "attachment")
+      if (!check.ok) {
+        toast.warning(
+          check.reason === "too_large"
+            ? t(
+                `文件「${file.name}」超过 ${check.maxMb}MB 上限，请压缩后再传。`,
+                `"${file.name}" exceeds the ${check.maxMb}MB upload limit.`
+              )
+            : t(
+                `文件「${file.name}」内容为空，无法上传。`,
+                `"${file.name}" is empty and cannot be uploaded.`
+              )
+        )
+        continue
+      }
+      accepted.push(file)
+    }
+    return accepted
+  }
+
   function mergeFiles(incoming: File[]) {
-    if (!incoming.length) return
+    const valid = filterValidFiles(incoming)
+    if (!valid.length) return
     setFiles((current) => [
       ...new Map(
-        [...current, ...incoming].map((file) => [fileKey(file), file])
+        [...current, ...valid].map((file) => [fileKey(file), file])
       ).values(),
     ])
     setFailed(false)
@@ -131,10 +157,12 @@ export function ChatComposer({
 
     sending.current = true
     setBusy(true)
+    setUploadPercent(0)
     setFailed(false)
     try {
       const uploaded = await uploadOrderFiles(orderId, "attachments", files, {
         localOnly,
+        onProgress: (percent) => setUploadPercent(percent),
       })
       onSend(
         text,
@@ -160,6 +188,7 @@ export function ChatComposer({
     } finally {
       sending.current = false
       setBusy(false)
+      setUploadPercent(0)
       requestAnimationFrame(() => input.current?.focus())
     }
   }
@@ -272,9 +301,10 @@ export function ChatComposer({
         <FileUpload
           value={files}
           onValueChange={(selected) => {
+            const valid = filterValidFiles(selected)
             setFiles([
               ...new Map(
-                selected.map((file) => [fileKey(file), file])
+                valid.map((file) => [fileKey(file), file])
               ).values(),
             ])
             setFailed(false)
@@ -327,6 +357,15 @@ export function ChatComposer({
               </FileUploadItem>
             ))}
           </FileUploadList>
+
+          {busy && files.length > 0 && (
+            <div className="flex items-center gap-2.5 px-0.5 py-1 text-xs text-muted-foreground">
+              <Progress value={uploadPercent} className="h-1.5 flex-1" />
+              <span className="shrink-0 font-mono tabular-nums">
+                {t(`上传中 ${uploadPercent}%`, `Uploading ${uploadPercent}%`)}
+              </span>
+            </div>
+          )}
 
           <InputGroup className="h-10 bg-muted/30 focus-within:bg-card">
             <InputGroupInput
