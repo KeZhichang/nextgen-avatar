@@ -208,7 +208,10 @@ function MarketingHome() {
         className="absolute right-3 bottom-3 z-10 flex flex-wrap items-center justify-end gap-2 rounded-xl border border-border bg-card/95 p-1.5 shadow-lg backdrop-blur-md sm:right-5 sm:bottom-5"
       >
         <LanguageSwitch />
-        <Separator orientation="vertical" className="hidden h-5 sm:block" />
+        <Separator
+          orientation="vertical"
+          className="hidden h-5 data-vertical:self-center sm:block"
+        />
         <ActionLink primary size="sm" to={href("auth")}>
           {t("客户登录", "Client login")}
         </ActionLink>

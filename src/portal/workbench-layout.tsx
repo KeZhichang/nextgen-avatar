@@ -278,7 +278,10 @@ export function WorkbenchLayout({
               aria-label={t("切换导航菜单", "Toggle navigation menu")}
               size="icon-sm"
             />
-            <Separator orientation="vertical" className="h-4" />
+            <Separator
+              orientation="vertical"
+              className="h-4 data-vertical:self-center"
+            />
             <div className="min-w-0 truncate text-sm font-semibold">
               {heading}
             </div>
