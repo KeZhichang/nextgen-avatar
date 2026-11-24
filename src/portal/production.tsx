@@ -303,7 +303,7 @@ function ChatPanel({
   return (
     <section
       className={cn(
-        "flex min-h-0 min-w-0 flex-1 flex-col bg-background",
+        "flex min-h-0 min-w-0 flex-1 flex-col bg-muted/20",
         side === "studio"
           ? "max-lg:h-[clamp(22rem,61dvh,34rem)]"
           : "max-xl:h-[clamp(22rem,61dvh,34rem)]"
@@ -973,10 +973,10 @@ function ClientOrderHubPage({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col xl:h-[calc(100dvh-3.5rem)] xl:flex-row">
-      {/* Left: Persistent Client Order Queue */}
-      <aside className="flex max-h-52 min-h-0 shrink-0 flex-col border-b bg-card xl:max-h-full xl:w-80 xl:border-r xl:border-b-0">
-        <div className="flex flex-col gap-2.5 border-b p-3">
+    <div className="mx-auto grid w-full max-w-[1440px] min-h-0 flex-1 gap-4 px-5 py-5 sm:px-8 xl:h-[calc(100dvh-3.5rem)] xl:grid-cols-[288px_minmax(0,1fr)]">
+      {/* Left: Persistent Client Order Queue Card */}
+      <aside className="flex max-h-56 min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs xl:max-h-full">
+        <div className="flex flex-col gap-2.5 border-b p-3.5">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-foreground">
               {t("我的订单", "My orders")}
@@ -1073,9 +1073,9 @@ function ClientOrderHubPage({
         </ScrollArea>
       </aside>
 
-      {/* Right: Unified Order Context Header + Switchable Chat / Review Panel */}
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-card px-4 py-2.5 sm:px-6">
+      {/* Right: Unified Order Context Header + Switchable Chat / Review Panel Card */}
+      <main className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-card px-5 py-3">
           <div className="flex min-w-0 flex-col gap-0.5">
             <EditableOrderTitle key={order.id} order={order} />
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -1380,20 +1380,12 @@ export function StudioWorkspacePage() {
   return (
     <TeamConsoleLayout
       activeNav="production"
-      heading={
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate">
-            {t("制作协同", "Studio inbox")} ·{" "}
-            <span className="font-mono text-xs">#{order.id}</span>
-          </span>
-          <StatusBadge status={order.status} />
-        </div>
-      }
+      heading={<h1>{t("制作协同", "Production")}</h1>}
     >
-      <main className="grid min-h-0 flex-1 xl:h-[calc(100dvh-3.5rem)] xl:grid-cols-12">
-        {/* Column 1: Multi-order Inbox Queue */}
-        <aside className="flex max-h-56 min-h-0 flex-col border-b bg-card xl:col-span-3 xl:max-h-full xl:border-r xl:border-b-0">
-          <div className="flex flex-col gap-2.5 border-b p-3">
+      <main className="mx-auto grid w-full max-w-[1440px] min-h-0 flex-1 gap-4 px-5 py-5 sm:px-8 xl:h-[calc(100dvh-3.5rem)] xl:grid-cols-[276px_minmax(0,1fr)_348px]">
+        {/* Column 1: Multi-order Inbox Queue Card */}
+        <aside className="flex max-h-60 min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs xl:max-h-full">
+          <div className="flex flex-col gap-2.5 border-b p-3.5">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-semibold text-foreground">
                 {t("订单会话队列", "Order queue")}
@@ -1488,27 +1480,47 @@ export function StudioWorkspacePage() {
           </ScrollArea>
         </aside>
 
-        {/* Column 2: Active Order Chat */}
-        <div className="grid min-h-0 xl:col-span-5">
-          <FadeTransition key={order.id} className="grid min-h-0">
-            <ChatPanel key={order.id} order={order} side="studio" />
+        {/* Column 2: Active Order Chat Card */}
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-card px-5 py-3">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <strong className="truncate text-sm font-semibold text-foreground">
+                  {order.client}
+                </strong>
+                <span className="font-mono text-xs text-muted-foreground">
+                  #{order.id}
+                </span>
+              </div>
+              <EditableOrderTitle key={order.id} order={order} />
+            </div>
+            <StatusBadge status={order.status} />
+          </div>
+          <FadeTransition key={order.id} className="grid min-h-0 flex-1">
+            <ChatPanel
+              key={order.id}
+              order={order}
+              side="studio"
+              compactHeader
+            />
           </FadeTransition>
-        </div>
+        </section>
 
-        {/* Column 3: Order Materials & Version Delivery */}
-        <aside className="flex min-h-0 flex-col border-t bg-card xl:col-span-4 xl:border-t-0 xl:border-l">
+        {/* Column 3: Order Materials & Version Delivery Card */}
+        <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs">
+          <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
+            <span className="text-xs font-semibold text-foreground">
+              {t("素材与交付", "Materials & delivery")}
+            </span>
+            <span className="font-mono text-xs text-muted-foreground">
+              #{order.id}
+            </span>
+          </div>
           <ScrollArea className="min-h-0 flex-1">
             <FadeTransition
               key={order.id}
-              className="flex flex-col gap-5 p-4 sm:p-5"
+              className="flex flex-col gap-5 p-4"
             >
-              <div className="flex flex-col gap-1 rounded-xl border border-border bg-muted/25 px-3.5 py-2.5">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {t("当前项目名称", "Project name")} ·{" "}
-                  <span className="font-mono">#{order.id}</span>
-                </span>
-                <EditableOrderTitle key={order.id} order={order} />
-              </div>
               {order.status === "waiting_assets" && (
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-accent/50 p-3">
                   <span className="text-xs font-medium text-foreground">
