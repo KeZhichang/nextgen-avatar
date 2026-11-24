@@ -69,6 +69,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   clientImage,
+  countDeliveredVideos,
   coverImage,
   formatDollars,
   sampleOrder,
@@ -484,13 +485,17 @@ export function WorkspacePage() {
     (value) => value.client === data.account.name
   )
   const active = orders.filter((value) => value.status !== "completed").length
-  const delivered = orders.filter((value) => value.status === "completed")
+  const delivered = orders.filter((value) => countDeliveredVideos(value) > 0)
+  const deliveredVideoTotal = orders.reduce(
+    (sum, value) => sum + countDeliveredVideos(value),
+    0
+  )
   const pendingReview = orders.filter(
     (value) => value.status === "waiting_confirm"
   ).length
   const totalCredits = orders.reduce((sum, value) => sum + value.count, 0)
   const remaining = orders.reduce(
-    (sum, value) => sum + value.count - (value.status === "completed" ? 1 : 0),
+    (sum, value) => sum + Math.max(0, value.count - countDeliveredVideos(value)),
     0
   )
   const creditPercent = totalCredits
@@ -597,7 +602,7 @@ export function WorkspacePage() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-1">
                   <strong className="text-2xl font-bold tracking-tight tabular-nums">
-                    {delivered.length}
+                    {deliveredVideoTotal}
                   </strong>
                   <span className="text-xs text-muted-foreground">
                     {t("支持在线播放与下载", "Play and download anytime")}
@@ -648,7 +653,15 @@ export function WorkspacePage() {
                             <EditableOrderTitle key={value.id} order={value} />
                           </TableCell>
                           <TableCell>
-                            <StatusBadge status={value.status} />
+                            <div className="flex flex-wrap items-center gap-2">
+                              <StatusBadge status={value.status} />
+                              {value.count > 1 && (
+                                <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                                  {countDeliveredVideos(value)}/{value.count}{" "}
+                                  {t("条", "videos")}
+                                </span>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="px-5">
                             <div className="flex justify-end gap-2">
@@ -717,7 +730,9 @@ export function WorkspacePage() {
                 </CardHeader>
                 <CardContent className="px-5">
                   <div className="grid gap-4 md:grid-cols-3">
-                    {delivered.map((value) => (
+                    {delivered.map((value) => {
+                      const deliveredCount = countDeliveredVideos(value)
+                      return (
                       <Card
                         key={value.id}
                         size="sm"
@@ -733,6 +748,17 @@ export function WorkspacePage() {
                             src={coverImage}
                             alt=""
                           />
+                          {value.count > 1 && (
+                            <Badge
+                              variant="secondary"
+                              className="absolute top-2.5 left-2.5 bg-brand-navy/85 font-mono text-[11px] text-white backdrop-blur-xs"
+                            >
+                              {t(
+                                `已交付 ${deliveredCount}/${value.count} 条`,
+                                `${deliveredCount}/${value.count} delivered`
+                              )}
+                            </Badge>
+                          )}
                           <span
                             aria-hidden="true"
                             className="absolute right-2.5 bottom-2.5 flex size-8 items-center justify-center rounded-full bg-brand-navy/85 text-white shadow-sm backdrop-blur-xs transition-transform group-hover:scale-105"
@@ -762,7 +788,7 @@ export function WorkspacePage() {
                           </Button>
                         </CardContent>
                       </Card>
-                    ))}
+                    )})}
                   </div>
                 </CardContent>
               </Card>

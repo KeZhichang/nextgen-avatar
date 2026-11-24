@@ -146,6 +146,7 @@ export type EntryVersionRef = {
   id: string
   type: "preview" | "final"
   note?: string
+  itemIndex?: number
 }
 
 export type Entry = {
@@ -159,10 +160,93 @@ export type Entry = {
 }
 export type Version = {
   id: string
+  code?: string
+  itemIndex?: number
+  itemTitle?: string
   type: "preview" | "final"
   note: string
   file?: string
   fileId?: string
+}
+
+export function getVersionItemIndex(version: Pick<Version, "itemIndex">): number {
+  return typeof version.itemIndex === "number" && version.itemIndex >= 1
+    ? Math.floor(version.itemIndex)
+    : 1
+}
+
+export function getVersionCode(version: Pick<Version, "id" | "code">): string {
+  return version.code || version.id.replace(/^#\d+-/, "")
+}
+
+export function countDeliveredVideos(order: Order): number {
+  const deliveredItems = new Set<number>()
+  for (const version of order.versions) {
+    if (version.type === "final") {
+      deliveredItems.add(getVersionItemIndex(version))
+    }
+  }
+  if (deliveredItems.size > 0) return deliveredItems.size
+  return order.status === "completed" ? Math.max(1, order.count) : 0
+}
+
+export type DeliverableSlot = {
+  index: number
+  title: string
+  versions: Version[]
+  hasFinal: boolean
+}
+
+export function getOrderDeliverableSlots(order: Order): DeliverableSlot[] {
+  const maxVersionItem = order.versions.reduce(
+    (max, version) => Math.max(max, getVersionItemIndex(version)),
+    1
+  )
+  const total = Math.max(1, order.count, maxVersionItem)
+  return Array.from({ length: total }, (_, idx) => {
+    const index = idx + 1
+    const versions = getVersionsForItem(order, index)
+    const latestTitled = [...versions]
+      .reverse()
+      .find((v) => v.itemTitle?.trim())
+    return {
+      index,
+      title: latestTitled?.itemTitle?.trim() ?? "",
+      versions,
+      hasFinal: versions.some((v) => v.type === "final"),
+    }
+  })
+}
+
+export function getVersionsForItem(order: Order, itemIndex: number): Version[] {
+  return order.versions.filter(
+    (version) => getVersionItemIndex(version) === itemIndex
+  )
+}
+
+export function buildNextVersionForItem(
+  order: Order,
+  itemIndex: number,
+  type: "preview" | "final",
+  options: { note: string; file?: string; fileId?: string; itemTitle?: string }
+): Version {
+  const itemVersions = getVersionsForItem(order, itemIndex)
+  const code =
+    type === "final"
+      ? itemVersions.some((v) => v.type === "final")
+        ? `final-${itemVersions.filter((v) => v.type === "final").length + 1}`
+        : "final"
+      : `v${itemVersions.filter((v) => v.type === "preview").length + 1}`
+  return {
+    id: itemIndex > 1 ? `#${itemIndex}-${code}` : code,
+    code,
+    itemIndex,
+    itemTitle: options.itemTitle?.trim() || undefined,
+    type,
+    note: options.note,
+    file: options.file,
+    fileId: options.fileId,
+  }
 }
 export type Order = {
   id: string
@@ -218,8 +302,30 @@ const sample: Order = {
     "Leo"
   ),
   versions: [
-    { id: "v1", type: "preview", note: "Initial review version" },
-    { id: "v2", type: "preview", note: "Updated pacing and opening shot" },
+    {
+      id: "final",
+      code: "final",
+      itemIndex: 1,
+      itemTitle: "Product Intro Cut",
+      type: "final",
+      note: "Approved & delivered watermark-free master",
+    },
+    {
+      id: "#2-v1",
+      code: "v1",
+      itemIndex: 2,
+      itemTitle: "Feature Highlight Cut",
+      type: "preview",
+      note: "Initial review version",
+    },
+    {
+      id: "#2-v2",
+      code: "v2",
+      itemIndex: 2,
+      itemTitle: "Feature Highlight Cut",
+      type: "preview",
+      note: "Updated pacing and opening shot",
+    },
   ],
 }
 
@@ -1281,12 +1387,28 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     messageText: string
   ) {
     const demoOnly = isDemoOrder(orderId)
+    const targetOrder = dataRef.current.orders.find((o) => o.id === orderId)
+    const itemIndex = getVersionItemIndex(version)
+    const nextVersions = targetOrder
+      ? [...targetOrder.versions, version]
+      : [version]
+    const nextDeliveredCount = targetOrder
+      ? countDeliveredVideos({ ...targetOrder, versions: nextVersions })
+      : version.type === "final"
+        ? 1
+        : 0
+    const totalExpected = Math.max(1, targetOrder?.count ?? 1)
     const nextStatus: Status =
-      version.type === "final" ? "completed" : "waiting_confirm"
+      version.type === "final"
+        ? nextDeliveredCount >= totalExpected
+          ? "completed"
+          : "producing"
+        : "waiting_confirm"
     const versionRef: EntryVersionRef = {
       id: version.id,
       type: version.type,
       note: version.note || undefined,
+      itemIndex,
     }
     updateOrder(orderId, (value) =>
       appendEntry(
@@ -1304,7 +1426,6 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     )
     setData((state) => ({ ...state, unread: true }))
 
-    const targetOrder = dataRef.current.orders.find((o) => o.id === orderId)
     const live = getLiveDbUser()
     if (!live || demoOnly) return true
     try {
@@ -1312,7 +1433,9 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       await updateOrderInDb(live.sb, orderId, {
         status: nextStatus,
         latest_revision_note: null,
-        ...(version.type === "final" ? { video_credits_used: 1 } : {}),
+        ...(version.type === "final"
+          ? { video_credits_used: nextDeliveredCount }
+          : {}),
       })
       await insertMessageInDb(
         live.sb,
@@ -1323,6 +1446,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         versionRef
       )
       if (targetOrder?.clientId && targetOrder.clientId !== live.user.id) {
+        const videoPrefixZh =
+          totalExpected > 1 ? `第 ${itemIndex} 条` : ""
+        const videoPrefixEn =
+          totalExpected > 1 ? `Video #${itemIndex} ` : ""
         await insertNotificationInDb(live.sb, {
           recipientUserId: targetOrder.clientId,
           orderId,
@@ -1330,12 +1457,12 @@ export function DemoProvider({ children }: { children: ReactNode }) {
             version.type === "final" ? "final_delivered" : "draft_ready",
           titleZh:
             version.type === "final"
-              ? "正式无水印成片已交付"
-              : `预览版 ${version.id} 已上传，等待审片`,
+              ? `${videoPrefixZh}正式无水印成片已交付`
+              : `${videoPrefixZh}预览版 ${getVersionCode(version)} 已上传，等待审片`,
           titleEn:
             version.type === "final"
-              ? "Your final video has been delivered"
-              : `Preview ${version.id} is ready for review`,
+              ? `${videoPrefixEn}final video delivered`
+              : `${videoPrefixEn}preview ${getVersionCode(version)} is ready for review`,
           bodyZh: `${targetOrder.zh} (#${orderId})`,
           bodyEn: `${targetOrder.en} (#${orderId})`,
         }).catch(() => undefined)

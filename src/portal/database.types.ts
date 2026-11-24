@@ -386,6 +386,8 @@ export interface Database {
         Row: {
           id: string
           order_id: string
+          item_index: number
+          item_title: string
           version_code: string
           version_type: VideoVersionType
           r2_key: string
@@ -397,6 +399,8 @@ export interface Database {
         Insert: {
           id?: string
           order_id: string
+          item_index?: number
+          item_title?: string
           version_code: string
           version_type: VideoVersionType
           r2_key: string
@@ -405,6 +409,7 @@ export interface Database {
           uploaded_by: string
         }
         Update: {
+          item_title?: string
           notes?: string
         }
         Relationships: []

@@ -160,6 +160,30 @@ export default async function handler(req: Req, res: ServerResponse) {
       if (extras.script) returnQuery.set("script", "1")
       if (extras.duration) returnQuery.set("duration", "1")
 
+      const clientId =
+        typeof input?.clientId === "string" && input.clientId.trim()
+          ? input.clientId.trim().slice(0, 64)
+          : ""
+      const customQuoteId =
+        typeof input?.customQuoteId === "string" && input.customQuoteId.trim()
+          ? input.customQuoteId.trim().slice(0, 64)
+          : ""
+      const projectName =
+        typeof input?.projectName === "string" && input.projectName.trim()
+          ? input.projectName.trim().slice(0, 100)
+          : ""
+      const videoCount =
+        typeof input?.videoCount === "number" &&
+        Number.isFinite(input.videoCount) &&
+        input.videoCount > 0
+          ? String(Math.floor(input.videoCount))
+          : ""
+      const customerEmail =
+        typeof input?.customerEmail === "string" &&
+        input.customerEmail.includes("@")
+          ? input.customerEmail.trim().slice(0, 120)
+          : "checkout-preview@example.com"
+
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
         ui_mode: "elements",
@@ -171,7 +195,7 @@ export default async function handler(req: Req, res: ServerResponse) {
         ],
         locale,
         return_url: `${origin}/${locale}/checkout?${returnQuery}&stripe_session={CHECKOUT_SESSION_ID}`,
-        customer_email: "checkout-preview@example.com",
+        customer_email: customerEmail,
         line_items: lineItems.map(({ name, price }) => ({
           quantity: 1,
           price_data: {
@@ -183,8 +207,13 @@ export default async function handler(req: Req, res: ServerResponse) {
         metadata: {
           purpose,
           planId,
+          locale,
           script: extras.script ? "1" : "0",
           duration: extras.duration ? "1" : "0",
+          ...(clientId ? { clientId } : {}),
+          ...(customQuoteId ? { customQuoteId } : {}),
+          ...(projectName ? { projectName } : {}),
+          ...(videoCount ? { videoCount } : {}),
         },
       })
 

@@ -74,8 +74,11 @@ import {
 import { CustomQuotesView, PricingCatalogView } from "./admin-operations"
 import {
   clientImage,
+  countDeliveredVideos,
   entryAttachments,
   formatDollars,
+  getVersionCode,
+  getVersionItemIndex,
   sampleOrder,
   sampleVideo,
   studioImage,
@@ -259,7 +262,7 @@ function OrderDetailInspector({
     (order.client === data.account.name ? data.account.avatarUrl : undefined) ||
     clientImage
 
-  const usedCredits = order.status === "completed" ? 1 : 0
+  const usedCredits = countDeliveredVideos(order)
   const remainingCredits = Math.max(0, order.count - usedCredits)
   const creditPercent = order.count
     ? Math.round((remainingCredits / order.count) * 100)
@@ -725,13 +728,24 @@ function OrderDetailInspector({
             <TabsContent value="deliverables" className="m-0">
               {orderedVersions.length > 0 ? (
                 <div className="flex flex-col gap-2">
-                  {orderedVersions.map((ver) => (
+                  {orderedVersions.map((ver) => {
+                    const itemIdx = getVersionItemIndex(ver)
+                    const code = getVersionCode(ver)
+                    return (
                     <div
                       key={ver.id}
                       className="flex items-start justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 p-2.5"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {(order.count > 1 || itemIdx > 1) && (
+                            <Badge
+                              variant="outline"
+                              className="h-5 px-1.5 font-mono text-[10px]"
+                            >
+                              #{itemIdx}
+                            </Badge>
+                          )}
                           <Badge
                             variant={
                               ver.type === "final" ? "default" : "secondary"
@@ -740,13 +754,14 @@ function OrderDetailInspector({
                           >
                             {ver.type === "final"
                               ? t("正式版", "Final")
-                              : ver.id}
+                              : code}
                           </Badge>
                           <span className="truncate text-xs font-medium text-foreground">
-                            {ver.file ||
+                            {ver.itemTitle ||
+                              ver.file ||
                               (ver.type === "final"
                                 ? `${order.id}-final.mp4`
-                                : `${order.id}-${ver.id}.mp4`)}
+                                : `${order.id}-${code}.mp4`)}
                           </span>
                         </div>
                         {ver.note && (
@@ -772,7 +787,7 @@ function OrderDetailInspector({
                         <Download className="size-3.5" aria-hidden="true" />
                       </Button>
                     </div>
-                  ))}
+                  )})}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-6 text-center">
@@ -1167,8 +1182,11 @@ export function AdminOrdersPage() {
                           (item) => item.id === value.plan
                         )
                         const meta = clientDirectoryMeta[value.client]
-                        const remaining =
-                          value.count - (value.status === "completed" ? 1 : 0)
+                        const deliveredCount = countDeliveredVideos(value)
+                        const remaining = Math.max(
+                          0,
+                          value.count - deliveredCount
+                        )
                         const isUrgent =
                           value.status === "revision" ||
                           value.status === "waiting_assets"
@@ -1228,13 +1246,18 @@ export function AdminOrdersPage() {
                                   ·{" "}
                                   {value.status === "completed"
                                     ? t(
-                                        "已交付 · 扣减 1 条",
-                                        "Delivered · -1 credit"
+                                        `已交付 ${deliveredCount}/${value.count} 条`,
+                                        `Delivered ${deliveredCount}/${value.count}`
                                       )
-                                    : t(
-                                        `剩余 ${remaining}/${value.count} 条`,
-                                        `${remaining}/${value.count} credits left`
-                                      )}
+                                    : deliveredCount > 0
+                                      ? t(
+                                          `已交付 ${deliveredCount}/${value.count} 条 · 余 ${remaining} 条`,
+                                          `${deliveredCount}/${value.count} delivered · ${remaining} left`
+                                        )
+                                      : t(
+                                          `剩余 ${remaining}/${value.count} 条`,
+                                          `${remaining}/${value.count} credits left`
+                                        )}
                                 </div>
                               )}
                             </TableCell>
@@ -1529,7 +1552,7 @@ export function AdminSettingsPage() {
     0
   )
   const activeClientRemaining = activeClientOrders.reduce(
-    (sum, item) => sum + item.count - (item.status === "completed" ? 1 : 0),
+    (sum, item) => sum + Math.max(0, item.count - countDeliveredVideos(item)),
     0
   )
 
@@ -1587,8 +1610,7 @@ export function AdminSettingsPage() {
                     const creditsLeft = ordersForClient.reduce(
                       (sum, item) =>
                         sum +
-                        item.count -
-                        (item.status === "completed" ? 1 : 0),
+                        Math.max(0, item.count - countDeliveredVideos(item)),
                       0
                     )
                     const dbClient = data.clients.find((c) => c.name === name)

@@ -94,6 +94,10 @@ function parseVersionRef(metadata: unknown): EntryVersionRef | undefined {
     id,
     type,
     note: typeof record.note === "string" ? record.note : undefined,
+    itemIndex:
+      typeof record.itemIndex === "number" && record.itemIndex >= 1
+        ? record.itemIndex
+        : undefined,
   }
 }
 
@@ -387,13 +391,21 @@ export async function fetchAuthenticatedSnapshot(
     const versionsByOrder = new Map<string, Version[]>()
     for (const v of verRows ?? []) {
       const list = versionsByOrder.get(v.order_id) ?? []
-      const resolvedFileId = v.r2_key?.startsWith("sb:")
-        ? v.r2_key
-        : v.r2_key?.startsWith("local:")
-          ? v.r2_key.slice(6)
-          : undefined
+      const resolvedFileId =
+        v.r2_key?.startsWith("sb:") || v.r2_key?.startsWith("r2:")
+          ? v.r2_key
+          : v.r2_key?.startsWith("local:")
+            ? v.r2_key.slice(6)
+            : undefined
+      const itemIndex =
+        typeof v.item_index === "number" && v.item_index >= 1
+          ? v.item_index
+          : 1
       list.push({
-        id: v.version_code,
+        id: itemIndex > 1 ? `#${itemIndex}-${v.version_code}` : v.version_code,
+        code: v.version_code,
+        itemIndex,
+        itemTitle: v.item_title || undefined,
         type: v.version_type,
         note: v.notes,
         file: v.file_name || undefined,
@@ -599,7 +611,10 @@ export async function insertMessageInDb(
       order_id: orderId,
       message_id: msgRow.id,
       uploader_user_id: userId,
-      r2_key: att.fileId.startsWith("sb:") ? att.fileId : `local:${att.fileId}`,
+      r2_key:
+        att.fileId.startsWith("sb:") || att.fileId.startsWith("r2:")
+          ? att.fileId
+          : `local:${att.fileId}`,
       file_name: att.name,
       mime_type: att.type || "application/octet-stream",
       size_bytes: att.size ?? 0,
@@ -617,16 +632,20 @@ export async function insertVersionInDb(
   version: Version
 ) {
   const r2Key = version.fileId
-    ? version.fileId.startsWith("sb:")
+    ? version.fileId.startsWith("sb:") || version.fileId.startsWith("r2:")
       ? version.fileId
       : `local:${version.fileId}`
     : `sample:${version.id}`
+  const itemIndex = version.itemIndex && version.itemIndex >= 1 ? version.itemIndex : 1
+  const versionCode = version.code || version.id.replace(/^#\d+-/, "")
   const { error } = await sb.from("video_versions").insert({
     order_id: orderId,
-    version_code: version.id,
+    item_index: itemIndex,
+    item_title: version.itemTitle ?? "",
+    version_code: versionCode,
     version_type: version.type,
     r2_key: r2Key,
-    file_name: version.file ?? `${orderId}-${version.id}.mp4`,
+    file_name: version.file ?? `${orderId}-video${itemIndex}-${versionCode}.mp4`,
     notes: version.note,
     uploaded_by: userId,
   })
