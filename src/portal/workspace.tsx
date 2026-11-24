@@ -10,6 +10,7 @@ import {
 import { motion } from "motion/react"
 import {
   Bell,
+  Building2,
   CheckCircle2,
   Clapperboard,
   Clock,
@@ -21,6 +22,7 @@ import {
   Inbox,
   Landmark,
   LayoutGrid,
+  Mail,
   MessageSquare,
   Play,
   Plus,
@@ -53,14 +55,6 @@ import {
 } from "@/components/ui/empty"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemMedia,
-  ItemTitle,
-} from "@/components/ui/item"
 import {
   Popover,
   PopoverContent,
@@ -422,51 +416,23 @@ function ProfileSettingsView({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-      {/* Section 1: Account Details */}
-      <section className="grid items-start gap-4 lg:grid-cols-12 lg:gap-8">
-        <div className="flex flex-col gap-1 lg:col-span-4 lg:pt-1">
-          <h2 className="text-sm font-semibold text-foreground">
-            {t("账户资料", "Account details")}
-          </h2>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {t(
-              "用于订单沟通展示、交付通知接收与收据联络信息。",
-              "Used across order chat, delivery notifications, and billing receipts."
-            )}
-          </p>
-        </div>
-
-        <Card className="gap-0 overflow-hidden py-0 shadow-xs lg:col-span-8">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/20 px-6 py-4">
-            <div className="flex min-w-0 items-center gap-3.5">
-              <Avatar className="size-12 shrink-0 rounded-xl border bg-background">
-                <AvatarImage
-                  src={account.avatarUrl || clientImage}
-                  alt=""
-                  referrerPolicy="no-referrer"
-                />
-                <AvatarFallback className="rounded-xl text-sm font-semibold">
-                  {(account.name || account.email || "U")
-                    .slice(0, 1)
-                    .toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-foreground">
-                  {account.name || t("未设置姓名", "Unnamed account")}
-                </div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {account.email}
-                </div>
-              </div>
-            </div>
+    <div className="mx-auto w-full max-w-3xl">
+      <Card className="gap-0 overflow-hidden py-0 shadow-xs">
+        {/* 1. Brand Cover Banner */}
+        <div className="relative h-32 w-full overflow-hidden bg-brand-navy sm:h-36">
+          <img
+            src="/portal-media/quote-header-bg.svg"
+            alt=""
+            className="size-full object-cover opacity-90"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-brand-navy/50 via-transparent to-transparent" />
+          <div className="absolute top-3.5 right-4">
             <Badge
               variant="outline"
-              className="border-emerald-200 bg-emerald-50/70 text-[11px] font-medium text-emerald-700"
+              className="border-white/20 bg-brand-navy/65 text-[11px] font-medium text-white backdrop-blur-md"
             >
               <span
-                className="mr-1.5 inline-block size-1.5 rounded-full bg-emerald-500"
+                className="mr-1.5 inline-block size-1.5 rounded-full bg-emerald-400"
                 aria-hidden="true"
               />
               {isGoogleLinked
@@ -474,174 +440,159 @@ function ProfileSettingsView({
                 : t("已验证账户", "Verified account")}
             </Badge>
           </div>
-
-          <form onSubmit={(event) => void saveProfile(event)}>
-            <CardContent className="p-6">
-              <FieldGroup className="gap-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field>
-                    <FieldLabel htmlFor="profile-name">
-                      {t("姓名", "Full name")}
-                    </FieldLabel>
-                    <Input
-                      id="profile-name"
-                      className="h-9"
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      required
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="profile-company">
-                      {t("公司 / 品牌", "Company / brand")}
-                    </FieldLabel>
-                    <Input
-                      id="profile-company"
-                      className="h-9"
-                      placeholder={t("选填，如 Apex Labs", "Optional, e.g. Apex Labs")}
-                      value={company}
-                      onChange={(event) => setCompany(event.target.value)}
-                    />
-                  </Field>
-                </div>
-                <Field>
-                  <FieldLabel htmlFor="profile-email">
-                    {t("联系邮箱", "Email address")}
-                  </FieldLabel>
-                  <Input
-                    id="profile-email"
-                    className="h-9"
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    required
-                  />
-                </Field>
-              </FieldGroup>
-            </CardContent>
-            <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-6 py-3.5">
-              <span className="text-xs text-muted-foreground">
-                {isDirty
-                  ? t("有尚未保存的更改", "You have unsaved changes")
-                  : t("所有资料已是最新", "All changes saved")}
-              </span>
-              <div className="flex items-center gap-2">
-                {isDirty && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={resetDraft}
-                    disabled={saving}
-                  >
-                    {t("重置", "Reset")}
-                  </Button>
-                )}
-                <Button type="submit" size="sm" disabled={!isDirty || saving}>
-                  {saving && <Spinner data-icon="inline-start" />}
-                  {t("保存更改", "Save changes")}
-                </Button>
-              </div>
-            </CardFooter>
-          </form>
-        </Card>
-      </section>
-
-      <Separator />
-
-      {/* Section 2: Presenter Profile Reuse */}
-      <section className="grid items-start gap-4 lg:grid-cols-12 lg:gap-8">
-        <div className="flex flex-col gap-1 lg:col-span-4 lg:pt-1">
-          <h2 className="text-sm font-semibold text-foreground">
-            {t("人物形象档案", "Presenter profile")}
-          </h2>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {t(
-              "再次购买视频套餐时，可直接复用已有的人物外观与声线档案。",
-              "Reuse your saved presenter look and voice profile when starting a new order."
-            )}
-          </p>
         </div>
 
-        <div className="lg:col-span-8">
-          <Item
-            variant="outline"
-            className="rounded-xl bg-card px-5 py-4 shadow-xs"
-          >
-            <ItemMedia
-              variant="icon"
-              className="size-9 rounded-lg border bg-muted/40 text-primary"
-            >
-              <FolderOpen aria-hidden="true" />
-            </ItemMedia>
-            <ItemContent>
-              <ItemTitle>
-                {t(
-                  `${account.name || "默认"} · 当前人物档案`,
-                  `${account.name || "Default"} · Active presenter profile`
-                )}
-              </ItemTitle>
-              <ItemDescription>
-                {t(
-                  "下单时自动带入已建档人物资料，无需重复拍摄或上传干声。",
-                  "Automatically links your existing look and voice assets to the new order."
-                )}
-              </ItemDescription>
-            </ItemContent>
-            <ItemActions>
+        {/* 2. Overlapping Avatar + Quick Reuse Action + Identity Meta */}
+        <div className="px-6 pb-6">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div className="relative -mt-12 flex items-end sm:-mt-14">
+              <Avatar className="size-22 rounded-2xl bg-card shadow-md ring-4 ring-card sm:size-24">
+                <AvatarImage
+                  src={account.avatarUrl || clientImage}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                />
+                <AvatarFallback className="rounded-2xl text-xl font-semibold">
+                  {(account.name || account.email || "U")
+                    .slice(0, 1)
+                    .toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span
+                className="absolute right-0.5 bottom-0.5 size-3.5 rounded-full bg-emerald-500 ring-2 ring-card"
+                aria-hidden="true"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
               <ActionLink
                 size="sm"
                 to={href("checkout", { profile: name || account.name })}
               >
-                {t("复用档案下单", "Reuse for new order")}
+                <FolderOpen data-icon="inline-start" aria-hidden="true" />
+                {t("复用人物档案下单", "Reuse presenter profile")}
               </ActionLink>
-            </ItemActions>
-          </Item>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-1.5">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">
+              {account.name || t("未设置姓名", "Unnamed account")}
+            </h2>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <Mail className="size-3.5 shrink-0" aria-hidden="true" />
+                <span>{account.email}</span>
+              </span>
+              {account.company && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Building2 className="size-3.5 shrink-0" aria-hidden="true" />
+                  <span>{account.company}</span>
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-      </section>
 
-      <Separator />
+        <Separator />
 
-      {/* Section 3: Preferences */}
-      <section className="grid items-start gap-4 lg:grid-cols-12 lg:gap-8">
-        <div className="flex flex-col gap-1 lg:col-span-4 lg:pt-1">
-          <h2 className="text-sm font-semibold text-foreground">
-            {t("界面偏好", "Preferences")}
-          </h2>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {t(
-              "设置工作台界面语言，切换后即时生效。",
-              "Choose your preferred workspace display language."
-            )}
-          </p>
-        </div>
+        {/* 3. Unified Inline Profile Form + Language Preference */}
+        <form onSubmit={(event) => void saveProfile(event)}>
+          <CardContent className="flex flex-col gap-5 p-6">
+            <FieldGroup className="gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="profile-name">
+                    {t("姓名", "Full name")}
+                  </FieldLabel>
+                  <Input
+                    id="profile-name"
+                    className="h-9"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    required
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="profile-company">
+                    {t("公司 / 品牌", "Company / brand")}
+                  </FieldLabel>
+                  <Input
+                    id="profile-company"
+                    className="h-9"
+                    placeholder={t(
+                      "选填，如 Apex Labs",
+                      "Optional, e.g. Apex Labs"
+                    )}
+                    value={company}
+                    onChange={(event) => setCompany(event.target.value)}
+                  />
+                </Field>
+              </div>
+              <Field>
+                <FieldLabel htmlFor="profile-email">
+                  {t("联系邮箱", "Email address")}
+                </FieldLabel>
+                <Input
+                  id="profile-email"
+                  className="h-9"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                />
+              </Field>
+            </FieldGroup>
 
-        <div className="lg:col-span-8">
-          <Item
-            variant="outline"
-            className="rounded-xl bg-card px-5 py-4 shadow-xs"
-          >
-            <ItemMedia
-              variant="icon"
-              className="size-9 rounded-lg border bg-muted/40 text-muted-foreground"
-            >
-              <Globe aria-hidden="true" />
-            </ItemMedia>
-            <ItemContent>
-              <ItemTitle>{t("显示语言", "Display language")}</ItemTitle>
-              <ItemDescription>
-                {t(
-                  "支持 English 与简体中文随时切换。",
-                  "Switch between English and Simplified Chinese anytime."
-                )}
-              </ItemDescription>
-            </ItemContent>
-            <ItemActions>
+            <Separator />
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-muted-foreground">
+                  <Globe className="size-4" aria-hidden="true" />
+                </span>
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-foreground">
+                    {t("界面语言", "Display language")}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {t(
+                      "支持 English 与简体中文即时切换",
+                      "Switch between English and Simplified Chinese"
+                    )}
+                  </span>
+                </div>
+              </div>
               <LanguageSwitch />
-            </ItemActions>
-          </Item>
-        </div>
-      </section>
+            </div>
+          </CardContent>
+
+          <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-6 py-3.5">
+            <span className="text-xs text-muted-foreground">
+              {isDirty
+                ? t("有尚未保存的更改", "You have unsaved changes")
+                : t("所有资料已是最新", "All changes saved")}
+            </span>
+            <div className="flex items-center gap-2">
+              {isDirty && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetDraft}
+                  disabled={saving}
+                >
+                  {t("重置", "Reset")}
+                </Button>
+              )}
+              <Button type="submit" size="sm" disabled={!isDirty || saving}>
+                {saving && <Spinner data-icon="inline-start" />}
+                {t("保存更改", "Save changes")}
+              </Button>
+            </div>
+          </CardFooter>
+        </form>
+      </Card>
     </div>
   )
 }
