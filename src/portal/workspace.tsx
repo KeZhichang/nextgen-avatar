@@ -17,11 +17,16 @@ import {
   Download,
   ExternalLink,
   FolderOpen,
+  Globe,
   Inbox,
+  Landmark,
   LayoutGrid,
   MessageSquare,
   Play,
   Plus,
+  Receipt,
+  ShieldCheck,
+  Smartphone,
   UserRound,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -48,6 +53,14 @@ import {
 } from "@/components/ui/empty"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item"
 import {
   Popover,
   PopoverContent,
@@ -79,7 +92,7 @@ import {
   type Order,
 } from "./demo"
 import { downloadFile, downloadOrderFile } from "./files"
-import { ActionLink, StatusBadge } from "./layout"
+import { ActionLink, LanguageSwitch, StatusBadge } from "./layout"
 import { EditableOrderTitle } from "./production"
 import { WorkbenchLayout } from "./workbench-layout"
 
@@ -356,13 +369,13 @@ export function ClientConsoleShell() {
   )
 }
 
-function ProfileSettingsCard({
+function ProfileSettingsView({
   account,
-  title,
+  isGoogleLinked,
   onSave,
 }: {
   account: { name: string; email: string; company: string; avatarUrl?: string }
-  title: string
+  isGoogleLinked: boolean
   onSave: (profile: {
     name: string
     email: string
@@ -373,106 +386,269 @@ function ProfileSettingsCard({
   const [name, setName] = useState(account.name)
   const [email, setEmail] = useState(account.email)
   const [company, setCompany] = useState(account.company)
+  const [saving, setSaving] = useState(false)
+
+  const isDirty =
+    name.trim() !== account.name.trim() ||
+    email.trim() !== account.email.trim() ||
+    company.trim() !== account.company.trim()
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const ok = await onSave({
-      name: name.trim(),
-      email: email.trim(),
-      company: company.trim(),
-    })
-    if (ok) {
-      toast.success(t("个人设置已保存", "Profile settings saved"))
-    } else {
-      toast.error(
-        t("保存失败，请稍后重试。", "Could not save profile. Please try again.")
-      )
+    if (!isDirty || saving) return
+    setSaving(true)
+    try {
+      const ok = await onSave({
+        name: name.trim(),
+        email: email.trim(),
+        company: company.trim(),
+      })
+      if (ok) {
+        toast.success(t("个人设置已保存", "Profile settings saved"))
+      } else {
+        toast.error(
+          t("保存失败，请稍后重试。", "Could not save profile. Please try again.")
+        )
+      }
+    } finally {
+      setSaving(false)
     }
   }
 
+  function resetDraft() {
+    setName(account.name)
+    setEmail(account.email)
+    setCompany(account.company)
+  }
+
   return (
-    <Card className="max-w-2xl shadow-xs">
-      <CardHeader>
-        <div className="flex items-center gap-3.5">
-          <Avatar className="size-12 rounded-xl border">
-            <AvatarImage
-              src={account.avatarUrl || clientImage}
-              alt=""
-              referrerPolicy="no-referrer"
-            />
-            <AvatarFallback className="rounded-xl text-sm font-semibold">
-              {(account.name || account.email || "U").slice(0, 1).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <CardTitle>
-              <h1>{title}</h1>
-            </CardTitle>
-            <CardDescription className="mt-1">
-              {t(
-                "更新个人与公司资料，或直接复用当前人物档案下单。",
-                "Update your account details or reuse your presenter profile for a new order."
-              )}
-            </CardDescription>
-          </div>
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+      {/* Section 1: Account Details */}
+      <section className="grid items-start gap-4 lg:grid-cols-12 lg:gap-8">
+        <div className="flex flex-col gap-1 lg:col-span-4 lg:pt-1">
+          <h2 className="text-sm font-semibold text-foreground">
+            {t("账户资料", "Account details")}
+          </h2>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {t(
+              "用于订单沟通展示、交付通知接收与收据联络信息。",
+              "Used across order chat, delivery notifications, and billing receipts."
+            )}
+          </p>
         </div>
-      </CardHeader>
-      <form onSubmit={(event) => void saveProfile(event)}>
-        <CardContent>
-          <FieldGroup className="max-w-md gap-4">
-            <Field>
-              <FieldLabel htmlFor="profile-name">
-                {t("姓名", "Name")}
-              </FieldLabel>
-              <Input
-                id="profile-name"
-                className="h-9"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                required
+
+        <Card className="gap-0 overflow-hidden py-0 shadow-xs lg:col-span-8">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/20 px-6 py-4">
+            <div className="flex min-w-0 items-center gap-3.5">
+              <Avatar className="size-12 shrink-0 rounded-xl border bg-background">
+                <AvatarImage
+                  src={account.avatarUrl || clientImage}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                />
+                <AvatarFallback className="rounded-xl text-sm font-semibold">
+                  {(account.name || account.email || "U")
+                    .slice(0, 1)
+                    .toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-foreground">
+                  {account.name || t("未设置姓名", "Unnamed account")}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {account.email}
+                </div>
+              </div>
+            </div>
+            <Badge
+              variant="outline"
+              className="border-emerald-200 bg-emerald-50/70 text-[11px] font-medium text-emerald-700"
+            >
+              <span
+                className="mr-1.5 inline-block size-1.5 rounded-full bg-emerald-500"
+                aria-hidden="true"
               />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="profile-email">
-                {t("邮箱", "Email")}
-              </FieldLabel>
-              <Input
-                id="profile-email"
-                className="h-9"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="profile-company">
-                {t("公司", "Company")}
-              </FieldLabel>
-              <Input
-                id="profile-company"
-                className="h-9"
-                value={company}
-                onChange={(event) => setCompany(event.target.value)}
-              />
-            </Field>
-          </FieldGroup>
-        </CardContent>
-        <CardFooter className="mt-6 flex-wrap gap-2.5">
-          <Button type="submit">{t("保存设置", "Save settings")}</Button>
-          <ActionLink to={href("checkout", { profile: name })}>
-            <FolderOpen data-icon="inline-start" aria-hidden="true" />
-            {t("复用人物档案下单", "Reuse this profile")}
-          </ActionLink>
-        </CardFooter>
-      </form>
-    </Card>
+              {isGoogleLinked
+                ? t("Google 已关联", "Google connected")
+                : t("已验证账户", "Verified account")}
+            </Badge>
+          </div>
+
+          <form onSubmit={(event) => void saveProfile(event)}>
+            <CardContent className="p-6">
+              <FieldGroup className="gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel htmlFor="profile-name">
+                      {t("姓名", "Full name")}
+                    </FieldLabel>
+                    <Input
+                      id="profile-name"
+                      className="h-9"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      required
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="profile-company">
+                      {t("公司 / 品牌", "Company / brand")}
+                    </FieldLabel>
+                    <Input
+                      id="profile-company"
+                      className="h-9"
+                      placeholder={t("选填，如 Apex Labs", "Optional, e.g. Apex Labs")}
+                      value={company}
+                      onChange={(event) => setCompany(event.target.value)}
+                    />
+                  </Field>
+                </div>
+                <Field>
+                  <FieldLabel htmlFor="profile-email">
+                    {t("联系邮箱", "Email address")}
+                  </FieldLabel>
+                  <Input
+                    id="profile-email"
+                    className="h-9"
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                  />
+                </Field>
+              </FieldGroup>
+            </CardContent>
+            <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-6 py-3.5">
+              <span className="text-xs text-muted-foreground">
+                {isDirty
+                  ? t("有尚未保存的更改", "You have unsaved changes")
+                  : t("所有资料已是最新", "All changes saved")}
+              </span>
+              <div className="flex items-center gap-2">
+                {isDirty && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetDraft}
+                    disabled={saving}
+                  >
+                    {t("重置", "Reset")}
+                  </Button>
+                )}
+                <Button type="submit" size="sm" disabled={!isDirty || saving}>
+                  {saving && <Spinner data-icon="inline-start" />}
+                  {t("保存更改", "Save changes")}
+                </Button>
+              </div>
+            </CardFooter>
+          </form>
+        </Card>
+      </section>
+
+      <Separator />
+
+      {/* Section 2: Presenter Profile Reuse */}
+      <section className="grid items-start gap-4 lg:grid-cols-12 lg:gap-8">
+        <div className="flex flex-col gap-1 lg:col-span-4 lg:pt-1">
+          <h2 className="text-sm font-semibold text-foreground">
+            {t("人物形象档案", "Presenter profile")}
+          </h2>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {t(
+              "再次购买视频套餐时，可直接复用已有的人物外观与声线档案。",
+              "Reuse your saved presenter look and voice profile when starting a new order."
+            )}
+          </p>
+        </div>
+
+        <div className="lg:col-span-8">
+          <Item
+            variant="outline"
+            className="rounded-xl bg-card px-5 py-4 shadow-xs"
+          >
+            <ItemMedia
+              variant="icon"
+              className="size-9 rounded-lg border bg-muted/40 text-primary"
+            >
+              <FolderOpen aria-hidden="true" />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>
+                {t(
+                  `${account.name || "默认"} · 当前人物档案`,
+                  `${account.name || "Default"} · Active presenter profile`
+                )}
+              </ItemTitle>
+              <ItemDescription>
+                {t(
+                  "下单时自动带入已建档人物资料，无需重复拍摄或上传干声。",
+                  "Automatically links your existing look and voice assets to the new order."
+                )}
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <ActionLink
+                size="sm"
+                to={href("checkout", { profile: name || account.name })}
+              >
+                {t("复用档案下单", "Reuse for new order")}
+              </ActionLink>
+            </ItemActions>
+          </Item>
+        </div>
+      </section>
+
+      <Separator />
+
+      {/* Section 3: Preferences */}
+      <section className="grid items-start gap-4 lg:grid-cols-12 lg:gap-8">
+        <div className="flex flex-col gap-1 lg:col-span-4 lg:pt-1">
+          <h2 className="text-sm font-semibold text-foreground">
+            {t("界面偏好", "Preferences")}
+          </h2>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {t(
+              "设置工作台界面语言，切换后即时生效。",
+              "Choose your preferred workspace display language."
+            )}
+          </p>
+        </div>
+
+        <div className="lg:col-span-8">
+          <Item
+            variant="outline"
+            className="rounded-xl bg-card px-5 py-4 shadow-xs"
+          >
+            <ItemMedia
+              variant="icon"
+              className="size-9 rounded-lg border bg-muted/40 text-muted-foreground"
+            >
+              <Globe aria-hidden="true" />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>{t("显示语言", "Display language")}</ItemTitle>
+              <ItemDescription>
+                {t(
+                  "支持 English 与简体中文随时切换。",
+                  "Switch between English and Simplified Chinese anytime."
+                )}
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <LanguageSwitch />
+            </ItemActions>
+          </Item>
+        </div>
+      </section>
+    </div>
   )
 }
 
 export function WorkspacePage() {
   const { t, href, zh } = usePortal()
-  const { data, saveAccountProfile } = useDemo()
+  const { data, authUser, saveAccountProfile } = useDemo()
   const [query] = useSearchParams()
   const tab: "overview" | "billing" | "profile" =
     query.get("tab") === "billing"
@@ -505,11 +681,6 @@ export function WorkspacePage() {
     (value) =>
       filter === "all" || (filter === "done") === (value.status === "completed")
   )
-  const labels = {
-    overview: t("工作台", "Workspace"),
-    billing: t("账单与发票", "Billing & invoices"),
-    profile: t("个人资料", "Profile"),
-  }
 
   async function getDelivery(value: Order) {
     const version = value.versions.findLast((item) => item.type === "final")
@@ -776,103 +947,213 @@ export function WorkspacePage() {
         )}
 
         {tab === "billing" && (
-          <Card className="gap-0 overflow-hidden pb-0 shadow-xs">
-            <CardHeader className="border-b pb-4">
-              <CardTitle>
-                <h1>{labels.billing}</h1>
-              </CardTitle>
-              <CardDescription>
-                {t(
-                  "查看历史美元支付记录并下载订单收据。",
-                  "Review past USD payments and download order receipts."
-                )}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="px-4">
-                      {t("订单号", "Order")}
-                    </TableHead>
-                    <TableHead>{t("支付方式", "Method")}</TableHead>
-                    <TableHead>{t("金额 (USD)", "Amount (USD)")}</TableHead>
-                    <TableHead className="px-4 text-right">
-                      {t("收据", "Invoice")}
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orders.map((value) => (
-                    <TableRow key={value.id}>
-                      <TableCell className="px-4 font-mono text-xs text-muted-foreground">
-                        #{value.id}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">
-                          {value.method === "apple"
-                            ? "Apple Pay"
-                            : value.method === "ach"
-                              ? "ACH"
-                              : t("信用卡", "Card")}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-medium tabular-nums">
-                        {formatDollars(value.total)}
-                      </TableCell>
-                      <TableCell className="px-4 text-right">
-                        {value.receiptUrl ? (
-                          <Button asChild variant="ghost" size="sm">
-                            <a
-                              href={value.receiptUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <ExternalLink
-                                data-icon="inline-start"
-                                aria-hidden="true"
-                              />
-                              {t("官方收据", "Stripe receipt")}
-                            </a>
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              downloadFile(
-                                new Blob(
-                                  [
-                                    `NextGen Avatar Receipt\nOrder: ${value.id}\nAmount Paid (USD): ${formatDollars(value.total)}`,
-                                  ],
-                                  { type: "text/plain" }
-                                ),
-                                `${value.id}-invoice.txt`
-                              )
-                              toast.success(t("收据已下载", "Receipt downloaded"))
-                            }}
-                          >
-                            <Download
-                              data-icon="inline-start"
-                              aria-hidden="true"
-                            />
-                            {t("下载收据", "Download receipt")}
-                          </Button>
+          <div className="flex flex-col gap-4">
+            <Card className="gap-0 overflow-hidden py-0 shadow-xs">
+              <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
+                <div className="flex flex-col gap-0.5">
+                  <CardTitle className="text-base font-semibold">
+                    <h2>{t("付款与收据记录", "Payment history")}</h2>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    {t(
+                      "查看历史美元支付记录，随时获取 Stripe 官方收据或下载凭证。",
+                      "Review past USD payments and download official receipts."
+                    )}
+                  </CardDescription>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="bg-muted/30 font-mono text-[11px] font-medium text-muted-foreground"
+                >
+                  USD · Stripe
+                </Badge>
+              </CardHeader>
+              <CardContent className="p-0">
+                {orders.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="px-6">
+                          {t("项目与订单号", "Order & package")}
+                        </TableHead>
+                        <TableHead>{t("支付方式", "Method")}</TableHead>
+                        <TableHead>{t("付款状态", "Status")}</TableHead>
+                        <TableHead className="text-right">
+                          {t("金额 (USD)", "Amount (USD)")}
+                        </TableHead>
+                        <TableHead className="px-6 text-right">
+                          {t("收据", "Receipt")}
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {orders.map((value) => {
+                        const matchedPlan = data.plans.find(
+                          (item) => item.id === value.plan
+                        )
+                        const planLabel = matchedPlan
+                          ? zh
+                            ? matchedPlan.zh
+                            : matchedPlan.en
+                          : t("定制报价", "Custom quote")
+                        return (
+                          <TableRow key={value.id}>
+                            <TableCell className="px-6 py-3.5">
+                              <div className="flex min-w-0 flex-col gap-0.5">
+                                <span className="truncate text-sm font-medium text-foreground">
+                                  {zh ? value.zh : value.en}
+                                </span>
+                                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                  <span className="font-mono">#{value.id}</span>
+                                  <span>·</span>
+                                  <span className="truncate">{planLabel}</span>
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="secondary"
+                                className="gap-1.5 font-normal"
+                              >
+                                {value.method === "apple" ? (
+                                  <Smartphone
+                                    className="size-3"
+                                    aria-hidden="true"
+                                  />
+                                ) : value.method === "ach" ? (
+                                  <Landmark
+                                    className="size-3"
+                                    aria-hidden="true"
+                                  />
+                                ) : (
+                                  <CreditCard
+                                    className="size-3"
+                                    aria-hidden="true"
+                                  />
+                                )}
+                                {value.method === "apple"
+                                  ? "Apple Pay"
+                                  : value.method === "ach"
+                                    ? "ACH"
+                                    : t("信用卡", "Card")}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className="border-emerald-200 bg-emerald-50/75 text-xs font-medium text-emerald-700"
+                              >
+                                <span
+                                  className="mr-1.5 inline-block size-1.5 rounded-full bg-emerald-500"
+                                  aria-hidden="true"
+                                />
+                                {t("已支付", "Paid")}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-sm font-semibold text-foreground tabular-nums">
+                              {formatDollars(value.total)}
+                            </TableCell>
+                            <TableCell className="px-6 text-right">
+                              {value.receiptUrl ? (
+                                <Button asChild variant="outline" size="xs">
+                                  <a
+                                    href={value.receiptUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <ExternalLink
+                                      data-icon="inline-start"
+                                      aria-hidden="true"
+                                    />
+                                    {t("官方收据", "Stripe receipt")}
+                                  </a>
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="xs"
+                                  className="text-muted-foreground hover:text-foreground"
+                                  onClick={() => {
+                                    downloadFile(
+                                      new Blob(
+                                        [
+                                          `NextGen Avatar Receipt\nOrder: #${value.id}\nProject: ${zh ? value.zh : value.en}\nPackage: ${planLabel}\nStatus: Paid\nAmount Paid (USD): ${formatDollars(value.total)}\nSupport: support@nextgenavatar.com`,
+                                        ],
+                                        { type: "text/plain" }
+                                      ),
+                                      `${value.id}-receipt.txt`
+                                    )
+                                    toast.success(
+                                      t("收据已下载", "Receipt downloaded")
+                                    )
+                                  }}
+                                >
+                                  <Download
+                                    data-icon="inline-start"
+                                    aria-hidden="true"
+                                  />
+                                  {t("下载收据", "Download")}
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <Empty className="py-14">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <Receipt aria-hidden="true" />
+                      </EmptyMedia>
+                      <EmptyTitle>
+                        {t("暂无付款记录", "No billing records yet")}
+                      </EmptyTitle>
+                      <EmptyDescription>
+                        {t(
+                          "完成首次套餐下单后，所有交易记录与官方收据将自动同步至此。",
+                          "Your invoices and official Stripe receipts will appear here after your first order."
                         )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                      </EmptyDescription>
+                    </EmptyHeader>
+                    <ActionLink primary size="sm" to={href("checkout")}>
+                      <Plus data-icon="inline-start" aria-hidden="true" />
+                      {t("前往选择套餐", "Browse packages")}
+                    </ActionLink>
+                  </Empty>
+                )}
+              </CardContent>
+              <CardFooter className="border-t bg-muted/20 px-6 py-3">
+                <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <ShieldCheck
+                    className="size-3.5 shrink-0 text-emerald-600"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {t(
+                      "所有交易均由 Stripe 加密处理；如需企业对公抬头发票，请联系 ",
+                      "Payments are securely processed by Stripe. Need a custom company invoice? Contact "
+                    )}
+                    <a
+                      href="mailto:support@nextgenavatar.com"
+                      className="font-medium text-foreground underline decoration-border underline-offset-2 hover:text-primary"
+                    >
+                      support@nextgenavatar.com
+                    </a>
+                    {t("。", ".")}
+                  </span>
+                </p>
+              </CardFooter>
+            </Card>
+          </div>
         )}
 
         {tab === "profile" && (
-          <ProfileSettingsCard
+          <ProfileSettingsView
             key={`${data.account.email}:${data.account.name}:${data.account.company}`}
             account={data.account}
-            title={labels.profile}
+            isGoogleLinked={Boolean(authUser && !authUser.isDemo)}
             onSave={saveAccountProfile}
           />
         )}
