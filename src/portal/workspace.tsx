@@ -9,14 +9,13 @@ import {
 } from "react-router"
 import { motion } from "motion/react"
 import {
+  ArrowRight,
   Bell,
   Building2,
-  CheckCircle2,
-  Clapperboard,
-  Clock,
   CreditCard,
   Download,
   ExternalLink,
+  Film,
   FolderOpen,
   Globe,
   Inbox,
@@ -29,6 +28,7 @@ import {
   Receipt,
   ShieldCheck,
   Smartphone,
+  Upload,
   UserRound,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -38,7 +38,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -62,7 +61,6 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -79,6 +77,7 @@ import {
   countDeliveredVideos,
   coverImage,
   formatDollars,
+  getVersionCode,
   sampleOrder,
   sampleVideo,
   useDemo,
@@ -617,17 +616,16 @@ export function WorkspacePage() {
     (sum, value) => sum + countDeliveredVideos(value),
     0
   )
+  const reviewOrder = orders.find(
+    (value) => value.status === "waiting_confirm"
+  )
+  const assetsOrder = orders.find(
+    (value) => value.status === "waiting_assets"
+  )
+  const focusOrder = reviewOrder ?? assetsOrder
   const pendingReview = orders.filter(
     (value) => value.status === "waiting_confirm"
   ).length
-  const totalCredits = orders.reduce((sum, value) => sum + value.count, 0)
-  const remaining = orders.reduce(
-    (sum, value) => sum + Math.max(0, value.count - countDeliveredVideos(value)),
-    0
-  )
-  const creditPercent = totalCredits
-    ? Math.round((remaining / totalCredits) * 100)
-    : 0
   const shown = orders.filter(
     (value) =>
       filter === "all" || (filter === "done") === (value.status === "completed")
@@ -652,92 +650,137 @@ export function WorkspacePage() {
     }
   }
 
+  const firstName = (data.account.name || "").trim().split(/\s+/)[0] || ""
+
   return (
     <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-5 py-6 sm:px-8">
       <div className="flex flex-col gap-6">
         {tab === "overview" && (
           <>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Card className="gap-2 shadow-xs">
-                <CardHeader className="pb-0">
-                  <CardDescription className="text-xs">
-                    {t("剩余视频条数", "Remaining credits")}
-                  </CardDescription>
-                  <CardAction>
-                    <Clapperboard
+            {/* 1. Minimalist Greeting & Inline Status Summary (no generic KPI cards) */}
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-xl font-semibold tracking-tight text-foreground">
+                  {firstName
+                    ? t(`欢迎回来，${firstName}`, `Welcome back, ${firstName}`)
+                    : t("工作台概览", "Workspace overview")}
+                </h2>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className="size-1.5 rounded-full bg-primary"
                       aria-hidden="true"
-                      className="size-4 text-primary"
                     />
-                  </CardAction>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-2.5">
-                  <div className="flex items-baseline gap-1.5">
-                    <strong className="text-2xl font-bold tracking-tight tabular-nums">
-                      {remaining}
-                    </strong>
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      / {totalCredits} {t("条", "total")}
+                    {t(`${active} 笔进行中`, `${active} in progress`)}
+                  </span>
+                  {pendingReview > 0 && (
+                    <span className="inline-flex items-center gap-1.5 font-medium text-amber-800">
+                      <span
+                        className="size-1.5 rounded-full bg-amber-500"
+                        aria-hidden="true"
+                      />
+                      {t(
+                        `${pendingReview} 笔待审片确认`,
+                        `${pendingReview} awaiting review`
+                      )}
                     </span>
-                  </div>
-                  <Progress value={creditPercent} className="h-1.5" />
-                </CardContent>
-              </Card>
-
-              <Card className="gap-2 shadow-xs">
-                <CardHeader className="pb-0">
-                  <CardDescription className="text-xs">
-                    {t("进行中订单", "In progress")}
-                  </CardDescription>
-                  <CardAction>
-                    <Clock
+                  )}
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className="size-1.5 rounded-full bg-emerald-500"
                       aria-hidden="true"
-                      className="size-4 text-muted-foreground"
                     />
-                  </CardAction>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-1">
-                  <strong className="text-2xl font-bold tracking-tight tabular-nums">
-                    {active}
-                  </strong>
-                  <span className="text-xs text-muted-foreground">
-                    {pendingReview > 0
-                      ? t(
-                          `${pendingReview} 笔待审核初稿`,
-                          `${pendingReview} awaiting review`
-                        )
-                      : t("无待审核项", "No pending reviews")}
+                    {t(
+                      `${deliveredVideoTotal} 条已交付成片`,
+                      `${deliveredVideoTotal} delivered`
+                    )}
                   </span>
-                </CardContent>
-              </Card>
-
-              <Card className="gap-2 shadow-xs">
-                <CardHeader className="pb-0">
-                  <CardDescription className="text-xs">
-                    {t("已交付成片", "Delivered videos")}
-                  </CardDescription>
-                  <CardAction>
-                    <CheckCircle2
-                      aria-hidden="true"
-                      className="size-4 text-emerald-600"
-                    />
-                  </CardAction>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-1">
-                  <strong className="text-2xl font-bold tracking-tight tabular-nums">
-                    {deliveredVideoTotal}
-                  </strong>
-                  <span className="text-xs text-muted-foreground">
-                    {t("支持在线播放与下载", "Play and download anytime")}
-                  </span>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </div>
 
-            <Card className="gap-0 overflow-hidden pb-0 shadow-xs">
-              <CardHeader className="flex-row items-center justify-between border-b px-5 py-3.5">
-                <CardTitle className="text-base font-semibold">
-                  <h2>{t("我的订单", "My orders")}</h2>
-                </CardTitle>
+            {/* 2. Subtle Context Action Bar (only shown when action is needed) */}
+            {focusOrder && (
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card px-5 py-4 shadow-xs">
+                <div className="flex min-w-0 items-center gap-3.5">
+                  {focusOrder.status === "waiting_confirm" ? (
+                    <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-lg border bg-brand-navy">
+                      <img
+                        src={coverImage}
+                        alt=""
+                        className="size-full object-cover opacity-85"
+                      />
+                      <span className="absolute inset-0 flex items-center justify-center">
+                        <span className="flex size-6 items-center justify-center rounded-full bg-brand-navy/80 text-white">
+                          <Play
+                            className="size-3 fill-current"
+                            aria-hidden="true"
+                          />
+                        </span>
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-muted/40 text-primary">
+                      <Upload className="size-4" aria-hidden="true" />
+                    </span>
+                  )}
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-foreground">
+                        {zh ? focusOrder.zh : focusOrder.en}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className="font-mono text-[11px] font-normal text-muted-foreground"
+                      >
+                        #{focusOrder.id}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {focusOrder.status === "waiting_confirm"
+                        ? t(
+                            "最新预览版已上传，您可以随时在线审片确认或提出修改意见。",
+                            "A new preview draft is ready. Watch online to approve or leave revision notes."
+                          )
+                        : t(
+                            "请上传人物素材、声音样本与口播脚本，制作团队确认后即可开工。",
+                            "Upload your photos, voice sample, and script so our team can begin production."
+                          )}
+                    </p>
+                  </div>
+                </div>
+                <ActionLink
+                  primary
+                  size="sm"
+                  to={href(
+                    focusOrder.status === "waiting_confirm"
+                      ? "video-review"
+                      : "order-chat",
+                    { order: focusOrder.id }
+                  )}
+                >
+                  {focusOrder.status === "waiting_confirm"
+                    ? t("立即审片", "Review draft")
+                    : t("上传素材", "Upload materials")}
+                  <ArrowRight data-icon="inline-end" aria-hidden="true" />
+                </ActionLink>
+              </div>
+            )}
+
+            {/* 3. Refined Orders Table */}
+            <Card className="gap-0 overflow-hidden py-0 shadow-xs">
+              <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base font-semibold">
+                    <h3>{t("我的订单", "My orders")}</h3>
+                  </CardTitle>
+                  <Badge
+                    variant="secondary"
+                    className="font-mono text-[11px] tabular-nums"
+                  >
+                    {orders.length}
+                  </Badge>
+                </div>
                 <Tabs value={filter} onValueChange={setFilter}>
                   <TabsList>
                     <TabsTrigger value="all">{t("全部", "All")}</TabsTrigger>
@@ -755,67 +798,108 @@ export function WorkspacePage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="px-5">
-                          {t("订单号", "Order")}
+                        <TableHead className="px-6">
+                          {t("项目与订单", "Project")}
                         </TableHead>
-                        <TableHead>{t("项目", "Project")}</TableHead>
-                        <TableHead>{t("状态", "Status")}</TableHead>
-                        <TableHead className="px-5 text-right">
+                        <TableHead>{t("制作状态", "Status")}</TableHead>
+                        <TableHead className="px-6 text-right">
                           {t("操作", "Action")}
                         </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {shown.map((value) => (
-                        <TableRow key={value.id}>
-                          <TableCell className="px-5 font-mono text-xs text-muted-foreground">
-                            #{value.id}
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            <EditableOrderTitle key={value.id} order={value} />
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge status={value.status} />
-                          </TableCell>
-                          <TableCell className="px-5">
-                            <div className="flex justify-end gap-2">
-                              <ActionLink
-                                size="sm"
-                                variant="ghost"
-                                to={href("order-chat", { order: value.id })}
-                              >
-                                {t("进入聊天", "Chat")}
-                              </ActionLink>
-                              {value.versions.length > 0 && (
+                      {shown.map((value) => {
+                        const matchedPlan = data.plans.find(
+                          (item) => item.id === value.plan
+                        )
+                        const planLabel = matchedPlan
+                          ? zh
+                            ? matchedPlan.zh
+                            : matchedPlan.en
+                          : t("定制报价", "Custom quote")
+                        const latestVersion = value.versions.at(-1)
+                        return (
+                          <TableRow key={value.id}>
+                            <TableCell className="px-6 py-3.5">
+                              <div className="flex min-w-0 flex-col gap-0.5">
+                                <EditableOrderTitle
+                                  key={value.id}
+                                  order={value}
+                                />
+                                <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                                  <span className="font-mono">#{value.id}</span>
+                                  <span>·</span>
+                                  <span className="truncate">{planLabel}</span>
+                                  {value.owner && (
+                                    <>
+                                      <span>·</span>
+                                      <span>
+                                        {t(
+                                          `制作师 ${value.owner}`,
+                                          `Producer ${value.owner}`
+                                        )}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <StatusBadge status={value.status} />
+                                {latestVersion && (
+                                  <Badge
+                                    variant="outline"
+                                    className="h-5 px-1.5 font-mono text-[10px] font-normal text-muted-foreground uppercase"
+                                  >
+                                    {latestVersion.type === "final"
+                                      ? "FINAL"
+                                      : getVersionCode(latestVersion)}
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="px-6">
+                              <div className="flex justify-end gap-2">
                                 <ActionLink
                                   size="sm"
-                                  variant={
-                                    value.status === "waiting_confirm"
-                                      ? "default"
-                                      : "outline"
-                                  }
-                                  className={
-                                    value.status === "waiting_confirm"
-                                      ? "bg-brand-navy text-white hover:bg-brand-navy/90"
-                                      : undefined
-                                  }
-                                  to={href("video-review", {
-                                    order: value.id,
-                                  })}
+                                  variant="ghost"
+                                  className="text-muted-foreground hover:text-foreground"
+                                  to={href("order-chat", { order: value.id })}
                                 >
-                                  {value.status === "waiting_confirm"
-                                    ? t("审核视频", "Review")
-                                    : t("查看视频", "Watch")}
+                                  {t("沟通", "Chat")}
                                 </ActionLink>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                                {value.versions.length > 0 && (
+                                  <ActionLink
+                                    size="sm"
+                                    variant={
+                                      value.status === "waiting_confirm"
+                                        ? "default"
+                                        : "outline"
+                                    }
+                                    className={
+                                      value.status === "waiting_confirm"
+                                        ? "bg-brand-navy text-white hover:bg-brand-navy/90"
+                                        : undefined
+                                    }
+                                    to={href("video-review", {
+                                      order: value.id,
+                                    })}
+                                  >
+                                    {value.status === "waiting_confirm"
+                                      ? t("审核视频", "Review")
+                                      : t("查看视频", "Watch")}
+                                  </ActionLink>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
                     </TableBody>
                   </Table>
                 ) : (
-                  <Empty className="py-10">
+                  <Empty className="py-12">
                     <EmptyHeader>
                       <EmptyMedia variant="icon">
                         <Inbox aria-hidden="true" />
@@ -835,64 +919,87 @@ export function WorkspacePage() {
               </CardContent>
             </Card>
 
+            {/* 4. Clean Delivered Videos Gallery (directly on canvas, no nested wrapper box) */}
             {delivered.length > 0 && (
-              <Card className="shadow-xs">
-                <CardHeader className="px-5">
-                  <CardTitle className="text-base font-semibold">
-                    <h2>{t("已交付成片", "Delivered videos")}</h2>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="px-5">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    {delivered.map((value) => (
-                      <Card
-                        key={value.id}
-                        size="sm"
-                        className="group gap-0 overflow-hidden py-0 shadow-none transition-shadow hover:shadow-sm"
-                      >
-                        <Link
-                          to={href("video-review", { order: value.id })}
-                          aria-label={t("查看成片", "Watch delivery")}
-                          className="relative block overflow-hidden bg-brand-navy"
-                        >
-                          <img
-                            className="aspect-video w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                            src={coverImage}
-                            alt=""
-                          />
-                          <span
-                            aria-hidden="true"
-                            className="absolute right-2.5 bottom-2.5 flex size-8 items-center justify-center rounded-full bg-brand-navy/85 text-white shadow-sm backdrop-blur-xs transition-transform group-hover:scale-105"
-                          >
-                            <Play className="size-3.5 fill-current" />
-                          </span>
-                        </Link>
-                        <CardContent className="flex items-center justify-between gap-2 p-3">
-                          <div className="flex min-w-0 flex-col">
-                            <span className="truncate text-sm font-medium">
-                              {zh ? value.zh : value.en}
-                            </span>
-                            <span className="font-mono text-xs text-muted-foreground">
-                              #{value.id}
-                            </span>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void getDelivery(value)}
-                          >
-                            <Download
-                              data-icon="inline-start"
-                              aria-hidden="true"
-                            />
-                            {t("下载", "Download")}
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    ))}
+              <section className="flex flex-col gap-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Film
+                      className="size-4 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <h3 className="text-sm font-semibold text-foreground">
+                      {t("已交付成片", "Delivered videos")}
+                    </h3>
+                    <Badge
+                      variant="secondary"
+                      className="font-mono text-[11px] tabular-nums"
+                    >
+                      {deliveredVideoTotal}
+                    </Badge>
                   </div>
-                </CardContent>
-              </Card>
+                  <span className="text-xs text-muted-foreground">
+                    {t(
+                      "无水印正式成片 · 随时播放与下载",
+                      "Watermark-free masters · ready anytime"
+                    )}
+                  </span>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {delivered.map((value) => (
+                    <Card
+                      key={value.id}
+                      className="group gap-0 overflow-hidden py-0 shadow-xs transition-shadow hover:shadow-md"
+                    >
+                      <Link
+                        to={href("video-review", { order: value.id })}
+                        aria-label={t("查看成片", "Watch delivery")}
+                        className="relative block overflow-hidden bg-brand-navy"
+                      >
+                        <img
+                          className="aspect-video w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                          src={coverImage}
+                          alt=""
+                        />
+                        <div className="absolute inset-0 bg-brand-navy/0 transition-colors duration-200 group-hover:bg-brand-navy/20" />
+                        <Badge
+                          variant="outline"
+                          className="pointer-events-none absolute top-2.5 left-2.5 border-white/15 bg-brand-navy/75 font-mono text-[10px] font-medium text-white backdrop-blur-xs"
+                        >
+                          1080P · {t("无水印", "Clean")}
+                        </Badge>
+                        <span
+                          aria-hidden="true"
+                          className="absolute right-3 bottom-3 flex size-9 items-center justify-center rounded-full bg-brand-navy/85 text-white shadow-sm backdrop-blur-xs transition-transform group-hover:scale-105"
+                        >
+                          <Play className="size-3.5 fill-current" />
+                        </span>
+                      </Link>
+                      <CardContent className="flex items-center justify-between gap-3 px-4 py-3.5">
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="truncate text-sm font-medium text-foreground">
+                            {zh ? value.zh : value.en}
+                          </span>
+                          <span className="font-mono text-xs text-muted-foreground">
+                            #{value.id}
+                          </span>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          onClick={() => void getDelivery(value)}
+                        >
+                          <Download
+                            data-icon="inline-start"
+                            aria-hidden="true"
+                          />
+                          {t("下载", "Download")}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </section>
             )}
           </>
         )}
