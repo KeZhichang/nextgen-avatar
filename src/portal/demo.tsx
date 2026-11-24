@@ -198,13 +198,12 @@ export type DeliverableSlot = {
 }
 
 export function getOrderDeliverableSlots(order: Order): DeliverableSlot[] {
-  const maxVersionItem = order.versions.reduce(
-    (max, version) => Math.max(max, getVersionItemIndex(version)),
-    1
-  )
-  const total = Math.max(1, order.count, maxVersionItem)
-  return Array.from({ length: total }, (_, idx) => {
-    const index = idx + 1
+  const indices = new Set<number>()
+  for (const version of order.versions) {
+    indices.add(getVersionItemIndex(version))
+  }
+  const sorted = [...indices].sort((a, b) => a - b)
+  return sorted.map((index) => {
     const versions = getVersionsForItem(order, index)
     const latestTitled = [...versions]
       .reverse()
@@ -302,27 +301,11 @@ const sample: Order = {
     "Leo"
   ),
   versions: [
+    { id: "v1", code: "v1", itemIndex: 1, type: "preview", note: "Initial review version" },
     {
-      id: "final",
-      code: "final",
-      itemIndex: 1,
-      itemTitle: "Product Intro Cut",
-      type: "final",
-      note: "Approved & delivered watermark-free master",
-    },
-    {
-      id: "#2-v1",
-      code: "v1",
-      itemIndex: 2,
-      itemTitle: "Feature Highlight Cut",
-      type: "preview",
-      note: "Initial review version",
-    },
-    {
-      id: "#2-v2",
+      id: "v2",
       code: "v2",
-      itemIndex: 2,
-      itemTitle: "Feature Highlight Cut",
+      itemIndex: 1,
       type: "preview",
       note: "Updated pacing and opening shot",
     },
@@ -495,7 +478,7 @@ function normalizePlans(raw: unknown): Plan[] {
           : (fallback?.price ?? 99),
       regular:
         typeof plan.regular === "number" &&
-        plan.regular > (plan.price ?? fallback?.price ?? 0)
+          plan.regular > (plan.price ?? fallback?.price ?? 0)
           ? plan.regular
           : undefined,
       active: typeof plan.active === "boolean" ? plan.active : true,
@@ -828,9 +811,9 @@ export function DemoProvider({ children }: { children: ReactNode }) {
             snapshot.notifications.length > 0
               ? snapshot.unread
               : !hideSampleData &&
-                (current.notifications.length > 0
-                  ? current.notifications.some((item) => !item.isRead)
-                  : defaultDemoNotifications.some((item) => !item.isRead)),
+              (current.notifications.length > 0
+                ? current.notifications.some((item) => !item.isRead)
+                : defaultDemoNotifications.some((item) => !item.isRead)),
         }
       })
     } catch {
@@ -975,14 +958,14 @@ export function DemoProvider({ children }: { children: ReactNode }) {
 
     setData((current) =>
       paymentSession &&
-      current.orders.some((value) => value.paymentSession === paymentSession)
+        current.orders.some((value) => value.paymentSession === paymentSession)
         ? current
         : {
-            ...current,
-            unread: true,
-            notifications: [orderNotif, ...current.notifications].slice(0, 20),
-            orders: [createdOrder, ...current.orders],
-          }
+          ...current,
+          unread: true,
+          notifications: [orderNotif, ...current.notifications].slice(0, 20),
+          orders: [createdOrder, ...current.orders],
+        }
     )
 
     if (live) {
@@ -1397,13 +1380,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       : version.type === "final"
         ? 1
         : 0
-    const totalExpected = Math.max(1, targetOrder?.count ?? 1)
     const nextStatus: Status =
-      version.type === "final"
-        ? nextDeliveredCount >= totalExpected
-          ? "completed"
-          : "producing"
-        : "waiting_confirm"
+      version.type === "final" ? "completed" : "waiting_confirm"
     const versionRef: EntryVersionRef = {
       id: version.id,
       type: version.type,
@@ -1446,10 +1424,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         versionRef
       )
       if (targetOrder?.clientId && targetOrder.clientId !== live.user.id) {
-        const videoPrefixZh =
-          totalExpected > 1 ? `第 ${itemIndex} 条` : ""
-        const videoPrefixEn =
-          totalExpected > 1 ? `Video #${itemIndex} ` : ""
+        const videoPrefixZh = itemIndex > 1 ? `第 ${itemIndex} 条` : ""
+        const videoPrefixEn = itemIndex > 1 ? `Video #${itemIndex} ` : ""
         await insertNotificationInDb(live.sb, {
           recipientUserId: targetOrder.clientId,
           orderId,
@@ -1767,8 +1743,8 @@ export function useTeamAuth() {
   } = useDemo()
   const member = data.teamSession
     ? data.teamMembers.find(
-        (item) => item.id === data.teamSession && item.active
-      )
+      (item) => item.id === data.teamSession && item.active
+    )
     : undefined
   const roleConfig = member
     ? getRoleConfig(data.teamRoles, member.roleId)

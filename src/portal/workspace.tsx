@@ -653,15 +653,7 @@ export function WorkspacePage() {
                             <EditableOrderTitle key={value.id} order={value} />
                           </TableCell>
                           <TableCell>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <StatusBadge status={value.status} />
-                              {value.count > 1 && (
-                                <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                                  {countDeliveredVideos(value)}/{value.count}{" "}
-                                  {t("条", "videos")}
-                                </span>
-                              )}
-                            </div>
+                            <StatusBadge status={value.status} />
                           </TableCell>
                           <TableCell className="px-5">
                             <div className="flex justify-end gap-2">
@@ -730,9 +722,7 @@ export function WorkspacePage() {
                 </CardHeader>
                 <CardContent className="px-5">
                   <div className="grid gap-4 md:grid-cols-3">
-                    {delivered.map((value) => {
-                      const deliveredCount = countDeliveredVideos(value)
-                      return (
+                    {delivered.map((value) => (
                       <Card
                         key={value.id}
                         size="sm"
@@ -748,17 +738,6 @@ export function WorkspacePage() {
                             src={coverImage}
                             alt=""
                           />
-                          {value.count > 1 && (
-                            <Badge
-                              variant="secondary"
-                              className="absolute top-2.5 left-2.5 bg-brand-navy/85 font-mono text-[11px] text-white backdrop-blur-xs"
-                            >
-                              {t(
-                                `已交付 ${deliveredCount}/${value.count} 条`,
-                                `${deliveredCount}/${value.count} delivered`
-                              )}
-                            </Badge>
-                          )}
                           <span
                             aria-hidden="true"
                             className="absolute right-2.5 bottom-2.5 flex size-8 items-center justify-center rounded-full bg-brand-navy/85 text-white shadow-sm backdrop-blur-xs transition-transform group-hover:scale-105"
@@ -788,7 +767,7 @@ export function WorkspacePage() {
                           </Button>
                         </CardContent>
                       </Card>
-                    )})}
+                    ))}
                   </div>
                 </CardContent>
               </Card>

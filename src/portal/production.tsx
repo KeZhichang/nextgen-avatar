@@ -104,7 +104,6 @@ import { ChatComposer } from "./chat-composer"
 import {
   buildNextVersionForItem,
   clientImage,
-  countDeliveredVideos,
   coverImage,
   entryAttachments,
   getOrderDeliverableSlots,
@@ -264,9 +263,7 @@ function ChatPanel({
 }) {
   const { t, zh } = usePortal()
   const { data, sendChatMessage } = useDemo()
-  const isMultiVideo =
-    order.count > 1 ||
-    order.versions.some((item) => getVersionItemIndex(item) > 1)
+  const hasMultipleDeliverables = getOrderDeliverableSlots(order).length > 1
   const clientAvatar =
     order.client === data.account.name && data.account.avatarUrl
       ? data.account.avatarUrl
@@ -278,21 +275,20 @@ function ChatPanel({
           id: "sample-client",
           side: "client",
           text: t(
-            "第 2 条初稿 v1 00:24 处语速稍快，麻烦调整一下。",
-            "The pacing at 00:24 in Video #2 v1 is a little fast. Could you slow it down?"
+            "初稿 v1 00:24 处语速稍快，麻烦调整一下。",
+            "The pacing at 00:24 in v1 is a little fast. Could you slow it down?"
           ),
         },
         {
           id: "sample-team",
           side: "studio",
           text: t(
-            "收到，第 2 条修订版 v2 已上传，请在线审片确认或继续提出修改意见。",
-            "Updated pacing and uploaded Video #2 v2. Please review and approve or leave revision notes."
+            "收到，修订版 v2 已上传，请在线审片确认或继续提出修改意见。",
+            "Updated pacing and uploaded v2. Please review and approve or leave revision notes."
           ),
           versionRef: {
-            id: "#2-v2",
+            id: "v2",
             type: "preview",
-            itemIndex: 2,
             note: t(
               "已优化 00:24 处语速与开场镜头节奏",
               "Updated pacing and opening shot"
@@ -366,8 +362,8 @@ function ChatPanel({
               />
               <span className="truncate">
                 {t(
-                  `${latestVersion ? formatVersionLabel(latestVersion.id, latestVersion.type, t, getVersionItemIndex(latestVersion), isMultiVideo) : "最新预览版"}已上传，等待您审片确认或提交修改意见。`,
-                  `${latestVersion ? formatVersionLabel(latestVersion.id, latestVersion.type, t, getVersionItemIndex(latestVersion), isMultiVideo) : "Latest draft"} is ready for your approval or revision notes.`
+                  `${latestVersion ? formatVersionLabel(latestVersion.id, latestVersion.type, t, getVersionItemIndex(latestVersion), hasMultipleDeliverables) : "最新预览版"}已上传，等待您审片确认或提交修改意见。`,
+                  `${latestVersion ? formatVersionLabel(latestVersion.id, latestVersion.type, t, getVersionItemIndex(latestVersion), hasMultipleDeliverables) : "Latest draft"} is ready for your approval or revision notes.`
                 )}
               </span>
             </div>
@@ -464,7 +460,7 @@ function ChatPanel({
                                     entry.versionRef.type,
                                     t,
                                     entry.versionRef.itemIndex,
-                                    isMultiVideo
+                                    hasMultipleDeliverables
                                   )}
                                 </span>
                                 <Badge
@@ -625,7 +621,6 @@ function ReviewPanel({
   const [manualSlot, setManualSlot] = useState<number | null>(null)
 
   const slots = getOrderDeliverableSlots(order)
-  const deliveredCount = countDeliveredVideos(order)
   const isMultiVideo = slots.length > 1
 
   const requestedVersion = selectedVersionId
@@ -774,43 +769,17 @@ function ReviewPanel({
     <ScrollArea className="min-h-0 flex-1">
       <div className="flex flex-col gap-5 p-5 sm:p-6">
         {isMultiVideo && (
-          <div className="flex flex-col gap-2.5 rounded-xl border border-border/80 bg-card px-4 py-3 shadow-2xs">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-foreground">
-                  {t("同订单交付进度", "Order deliverables")}
-                </span>
-                <Badge variant="secondary" className="font-mono text-[11px] tabular-nums">
-                  {t(
-                    `已交付 ${deliveredCount} / ${order.count} 条`,
-                    `${deliveredCount} / ${order.count} delivered`
-                  )}
-                </Badge>
-              </div>
-              {activeSlotMeta?.title && (
-                <span className="text-xs text-muted-foreground">
-                  {t(`当前查看：第 ${activeItemIndex} 条 · `, `Viewing Video #${activeItemIndex} · `)}
-                  <strong className="font-medium text-foreground">
-                    {activeSlotMeta.title}
-                  </strong>
-                </span>
-              )}
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-border/80 bg-card px-4 py-2.5 shadow-2xs">
             <div className="flex flex-wrap items-center gap-1.5">
               {slots.map((slot) => {
                 const isActive = slot.index === activeItemIndex
-                const statusLabel = slot.hasFinal
-                  ? t("已交付", "Delivered")
-                  : slot.versions.length > 0
-                    ? t("审片中", "In review")
-                    : t("待上传", "Pending")
                 return (
                   <button
                     key={slot.index}
                     type="button"
                     onClick={() => selectSlot(slot.index)}
                     className={cn(
-                      "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
+                      "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors",
                       isActive
                         ? "border-primary bg-primary/8 font-semibold text-foreground shadow-2xs"
                         : "border-border/80 bg-muted/25 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
@@ -819,23 +788,23 @@ function ReviewPanel({
                     <span
                       className={cn(
                         "size-1.5 shrink-0 rounded-full",
-                        slot.hasFinal
-                          ? "bg-emerald-500"
-                          : slot.versions.length > 0
-                            ? "bg-primary"
-                            : "bg-muted-foreground/40"
+                        slot.hasFinal ? "bg-emerald-500" : "bg-primary"
                       )}
                       aria-hidden="true"
                     />
                     <span className="font-mono">#{slot.index}</span>
                     {slot.title && (
-                      <span className="max-w-28 truncate">{slot.title}</span>
+                      <span className="max-w-32 truncate">{slot.title}</span>
                     )}
-                    <span className="text-[11px] opacity-75">· {statusLabel}</span>
                   </button>
                 )
               })}
             </div>
+            {activeSlotMeta?.title && (
+              <span className="text-xs text-muted-foreground">
+                {activeSlotMeta.title}
+              </span>
+            )}
           </div>
         )}
 
@@ -1470,23 +1439,27 @@ export function StudioWorkspacePage() {
   }
 
   const order = current
-  const baseSlots = getOrderDeliverableSlots(order)
-  const totalSlots = Math.max(baseSlots.length, order.count) + extraSlots
+  const existingSlots = getOrderDeliverableSlots(order)
+  const maxExistingIndex = existingSlots.reduce(
+    (max, slot) => Math.max(max, slot.index),
+    1
+  )
+  const totalSlots = maxExistingIndex + extraSlots
   const slots = Array.from({ length: totalSlots }, (_, idx) => {
-    const existing = baseSlots.find((s) => s.index === idx + 1)
+    const index = idx + 1
+    const existing = existingSlots.find((s) => s.index === index)
     return (
       existing ?? {
-        index: idx + 1,
+        index,
         title: "",
         versions: [],
         hasFinal: false,
       }
     )
   })
-  const deliveredCount = countDeliveredVideos(order)
   const isMultiVideo = slots.length > 1
   const defaultSlotIndex =
-    slots.find((slot) => !slot.hasFinal)?.index ?? slots[0]?.index ?? 1
+    slots.find((slot) => !slot.hasFinal)?.index ?? slots.at(-1)?.index ?? 1
   const activeSlotIndex =
     selectedSlot && selectedSlot <= totalSlots ? selectedSlot : defaultSlotIndex
   const activeSlotMeta = slots.find((slot) => slot.index === activeSlotIndex)
@@ -1497,12 +1470,8 @@ export function StudioWorkspacePage() {
     .flatMap(entryAttachments)
   const totalMaterialCount =
     attachments.length + (order.id === sampleOrder ? sampleMaterials.length : 0)
-  const canDeliver = hasFinalPerm && order.status !== "completed"
+  const canDeliver = hasFinalPerm
   const file = files[0]
-  const projectedDeliveredAfterFinal = activeSlotMeta?.hasFinal
-    ? deliveredCount
-    : deliveredCount + 1
-  const completesOrderOnFinal = projectedDeliveredAfterFinal >= order.count
 
   function startProduction() {
     if (order.status !== "waiting_assets") return
@@ -1526,12 +1495,7 @@ export function StudioWorkspacePage() {
   }
 
   async function publishVersion() {
-    if (
-      busy ||
-      (effectiveKind === "final" && !canDeliver) ||
-      order.status === "completed"
-    )
-      return
+    if (busy || (effectiveKind === "final" && !canDeliver)) return
     setBusy(true)
     setUploadPercent(file ? 5 : 0)
     try {
@@ -1871,22 +1835,18 @@ export function StudioWorkspacePage() {
                       {t("正式版本推送", "Publish review / final version")}
                     </h2>
                     <span className="text-[11px] text-muted-foreground">
-                      {isMultiVideo
-                        ? t(
-                            `已交付 ${deliveredCount}/${order.count} 条 · 支持按条分批交付`,
-                            `${deliveredCount}/${order.count} delivered · publish per video slot`
-                          )
-                        : t(
-                            "推送至客户审片页并自动更新订单状态",
-                            "Publishes to client review & updates order status"
-                          )}
+                      {t(
+                        "推送至客户审片页并自动更新订单状态",
+                        "Publishes to client review & updates order status"
+                      )}
                     </span>
                   </div>
                   <Button
                     type="button"
                     variant="ghost"
                     size="xs"
-                    disabled={busy || order.status === "completed"}
+                    className="text-muted-foreground hover:text-foreground"
+                    disabled={busy}
                     onClick={() => {
                       const nextIndex = totalSlots + 1
                       setExtraSlots((prev) => prev + 1)
@@ -1895,7 +1855,7 @@ export function StudioWorkspacePage() {
                     }}
                   >
                     <Plus data-icon="inline-start" aria-hidden="true" />
-                    {t("追加条数", "Add slot")}
+                    {t("新增一条", "Add video")}
                   </Button>
                 </div>
                 {isMultiVideo && (
@@ -2002,7 +1962,7 @@ export function StudioWorkspacePage() {
                   }}
                   accept="video/*"
                   maxFiles={1}
-                  disabled={busy || order.status === "completed"}
+                  disabled={busy}
                 >
                   {file ? (
                     <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-accent/50 px-3 py-2 text-sm">
@@ -2065,11 +2025,7 @@ export function StudioWorkspacePage() {
 
                 <Button
                   type="submit"
-                  disabled={
-                    busy ||
-                    order.status === "completed" ||
-                    (effectiveKind === "final" && !canDeliver)
-                  }
+                  disabled={busy || (effectiveKind === "final" && !canDeliver)}
                 >
                   {busy ? (
                     <Spinner data-icon="inline-start" />
@@ -2110,19 +2066,10 @@ export function StudioWorkspacePage() {
                         : t("确认交付正式成片？", "Deliver final video now?")}
                     </AlertDialogTitle>
                     <AlertDialogDescription>
-                      {completesOrderOnFinal
-                        ? t(
-                            isMultiVideo
-                              ? `交付后累计已完成 ${projectedDeliveredAfterFinal}/${order.count} 条，订单将变更为「已交付」并向客户开放下载。`
-                              : "交付后订单状态将变更为「已交付」，并向客户开放无水印成片下载。",
-                            isMultiVideo
-                              ? `This brings delivered videos to ${projectedDeliveredAfterFinal}/${order.count}, completing the order and unlocking downloads.`
-                              : "This marks the order as delivered and makes the watermark-free video downloadable in the client workspace."
-                          )
-                        : t(
-                            `第 ${activeSlotIndex} 条成片将立即向客户开放下载（已交付 ${projectedDeliveredAfterFinal}/${order.count} 条），订单将保持制作中以继续交付其余视频。`,
-                            `Video #${activeSlotIndex} will become downloadable immediately (${projectedDeliveredAfterFinal}/${order.count} delivered). The order remains in production for the remaining videos.`
-                          )}
+                      {t(
+                        "交付后将向客户开放无水印成片下载；如后续仍需修改或补传新视频，可随时继续推送。",
+                        "This unlocks watermark-free final video download for the client. You can still publish additional revisions or videos later if needed."
+                      )}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>

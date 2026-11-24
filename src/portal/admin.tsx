@@ -738,7 +738,7 @@ function OrderDetailInspector({
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {(order.count > 1 || itemIdx > 1) && (
+                          {itemIdx > 1 && (
                             <Badge
                               variant="outline"
                               className="h-5 px-1.5 font-mono text-[10px]"
@@ -1246,18 +1246,13 @@ export function AdminOrdersPage() {
                                   ·{" "}
                                   {value.status === "completed"
                                     ? t(
-                                        `已交付 ${deliveredCount}/${value.count} 条`,
-                                        `Delivered ${deliveredCount}/${value.count}`
+                                        `已交付 · ${deliveredCount} 条`,
+                                        `Delivered · ${deliveredCount} video${deliveredCount > 1 ? "s" : ""}`
                                       )
-                                    : deliveredCount > 0
-                                      ? t(
-                                          `已交付 ${deliveredCount}/${value.count} 条 · 余 ${remaining} 条`,
-                                          `${deliveredCount}/${value.count} delivered · ${remaining} left`
-                                        )
-                                      : t(
-                                          `剩余 ${remaining}/${value.count} 条`,
-                                          `${remaining}/${value.count} credits left`
-                                        )}
+                                    : t(
+                                        `剩余 ${remaining}/${value.count} 条`,
+                                        `${remaining}/${value.count} credits left`
+                                      )}
                                 </div>
                               )}
                             </TableCell>
