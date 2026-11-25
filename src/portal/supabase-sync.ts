@@ -713,7 +713,8 @@ export async function insertMessageInDb(
   body: string,
   versionRef?: EntryVersionRef,
   attachments?: ChatAttachment[],
-  senderMeta?: MessageSenderMeta
+  senderMeta?: MessageSenderMeta,
+  messageId?: string
 ) {
   const metadata: Record<string, unknown> = {}
   if (versionRef) metadata.versionRef = versionRef
@@ -722,6 +723,7 @@ export async function insertMessageInDb(
   const { data: msgRow, error } = await sb
     .from("order_messages")
     .insert({
+      ...(messageId ? { id: messageId } : {}),
       order_id: orderId,
       sender_user_id: userId,
       sender_side: side,

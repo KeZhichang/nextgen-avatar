@@ -1505,6 +1505,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     const demoOnly = isDemoOrder(orderId)
     const targetOrder = dataRef.current.orders.find((o) => o.id === orderId)
     const studioSender = getCurrentStudioSender()
+    const messageId = crypto.randomUUID()
     updateOrder(orderId, (value) =>
       appendEntry(
         { ...value, status: "producing" },
@@ -1518,7 +1519,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
               senderName: studioSender.meta.name,
               senderRoleId: studioSender.meta.roleId,
             }
-          : undefined
+          : undefined,
+        messageId
       )
     )
     const live = getLiveDbUser()
@@ -1533,7 +1535,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         messageText,
         undefined,
         undefined,
-        studioSender.meta
+        studioSender.meta,
+        messageId
       )
       if (targetOrder?.clientId && targetOrder.clientId !== live.user.id) {
         await insertNotificationInDb(live.sb, {
@@ -1567,6 +1570,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       target?.status === "waiting_assets"
     )
     const studioSender = side === "studio" ? getCurrentStudioSender() : null
+    const messageId = crypto.randomUUID()
     updateOrder(orderId, (current) =>
       appendEntry(
         shouldAdvance ? { ...current, status: "producing" } : current,
@@ -1580,7 +1584,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
               senderName: studioSender.meta.name,
               senderRoleId: studioSender.meta.roleId,
             }
-          : undefined
+          : undefined,
+        messageId
       )
     )
     const live = getLiveDbUser()
@@ -1594,7 +1599,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         text,
         undefined,
         attachments,
-        studioSender?.meta
+        studioSender?.meta,
+        messageId
       )
       if (shouldAdvance) {
         await updateOrderInDb(live.sb, orderId, { status: "producing" })
@@ -1635,6 +1641,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       itemIndex,
     }
     const studioSender = getCurrentStudioSender()
+    const messageId = crypto.randomUUID()
     updateOrder(orderId, (value) =>
       appendEntry(
         {
@@ -1653,7 +1660,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
               senderName: studioSender.meta.name,
               senderRoleId: studioSender.meta.roleId,
             }
-          : undefined
+          : undefined,
+        messageId
       )
     )
     setData((state) => ({ ...state, unread: true }))
@@ -1677,7 +1685,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         messageText,
         versionRef,
         undefined,
-        studioSender.meta
+        studioSender.meta,
+        messageId
       )
       if (targetOrder?.clientId && targetOrder.clientId !== live.user.id) {
         const videoPrefixZh = itemIndex > 1 ? `第 ${itemIndex} 条` : ""
@@ -1714,6 +1723,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   ) {
     const demoOnly = isDemoOrder(orderId)
     const nextStatus: Status = action === "approve" ? "approved" : "revision"
+    const messageId = crypto.randomUUID()
     updateOrder(orderId, (value) =>
       appendEntry(
         {
@@ -1722,7 +1732,11 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           revision: action === "revision" ? revisionNote : undefined,
         },
         "client",
-        messageText
+        messageText,
+        undefined,
+        undefined,
+        undefined,
+        messageId
       )
     )
     if (action === "approve") {
@@ -1742,7 +1756,11 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         orderId,
         live.user.id,
         "client",
-        messageText
+        messageText,
+        undefined,
+        undefined,
+        undefined,
+        messageId
       )
       return true
     } catch {
@@ -1759,6 +1777,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     const demoOnly = isDemoOrder(orderId)
     const targetOrder = dataRef.current.orders.find((o) => o.id === orderId)
     const studioSender = side === "studio" ? getCurrentStudioSender() : null
+    const messageId = crypto.randomUUID()
     updateOrder(orderId, (value) =>
       appendEntry(
         {
@@ -1776,7 +1795,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
               senderName: studioSender.meta.name,
               senderRoleId: studioSender.meta.roleId,
             }
-          : undefined
+          : undefined,
+        messageId
       )
     )
     const live = getLiveDbUser()
@@ -1794,7 +1814,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         messageText,
         undefined,
         undefined,
-        studioSender?.meta
+        studioSender?.meta,
+        messageId
       )
       if (
         side === "studio" &&
@@ -1821,6 +1842,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   async function reopenOrder(orderId: string, messageText: string) {
     const demoOnly = isDemoOrder(orderId)
     const studioSender = getCurrentStudioSender()
+    const messageId = crypto.randomUUID()
     updateOrder(orderId, (value) =>
       appendEntry(
         {
@@ -1837,7 +1859,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
               senderName: studioSender.meta.name,
               senderRoleId: studioSender.meta.roleId,
             }
-          : undefined
+          : undefined,
+        messageId
       )
     )
     const live = getLiveDbUser()
@@ -1854,7 +1877,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         messageText,
         undefined,
         undefined,
-        studioSender.meta
+        studioSender.meta,
+        messageId
       )
       return true
     } catch {
@@ -2192,14 +2216,15 @@ export function appendEntry(
     senderUserId?: string
     senderName?: string
     senderRoleId?: TeamRoleId
-  }
+  },
+  id?: string
 ) {
   return {
     ...value,
     entries: [
       ...value.entries,
       {
-        id: crypto.randomUUID(),
+        id: id ?? crypto.randomUUID(),
         side,
         text,
         attachments,
