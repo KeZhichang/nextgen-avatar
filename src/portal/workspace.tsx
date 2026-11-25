@@ -21,7 +21,6 @@ import {
   Globe,
   Inbox,
   Landmark,
-  LayoutGrid,
   Mail,
   MessageSquare,
   Play,
@@ -87,6 +86,11 @@ import {
 } from "./demo"
 import { downloadFile, downloadOrderFile } from "./files"
 import { ActionLink, LanguageSwitch, StatusBadge } from "./layout"
+import {
+  AppMorphIcon,
+  clientNavMorphIcons,
+  notificationBellMorphIcons,
+} from "./morph-icons"
 import { EditableOrderTitle } from "./production"
 import { WorkbenchLayout } from "./workbench-layout"
 
@@ -229,14 +233,16 @@ export function ClientConsoleShell() {
       brandTo={href("workspace")}
       items={[
         {
+          id: "overview",
           label: t("工作台", "Workspace"),
-          icon: LayoutGrid,
+          morph: clientNavMorphIcons.overview,
           active: activeNav === "overview",
           to: href("workspace"),
         },
         {
+          id: "hub",
           label: t("订单与审片", "Orders & review"),
-          icon: MessageSquare,
+          morph: clientNavMorphIcons.hub,
           active: activeNav === "hub",
           badge: pendingReview || undefined,
           to: href(
@@ -245,14 +251,16 @@ export function ClientConsoleShell() {
           ),
         },
         {
+          id: "billing",
           label: t("账单与发票", "Billing & invoices"),
-          icon: CreditCard,
+          morph: clientNavMorphIcons.billing,
           active: activeNav === "billing",
           to: href("workspace", { tab: "billing" }),
         },
         {
+          id: "profile",
           label: t("个人资料", "Profile"),
-          icon: UserRound,
+          morph: clientNavMorphIcons.profile,
           active: activeNav === "profile",
           to: href("workspace", { tab: "profile" }),
         },
@@ -291,7 +299,21 @@ export function ClientConsoleShell() {
                 className="relative"
                 aria-label={t("通知", "Notifications")}
               >
-                <Bell aria-hidden="true" />
+                <AppMorphIcon
+                  icon={
+                    unreadCount > 0
+                      ? notificationBellMorphIcons.unread
+                      : notificationBellMorphIcons.read
+                  }
+                  size={16}
+                  strokeWidth={unreadCount > 0 ? 2.1 : 1.9}
+                  spring="snappy"
+                  className={
+                    unreadCount > 0
+                      ? "size-4 text-primary transition-colors duration-200"
+                      : "size-4 text-foreground transition-colors duration-200"
+                  }
+                />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary font-mono text-[10px] font-semibold text-primary-foreground">
                     {unreadCount > 9 ? "9+" : unreadCount}

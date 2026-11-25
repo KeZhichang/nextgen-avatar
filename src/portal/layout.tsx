@@ -35,6 +35,7 @@ import {
 import { type VariantProps } from "class-variance-authority"
 import { isLocale, localeLabels } from "./i18n"
 import { usePortal, type Status } from "./demo"
+import { AppMorphIcon, orderStatusMorphIcons } from "./morph-icons"
 
 export function BrandMark({
   studio = false,
@@ -472,46 +473,46 @@ export function StatusBadge({ status }: { status: Status }) {
   const { t } = usePortal()
   const config: Record<
     Status,
-    { zh: string; en: string; badgeClass: string; dotClass: string }
+    { zh: string; en: string; badgeClass: string; iconClass: string }
   > = {
     waiting_assets: {
       zh: "待传素材",
       en: "Needs materials",
       badgeClass: "border-border bg-secondary text-secondary-foreground",
-      dotClass: "bg-muted-foreground",
+      iconClass: "text-muted-foreground",
     },
     producing: {
       zh: "制作中",
       en: "In production",
       badgeClass: "border-primary/20 bg-primary/10 text-primary",
-      dotClass: "bg-primary",
+      iconClass: "text-primary",
     },
     waiting_confirm: {
       zh: "待确认",
       en: "Needs review",
       badgeClass:
         "border-brand-gold/40 bg-brand-gold/15 text-amber-900 dark:text-amber-200",
-      dotClass: "bg-brand-gold",
+      iconClass: "text-amber-700 dark:text-amber-300",
     },
     revision: {
       zh: "需要修改",
       en: "Needs changes",
       badgeClass: "border-destructive/25 bg-destructive/10 text-destructive",
-      dotClass: "bg-destructive",
+      iconClass: "text-destructive",
     },
     approved: {
       zh: "待交付",
       en: "Ready to deliver",
       badgeClass:
         "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-200",
-      dotClass: "bg-sky-500",
+      iconClass: "text-sky-600 dark:text-sky-300",
     },
     completed: {
       zh: "已交付",
       en: "Delivered",
       badgeClass:
         "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200",
-      dotClass: "bg-emerald-600",
+      iconClass: "text-emerald-600 dark:text-emerald-300",
     },
   }
   const item = config[status]
@@ -519,13 +520,16 @@ export function StatusBadge({ status }: { status: Status }) {
     <Badge
       variant="outline"
       className={cn(
-        "shrink-0 gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
+        "shrink-0 gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap transition-colors duration-200",
         item.badgeClass
       )}
     >
-      <span
-        aria-hidden="true"
-        className={cn("size-1.5 shrink-0 rounded-full", item.dotClass)}
+      <AppMorphIcon
+        icon={orderStatusMorphIcons[status]}
+        size={12}
+        strokeWidth={2.2}
+        spring="smooth"
+        className={cn("size-3 shrink-0 transition-colors duration-200", item.iconClass)}
       />
       {t(item.zh, item.en)}
     </Badge>

@@ -10,12 +10,8 @@ import { motion } from "motion/react"
 import {
   Check,
   Clapperboard,
-  ClipboardList,
-  DollarSign,
   Eye,
   EyeOff,
-  FileSpreadsheet,
-  Headphones,
   LockKeyhole,
   LogIn,
   Mail,
@@ -138,6 +134,7 @@ import {
   LanguageSwitch,
   StatusBadge,
 } from "./layout"
+import { teamNavMorphIcons } from "./morph-icons"
 import {
   WorkbenchLayout,
   type WorkbenchNavGroup,
@@ -242,8 +239,9 @@ function TeamConsoleShell() {
 
   const workItems: WorkbenchNavItem[] = [
     {
+      id: "orders",
       label: t("订单管理", "Orders"),
-      icon: ClipboardList,
+      morph: teamNavMorphIcons.orders,
       active: activeNav === "orders",
       badge: openCount,
       to: href("admin-orders"),
@@ -251,8 +249,9 @@ function TeamConsoleShell() {
     ...(can("production:work")
       ? [
           {
+            id: "production",
             label: t("制作协同", "Production"),
-            icon: Headphones,
+            morph: teamNavMorphIcons.production,
             active: activeNav === "production",
             to: href(
               "admin-workspace",
@@ -267,8 +266,9 @@ function TeamConsoleShell() {
     ...(can("settings:pricing")
       ? [
           {
+            id: "pricing",
             label: t("套餐与定价", "Pricing"),
-            icon: DollarSign,
+            morph: teamNavMorphIcons.pricing,
             active: activeNav === "pricing",
             to: href("admin-settings", { tab: "pricing" }),
           },
@@ -277,8 +277,9 @@ function TeamConsoleShell() {
     ...(can("settings:quotes")
       ? [
           {
+            id: "quote",
             label: t("定制报价", "Custom quotes"),
-            icon: FileSpreadsheet,
+            morph: teamNavMorphIcons.quote,
             active: activeNav === "quote",
             to: href("admin-settings", { tab: "quote" }),
           },
@@ -287,8 +288,9 @@ function TeamConsoleShell() {
     ...(can("settings:clients")
       ? [
           {
+            id: "clients",
             label: t("客户管理", "Clients"),
-            icon: Users,
+            morph: teamNavMorphIcons.clients,
             active: activeNav === "clients",
             to: href("admin-settings", { tab: "clients" }),
           },
@@ -299,8 +301,9 @@ function TeamConsoleShell() {
   const systemItems: WorkbenchNavItem[] = can("team:manage")
     ? [
         {
+          id: "permissions",
           label: t("权限与成员", "Roles & access"),
-          icon: Shield,
+          morph: teamNavMorphIcons.permissions,
           active: activeNav === "permissions",
           to: href("admin-permissions"),
         },

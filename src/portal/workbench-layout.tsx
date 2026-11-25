@@ -34,10 +34,13 @@ import {
 } from "@/components/ui/sidebar"
 import { marketingSiteUrl, usePortal } from "./demo"
 import { BrandMark, LanguageSwitch } from "./layout"
+import { AppMorphIcon, type MorphIconPair } from "./morph-icons"
 
 export type WorkbenchNavItem = {
+  id?: string
   label: string
-  icon: LucideIcon
+  icon?: LucideIcon
+  morph?: MorphIconPair
   active?: boolean
   badge?: string | number
 } & ({ to: string } | { onSelect: () => void })
@@ -132,8 +135,20 @@ function WorkbenchSidebar({
                 <SidebarGroupContent>
                   <SidebarMenu className="gap-1">
                     {group.items.map(
-                      ({ icon: Icon, label, active, badge, ...action }) => (
-                        <SidebarMenuItem key={label}>
+                      ({ id, icon: Icon, morph, label, active, badge, ...action }) => {
+                        const iconNode = morph ? (
+                          <AppMorphIcon
+                            icon={active ? morph.active : morph.idle}
+                            size={16}
+                            strokeWidth={active ? 2.15 : 1.85}
+                            spring="snappy"
+                            className="size-4 shrink-0"
+                          />
+                        ) : Icon ? (
+                          <Icon aria-hidden="true" />
+                        ) : null
+                        return (
+                        <SidebarMenuItem key={id ?? label}>
                           {active && (
                             <motion.span
                               layoutId={indicatorLayoutId}
@@ -172,7 +187,7 @@ function WorkbenchSidebar({
                                 onClick={closeMenu}
                                 aria-current={active ? "page" : undefined}
                               >
-                                <Icon aria-hidden="true" />
+                                {iconNode}
                                 <span>{label}</span>
                               </Link>
                             ) : (
@@ -184,7 +199,7 @@ function WorkbenchSidebar({
                                   closeMenu()
                                 }}
                               >
-                                <Icon aria-hidden="true" />
+                                {iconNode}
                                 <span>{label}</span>
                               </button>
                             )}
@@ -206,7 +221,8 @@ function WorkbenchSidebar({
                               </SidebarMenuBadge>
                             )}
                         </SidebarMenuItem>
-                      )
+                        )
+                      }
                     )}
                   </SidebarMenu>
                 </SidebarGroupContent>
