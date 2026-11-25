@@ -1116,7 +1116,8 @@ export function AdminOrdersPage() {
                       transition={{
                         type: "spring",
                         stiffness: 420,
-                        damping: 32,
+                        damping: 34,
+                        mass: 0.88,
                       }}
                       className="absolute inset-0 rounded-lg bg-brand-navy shadow-xs"
                     />

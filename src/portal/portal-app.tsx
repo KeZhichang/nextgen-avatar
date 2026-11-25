@@ -48,14 +48,9 @@ const WorkspacePage = lazy(() =>
     default: WorkspacePage,
   }))
 )
-const OrderChatPage = lazy(() =>
-  import("./production").then(({ OrderChatPage }) => ({
-    default: OrderChatPage,
-  }))
-)
-const VideoReviewPage = lazy(() =>
-  import("./production").then(({ VideoReviewPage }) => ({
-    default: VideoReviewPage,
+const ClientOrderHubRoute = lazy(() =>
+  import("./production").then(({ ClientOrderHubRoute }) => ({
+    default: ClientOrderHubRoute,
   }))
 )
 const StudioWorkspacePage = lazy(() =>
@@ -311,8 +306,11 @@ export function PortalApp() {
                 <Route path="checkout" element={<CheckoutPage />} />
                 <Route element={<ClientConsoleShell />}>
                   <Route path="workspace" element={<WorkspacePage />} />
-                  <Route path="order-chat" element={<OrderChatPage />} />
-                  <Route path="video-review" element={<VideoReviewPage />} />
+                  <Route path="order-chat" element={<ClientOrderHubRoute />} />
+                  <Route
+                    path="video-review"
+                    element={<ClientOrderHubRoute />}
+                  />
                 </Route>
               </Route>
               <Route path="admin/login" element={<AdminLoginPage />} />

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react"
-import { useNavigate, useSearchParams } from "react-router"
+import { useLocation, useNavigate, useSearchParams } from "react-router"
+import { LayoutGroup, motion, useReducedMotion } from "motion/react"
 import {
   AlertTriangle,
   ArrowDown,
@@ -1122,9 +1123,13 @@ function ClientOrderHubPage({
   const { data, authUser } = useDemo()
   const { t, href, zh } = usePortal()
   const navigate = useNavigate()
+  const prefersReducedMotion = useReducedMotion()
   const [listFilter, setListFilter] = useState<"all" | "review">("all")
   const [search, setSearch] = useState("")
   const [selectedVersionId, setSelectedVersionId] = useState("")
+  const springTransition = prefersReducedMotion
+    ? { duration: 0 }
+    : { type: "spring" as const, stiffness: 420, damping: 34, mass: 0.88 }
 
   const isOwnOrder = (value: Order) =>
     authUser && !authUser.isDemo && value.clientId
@@ -1180,33 +1185,47 @@ function ClientOrderHubPage({
             <span className="text-xs font-semibold text-foreground">
               {t("我的订单", "My orders")}
             </span>
-            <div className="inline-flex rounded-md border border-border bg-muted/50 p-0.5 text-xs">
-              <button
-                type="button"
-                onClick={() => setListFilter("all")}
-                className={cn(
-                  "rounded px-2 py-0.5 font-medium transition-colors",
-                  listFilter === "all"
-                    ? "bg-card text-foreground shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {t("全部", "All")} ({threads.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setListFilter("review")}
-                className={cn(
-                  "rounded px-2 py-0.5 font-medium transition-colors",
-                  listFilter === "review"
-                    ? "bg-card text-foreground shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {t("待确认", "To review")}
-                {pendingReviewCount > 0 ? ` (${pendingReviewCount})` : ""}
-              </button>
-            </div>
+            <LayoutGroup id="client-queue-filter-group">
+              <div className="inline-flex rounded-md border border-border bg-muted/50 p-0.5 text-xs">
+                {(
+                  [
+                    {
+                      id: "all" as const,
+                      label: `${t("全部", "All")} (${threads.length})`,
+                    },
+                    {
+                      id: "review" as const,
+                      label: `${t("待确认", "To review")}${pendingReviewCount > 0 ? ` (${pendingReviewCount})` : ""}`,
+                    },
+                  ] as const
+                ).map((item) => {
+                  const active = listFilter === item.id
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setListFilter(item.id)}
+                      className={cn(
+                        "relative rounded px-2 py-0.5 font-medium transition-colors duration-200",
+                        active
+                          ? "text-foreground"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {active && (
+                        <motion.span
+                          layoutId="client-queue-filter-pill"
+                          aria-hidden="true"
+                          transition={springTransition}
+                          className="pointer-events-none absolute inset-0 z-0 rounded bg-card shadow-2xs"
+                        />
+                      )}
+                      <span className="relative z-10">{item.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </LayoutGroup>
           </div>
           <InputGroup className="h-8 bg-muted/40">
             <InputGroupAddon>
@@ -1294,53 +1313,78 @@ function ClientOrderHubPage({
             </div>
           </div>
 
-          <div
-            role="tablist"
-            aria-label={t("订单工作区视图", "Order workspace view")}
-            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border bg-muted/50 p-1"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={initialView === "chat"}
-              onClick={() => switchView("chat")}
-              className={cn(
-                "inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors",
-                initialView === "chat"
-                  ? "bg-card text-foreground shadow-2xs"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+          <LayoutGroup id="client-hub-view-group">
+            <div
+              role="tablist"
+              aria-label={t("订单工作区视图", "Order workspace view")}
+              className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border bg-muted/50 p-1"
             >
-              <MessageSquare aria-hidden="true" className="size-3.5" />
-              <span>{t("沟通与素材", "Chat & materials")}</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={initialView === "review"}
-              onClick={() => switchView("review")}
-              className={cn(
-                "inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors",
-                initialView === "review"
-                  ? "bg-card text-foreground shadow-2xs"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Film aria-hidden="true" className="size-3.5" />
-              <span>{t("视频审片", "Video review")}</span>
-              {order.status === "waiting_confirm" ? (
-                <span className="rounded-full bg-brand-gold px-1.5 py-0 text-[10px] font-semibold text-amber-950">
-                  {t("待确认", "Review")}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={initialView === "chat"}
+                onClick={() => switchView("chat")}
+                className={cn(
+                  "relative inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors duration-200",
+                  initialView === "chat"
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {initialView === "chat" && (
+                  <motion.span
+                    layoutId="client-hub-view-pill"
+                    aria-hidden="true"
+                    transition={springTransition}
+                    className="pointer-events-none absolute inset-0 z-0 rounded-md bg-card shadow-2xs"
+                  />
+                )}
+                <MessageSquare
+                  aria-hidden="true"
+                  className="relative z-10 size-3.5"
+                />
+                <span className="relative z-10">
+                  {t("沟通与素材", "Chat & materials")}
                 </span>
-              ) : (
-                order.versions.length > 0 && (
-                  <span className="font-mono text-[11px] text-muted-foreground">
-                    {order.versions.length}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={initialView === "review"}
+                onClick={() => switchView("review")}
+                className={cn(
+                  "relative inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors duration-200",
+                  initialView === "review"
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {initialView === "review" && (
+                  <motion.span
+                    layoutId="client-hub-view-pill"
+                    aria-hidden="true"
+                    transition={springTransition}
+                    className="pointer-events-none absolute inset-0 z-0 rounded-md bg-card shadow-2xs"
+                  />
+                )}
+                <Film aria-hidden="true" className="relative z-10 size-3.5" />
+                <span className="relative z-10">
+                  {t("视频审片", "Video review")}
+                </span>
+                {order.status === "waiting_confirm" ? (
+                  <span className="relative z-10 rounded-full bg-brand-gold px-1.5 py-0 text-[10px] font-semibold text-amber-950">
+                    {t("待确认", "Review")}
                   </span>
-                )
-              )}
-            </button>
-          </div>
+                ) : (
+                  order.versions.length > 0 && (
+                    <span className="relative z-10 font-mono text-[11px] text-muted-foreground">
+                      {order.versions.length}
+                    </span>
+                  )
+                )}
+              </button>
+            </div>
+          </LayoutGroup>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
@@ -1367,6 +1411,14 @@ function ClientOrderHubPage({
   )
 }
 
+export function ClientOrderHubRoute() {
+  const { pathname } = useLocation()
+  const view: "chat" | "review" = pathname.includes("/video-review")
+    ? "review"
+    : "chat"
+  return <ClientOrderHubPage initialView={view} />
+}
+
 export function OrderChatPage() {
   return <ClientOrderHubPage initialView="chat" />
 }
@@ -1380,6 +1432,10 @@ export function StudioWorkspacePage() {
   const { t, zh } = usePortal()
   const { data, startOrderProduction, publishOrderVersion } = useDemo()
   const { member, can } = useTeamAuth()
+  const prefersReducedMotion = useReducedMotion()
+  const studioSpring = prefersReducedMotion
+    ? { duration: 0 }
+    : { type: "spring" as const, stiffness: 420, damping: 34, mass: 0.88 }
   const [kind, setKind] = useState<"preview" | "final">("preview")
   const [note, setNote] = useState("")
   const [files, setFiles] = useState<File[]>([])
@@ -1635,32 +1691,41 @@ export function StudioWorkspacePage() {
               <span className="text-xs font-semibold text-foreground">
                 {t("订单会话队列", "Order queue")}
               </span>
-              <div className="inline-flex rounded-md border border-border bg-muted/50 p-0.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setQueueFilter("open")}
-                  className={cn(
-                    "rounded px-2 py-0.5 font-medium transition-colors",
-                    queueFilter === "open"
-                      ? "bg-card text-foreground shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {t("待处理", "Open")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setQueueFilter("all")}
-                  className={cn(
-                    "rounded px-2 py-0.5 font-medium transition-colors",
-                    queueFilter === "all"
-                      ? "bg-card text-foreground shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {t("全部", "All")}
-                </button>
-              </div>
+              <LayoutGroup id="studio-queue-filter-group">
+                <div className="inline-flex rounded-md border border-border bg-muted/50 p-0.5 text-xs">
+                  {(
+                    [
+                      { id: "open" as const, label: t("待处理", "Open") },
+                      { id: "all" as const, label: t("全部", "All") },
+                    ] as const
+                  ).map((item) => {
+                    const active = queueFilter === item.id
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setQueueFilter(item.id)}
+                        className={cn(
+                          "relative rounded px-2 py-0.5 font-medium transition-colors duration-200",
+                          active
+                            ? "text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {active && (
+                          <motion.span
+                            layoutId="studio-queue-filter-pill"
+                            aria-hidden="true"
+                            transition={studioSpring}
+                            className="pointer-events-none absolute inset-0 z-0 rounded bg-card shadow-2xs"
+                          />
+                        )}
+                        <span className="relative z-10">{item.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </LayoutGroup>
             </div>
             <InputGroup className="h-8 bg-muted/40">
               <InputGroupAddon>

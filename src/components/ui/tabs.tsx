@@ -41,7 +41,7 @@ const tabsListVariants = cva(
 function TabsList({
   className,
   variant = "default",
-  transition = { type: "tween", duration: 0.18, ease: "easeOut" },
+  transition = { type: "spring", stiffness: 420, damping: 34, mass: 0.88 },
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List> &
   VariantProps<typeof tabsListVariants>) {

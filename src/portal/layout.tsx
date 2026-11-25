@@ -1,7 +1,7 @@
-import { type ReactNode } from "react"
+import { type ReactNode, useId } from "react"
 import { Link, useLocation, useNavigate } from "react-router"
 import { ChevronLeft } from "lucide-react"
-import { motion } from "motion/react"
+import { LayoutGroup, motion, useReducedMotion } from "motion/react"
 import { cn } from "cn"
 
 import { Badge } from "@/components/ui/badge"
@@ -32,7 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { type VariantProps } from "class-variance-authority"
 import { isLocale, localeLabels } from "./i18n"
 import { usePortal, type Status } from "./demo"
@@ -80,56 +79,83 @@ export function LanguageSwitch({ dark = false }: { dark?: boolean }) {
   const { locale, translate } = usePortal()
   const { pathname, search, hash } = useLocation()
   const navigate = useNavigate()
+  const prefersReducedMotion = useReducedMotion()
+  const layoutId = `lang-switch-${useId()}`
+
+  const options = [
+    { value: "en" as const, label: localeLabels.en, lang: "en", minWidth: "min-w-12" },
+    { value: "zh" as const, label: "中文", ariaLabel: localeLabels.zh, lang: "zh-CN", minWidth: "min-w-11" },
+  ]
 
   return (
-    <ToggleGroup
-      type="single"
-      value={locale}
-      aria-label={translate("language")}
-      size="sm"
-      spacing={0}
-      className={cn(
-        "shrink-0 rounded-lg border p-0.5",
-        dark
-          ? "border-white/15 bg-white/10 text-brand-navy-foreground"
-          : "border-border bg-muted text-foreground"
-      )}
-      onValueChange={(value) => {
-        if (isLocale(value) && value !== locale) {
-          void navigate({
-            pathname: `/${value}${pathname.slice(locale.length + 1)}`,
-            search,
-            hash,
-          })
-        }
-      }}
-    >
-      <ToggleGroupItem
-        value="en"
-        lang="en"
+    <LayoutGroup id={layoutId}>
+      <div
+        role="radiogroup"
+        aria-label={translate("language")}
         className={cn(
-          "h-7 min-w-12 rounded-md px-2 text-xs font-medium",
+          "inline-flex shrink-0 items-center gap-0.5 rounded-lg border p-0.5",
           dark
-            ? "text-white/75 hover:bg-white/10 hover:text-white data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-            : "text-muted-foreground hover:text-foreground data-[state=on]:bg-card data-[state=on]:text-primary data-[state=on]:shadow-xs"
+            ? "border-white/15 bg-white/10 text-brand-navy-foreground"
+            : "border-border bg-muted text-foreground"
         )}
       >
-        {localeLabels.en}
-      </ToggleGroupItem>
-      <ToggleGroupItem
-        value="zh"
-        lang="zh-CN"
-        aria-label={localeLabels.zh}
-        className={cn(
-          "h-7 min-w-11 rounded-md px-2 text-xs font-medium",
-          dark
-            ? "text-white/75 hover:bg-white/10 hover:text-white data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-            : "text-muted-foreground hover:text-foreground data-[state=on]:bg-card data-[state=on]:text-primary data-[state=on]:shadow-xs"
-        )}
-      >
-        中文
-      </ToggleGroupItem>
-    </ToggleGroup>
+        {options.map((option) => {
+          const selected = locale === option.value
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              aria-label={option.ariaLabel}
+              lang={option.lang}
+              onClick={() => {
+                if (isLocale(option.value) && option.value !== locale) {
+                  void navigate({
+                    pathname: `/${option.value}${pathname.slice(locale.length + 1)}`,
+                    search,
+                    hash,
+                  })
+                }
+              }}
+              className={cn(
+                "relative inline-flex h-7 items-center justify-center rounded-md px-2.5 text-xs font-medium transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                option.minWidth,
+                selected
+                  ? dark
+                    ? "text-primary-foreground"
+                    : "text-primary"
+                  : dark
+                    ? "text-white/75 hover:text-white"
+                    : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {selected && (
+                <motion.span
+                  layoutId={layoutId}
+                  aria-hidden="true"
+                  transition={
+                    prefersReducedMotion
+                      ? { duration: 0 }
+                      : {
+                          type: "spring",
+                          stiffness: 420,
+                          damping: 34,
+                          mass: 0.88,
+                        }
+                  }
+                  className={cn(
+                    "pointer-events-none absolute inset-0 z-0 rounded-md shadow-xs",
+                    dark ? "bg-primary" : "bg-card"
+                  )}
+                />
+              )}
+              <span className="relative z-10">{option.label}</span>
+            </button>
+          )
+        })}
+      </div>
+    </LayoutGroup>
   )
 }
 
