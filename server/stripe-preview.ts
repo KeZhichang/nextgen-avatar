@@ -105,7 +105,9 @@ export function stripePreviewPlugin(
         env: eligibilityEnv ?? {},
       })
       if (!eligibility.ok) {
-        sendJson(response, eligibility.status, { error: eligibility.error })
+        sendJson(response, eligibility.status ?? 403, {
+          error: eligibility.error ?? "checkout_blocked",
+        })
         return
       }
 

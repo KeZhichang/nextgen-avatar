@@ -122,7 +122,9 @@ export default async function handler(req: Req, res: ServerResponse) {
         },
       })
       if (!eligibility.ok) {
-        sendJson(res, eligibility.status, { error: eligibility.error })
+        sendJson(res, eligibility.status ?? 403, {
+          error: eligibility.error ?? "checkout_blocked",
+        })
         return
       }
 

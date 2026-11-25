@@ -13,20 +13,16 @@ export type ServerPlanPricing = {
   renewalDollars?: number
 }
 
-export type EligibilityCheckResult =
-  | {
-      ok: true
-      isRepeatCustomer: boolean
-      appliedRenewal: boolean
-      authoritativePrice?: number
-      authoritativeName?: string
-      authoritativeCount?: number
-    }
-  | {
-      ok: false
-      status: number
-      error: string
-    }
+export type EligibilityCheckResult = {
+  ok: boolean
+  status?: number
+  error?: string
+  isRepeatCustomer?: boolean
+  appliedRenewal?: boolean
+  authoritativePrice?: number
+  authoritativeName?: string
+  authoritativeCount?: number
+}
 
 const fallbackPlans: Record<string, ServerPlanPricing> = {
   trial: {
