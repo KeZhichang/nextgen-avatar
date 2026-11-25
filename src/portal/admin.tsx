@@ -1624,7 +1624,7 @@ export function AdminSettingsPage() {
         {activeTab === "clients" && can("settings:clients") && (
           <div className="grid items-start gap-5 lg:grid-cols-12">
             <Card className="gap-0 overflow-hidden py-0 shadow-xs lg:col-span-4">
-              <CardHeader className="flex-row items-center justify-between gap-2 border-b px-4 py-3">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 border-b px-4 py-3">
                 <CardTitle className="shrink-0 text-sm font-semibold">
                   {t(
                     `客户列表 (${filteredClients.length})`,

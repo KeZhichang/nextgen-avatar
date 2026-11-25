@@ -773,7 +773,7 @@ export function WorkspacePage() {
 
             {/* 3. Refined Orders Table */}
             <Card className="gap-0 overflow-hidden py-0 shadow-xs">
-              <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
                 <div className="flex items-center gap-2">
                   <CardTitle className="text-base font-semibold">
                     <h3>{t("我的订单", "My orders")}</h3>
@@ -787,17 +787,25 @@ export function WorkspacePage() {
                 </div>
                 <Tabs value={filter} onValueChange={setFilter}>
                   <TabsList>
-                    <TabsTrigger value="all">{t("全部", "All")}</TabsTrigger>
-                    <TabsTrigger value="open">
+                    <TabsTrigger value="all" className="text-xs">
+                      {t("全部", "All")}
+                    </TabsTrigger>
+                    <TabsTrigger value="open" className="text-xs">
                       {t("进行中", "In progress")}
                     </TabsTrigger>
-                    <TabsTrigger value="done">
+                    <TabsTrigger value="done" className="text-xs">
                       {t("已完成", "Completed")}
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
               </CardHeader>
               <CardContent className="p-0">
+                <motion.div
+                  key={filter}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                >
                 {shown.length > 0 ? (
                   <Table>
                     <TableHeader>
@@ -920,6 +928,7 @@ export function WorkspacePage() {
                     </EmptyHeader>
                   </Empty>
                 )}
+                </motion.div>
               </CardContent>
             </Card>
 
@@ -1011,7 +1020,7 @@ export function WorkspacePage() {
         {tab === "billing" && (
           <div className="flex flex-col gap-4">
             <Card className="gap-0 overflow-hidden py-0 shadow-xs">
-              <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
                 <div className="flex flex-col gap-0.5">
                   <CardTitle className="text-base font-semibold">
                     <h2>{t("付款与收据记录", "Payment history")}</h2>

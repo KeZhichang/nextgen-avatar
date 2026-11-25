@@ -991,7 +991,7 @@ export function CheckoutPage() {
             </Card>
           ) : (
             <Card className="shadow-xs">
-              <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 border-b pb-4">
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 border-b pb-4">
                 <div className="flex flex-col gap-0.5">
                   <CardTitle className="text-base font-semibold">
                     <h1>
