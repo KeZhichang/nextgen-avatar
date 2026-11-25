@@ -65,6 +65,7 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
 import {
   InputGroup,
@@ -1054,11 +1055,12 @@ export function PricingCatalogView() {
               </SheetDescription>
             </SheetHeader>
 
-            <form
-              id="plan-editor-form"
-              onSubmit={savePlanDraft}
-              className="flex flex-1 flex-col gap-5 overflow-y-auto bg-muted/20 px-5 py-5"
-            >
+            <ScrollArea className="min-h-0 flex-1 bg-muted/20">
+              <form
+                id="plan-editor-form"
+                onSubmit={savePlanDraft}
+                className="flex flex-col gap-5 px-5 py-5"
+              >
               {/* Live storefront card preview */}
               <div className="rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
                 <div className="mb-2 flex items-center justify-between gap-2">
@@ -1334,7 +1336,8 @@ export function PricingCatalogView() {
                   </div>
                 </FieldGroup>
               </div>
-            </form>
+              </form>
+            </ScrollArea>
 
             <SheetFooter className="flex-row items-center justify-end gap-2 border-t bg-card px-5 py-3.5">
               <Button
@@ -1403,11 +1406,12 @@ export function PricingCatalogView() {
               </SheetDescription>
             </SheetHeader>
 
-            <form
-              id="addon-editor-form"
-              onSubmit={saveAddonDraft}
-              className="flex flex-1 flex-col gap-4 overflow-y-auto bg-muted/20 px-5 py-5"
-            >
+            <ScrollArea className="min-h-0 flex-1 bg-muted/20">
+              <form
+                id="addon-editor-form"
+                onSubmit={saveAddonDraft}
+                className="flex flex-col gap-4 px-5 py-5"
+              >
               <div className="rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
                 <FieldGroup className="gap-4">
                   <Field>
@@ -1476,7 +1480,8 @@ export function PricingCatalogView() {
                   </div>
                 </FieldGroup>
               </div>
-            </form>
+              </form>
+            </ScrollArea>
 
             <SheetFooter className="flex-row items-center justify-end gap-2 border-t bg-card px-5 py-3.5">
               <Button

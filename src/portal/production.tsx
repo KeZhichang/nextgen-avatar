@@ -1404,27 +1404,29 @@ function ReviewPanel({
                       </div>
 
                       <InputGroup className="overflow-hidden rounded-xl border-border/90 bg-background shadow-2xs">
-                        <InputGroupTextarea
-                          id="revision-note"
-                          rows={6}
-                          placeholder={t(
-                            "按时间点逐条写下调整建议，例如：\n00:12 开场语速可以稍微放缓一点\n00:36 字幕颜色换成浅金色更清晰…",
-                            "List changes by timecode, e.g.:\n00:12 Slow down the opening pacing slightly\n00:36 Make the lower-third caption higher contrast…"
-                          )}
-                          value={revision}
-                          onChange={(event) => setRevision(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (
-                              (event.metaKey || event.ctrlKey) &&
-                              event.key === "Enter" &&
-                              revision.trim()
-                            ) {
-                              event.preventDefault()
-                              event.currentTarget.form?.requestSubmit()
-                            }
-                          }}
-                          className="min-h-40 max-h-72 px-3.5 pt-3 pb-2 text-sm leading-relaxed"
-                        />
+                        <ScrollArea className="max-h-64 w-full">
+                          <InputGroupTextarea
+                            id="revision-note"
+                            rows={6}
+                            placeholder={t(
+                              "按时间点逐条写下调整建议，例如：\n00:12 开场语速可以稍微放缓一点\n00:36 字幕颜色换成浅金色更清晰…",
+                              "List changes by timecode, e.g.:\n00:12 Slow down the opening pacing slightly\n00:36 Make the lower-third caption higher contrast…"
+                            )}
+                            value={revision}
+                            onChange={(event) => setRevision(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (
+                                (event.metaKey || event.ctrlKey) &&
+                                event.key === "Enter" &&
+                                revision.trim()
+                              ) {
+                                event.preventDefault()
+                                event.currentTarget.form?.requestSubmit()
+                              }
+                            }}
+                            className="min-h-40 w-full overflow-hidden px-3.5 pt-3 pb-2 text-sm leading-relaxed"
+                          />
+                        </ScrollArea>
                         <InputGroupAddon
                           align="block-end"
                           className="justify-between border-t border-border/60 bg-muted/25 px-3 py-2"

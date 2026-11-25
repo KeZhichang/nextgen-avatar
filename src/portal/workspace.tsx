@@ -62,6 +62,7 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -336,7 +337,8 @@ export function ClientConsoleShell() {
                   </Button>
                 )}
               </div>
-              <div className="flex max-h-88 flex-col divide-y divide-border/70 overflow-y-auto">
+              <ScrollArea className="max-h-88">
+                <div className="flex flex-col divide-y divide-border/70">
                 {data.notifications.length > 0 ? (
                   data.notifications.slice(0, 8).map((item) => {
                     const targetOrder = item.orderId
@@ -417,7 +419,8 @@ export function ClientConsoleShell() {
                     </p>
                   </div>
                 )}
-              </div>
+                </div>
+              </ScrollArea>
             </PopoverContent>
           </Popover>
           <Button asChild size="sm">

@@ -45,6 +45,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { Progress } from "@/components/ui/progress"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
@@ -415,7 +416,8 @@ function OrderDetailInspector({
       </SheetHeader>
 
       {/* Scrollable Inspector Body */}
-      <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-muted/20 px-5 py-4">
+      <ScrollArea className="min-h-0 flex-1 bg-muted/20">
+        <div className="flex flex-col gap-4 px-5 py-4">
         {/* 2. Workflow Pipeline Stepper */}
         <section className="rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs">
           <div className="mb-2.5 flex items-center justify-between gap-2">
@@ -937,7 +939,8 @@ function OrderDetailInspector({
             </TabsContent>
           </Tabs>
         </section>
-      </div>
+        </div>
+      </ScrollArea>
 
       {/* 5. Sticky Action Footer */}
       <SheetFooter className="flex-row items-center justify-between gap-2.5 border-t bg-card px-5 py-3.5">

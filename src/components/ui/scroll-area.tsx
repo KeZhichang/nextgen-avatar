@@ -19,7 +19,7 @@ function ScrollArea({
     >
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
-        className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 [&>div]:block! [&>div]:w-full!"
+        className="size-full max-h-[inherit] rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 [&>div]:block! [&>div]:w-full!"
       >
         {children}
       </ScrollAreaPrimitive.Viewport>
@@ -40,14 +40,14 @@ function ScrollBar({
       data-orientation={orientation}
       orientation={orientation}
       className={cn(
-        "flex touch-none p-0.5 transition-opacity duration-200 select-none data-[state=hidden]:opacity-0 data-[state=visible]:opacity-100 data-horizontal:h-2 data-horizontal:flex-col data-vertical:h-full data-vertical:w-2",
+        "flex touch-none p-[1px] transition-opacity duration-200 select-none data-[state=hidden]:opacity-0 data-[state=visible]:opacity-100 data-horizontal:h-1.5 data-horizontal:flex-col data-vertical:h-full data-vertical:w-1.5",
         className
       )}
       {...props}
     >
       <ScrollAreaPrimitive.ScrollAreaThumb
         data-slot="scroll-area-thumb"
-        className="relative flex-1 rounded-full bg-muted-foreground/30 transition-colors hover:bg-muted-foreground/50 active:bg-muted-foreground/65"
+        className="relative flex-1 rounded-full bg-[var(--scrollbar-thumb)] transition-colors hover:bg-[var(--scrollbar-thumb-hover)] active:bg-[var(--scrollbar-thumb-active)]"
       />
     </ScrollAreaPrimitive.ScrollAreaScrollbar>
   )
