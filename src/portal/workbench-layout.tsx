@@ -296,7 +296,7 @@ function WorkbenchSidebar({
                     <DropdownMenuItem
                       onSelect={() => {
                         closeMenu()
-                        onSignOut()
+                        window.setTimeout(() => onSignOut(), 0)
                       }}
                     >
                       <LogOut aria-hidden="true" />

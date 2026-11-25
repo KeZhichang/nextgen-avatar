@@ -1379,9 +1379,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   async function signOutAll() {
     const sb = getSupabaseClient()
     const isRealUser = Boolean(authUserRef.current && !authUserRef.current.isDemo)
-    if (sb && isRealUser) {
-      await sb.auth.signOut()
-    }
+    manualAuthInProgressRef.current = true
+    clearAuthTransition()
     authUserRef.current = null
     setAuthUser(null)
     setData((current) =>
@@ -1389,6 +1388,15 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         ? { ...initialLive, plans: current.plans, addons: current.addons }
         : { ...current, teamSession: null }
     )
+    try {
+      if (sb && isRealUser) {
+        await sb.auth.signOut()
+      }
+    } catch {
+      // Local auth state is already cleared; ignore network/expired-token signOut errors.
+    } finally {
+      manualAuthInProgressRef.current = false
+    }
   }
 
   async function saveCatalog(plans: Plan[], addons: Addon[]) {

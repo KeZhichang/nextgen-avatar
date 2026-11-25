@@ -1,5 +1,6 @@
-import { lazy, Suspense, useEffect } from "react"
+import { Component, lazy, Suspense, useEffect, type ReactNode } from "react"
 import { BrandLoader } from "@/components/ui/brand-loader"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { Toaster } from "@/components/ui/sonner"
@@ -13,7 +14,7 @@ import {
   useLocation,
   useParams,
 } from "react-router"
-import { Compass } from "lucide-react"
+import { Compass, RotateCw } from "lucide-react"
 
 import {
   Empty,
@@ -25,7 +26,7 @@ import {
 } from "@/components/ui/empty"
 import { DemoProvider, useDemo, usePortal, useTeamAuth } from "./demo"
 import { defaultLocale, isLocale, setDocumentLocale } from "./i18n"
-import { ActionLink, FadeTransition, PageWidth } from "./layout"
+import { ActionLink, PageWidth } from "./layout"
 
 const AuthPage = lazy(() =>
   import("./purchase").then(({ AuthPage }) => ({ default: AuthPage }))
@@ -200,9 +201,9 @@ function LocaleLayout() {
         {isTeamConsoleRoute || isClientConsoleRoute ? (
           <Outlet />
         ) : (
-          <FadeTransition key={route}>
+          <div key={route} className="animate-in fade-in duration-150">
             <Outlet />
-          </FadeTransition>
+          </div>
         )}
       </Suspense>
     </div>
@@ -281,55 +282,139 @@ function AuthTransitionOverlay() {
   )
 }
 
+const CHUNK_RELOAD_KEY = "nextgen_portal_chunk_reload_at"
+
+function isChunkLoadError(error: unknown) {
+  if (!(error instanceof Error)) return false
+  const message = `${error.name} ${error.message}`.toLowerCase()
+  return (
+    message.includes("failed to fetch dynamically imported module") ||
+    message.includes("importing a module script failed") ||
+    message.includes("loading chunk") ||
+    message.includes("chunkloaderror")
+  )
+}
+
+class PortalErrorBoundaryInner extends Component<
+  { resetKey: string; zh: boolean; children: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error: Error) {
+    if (isChunkLoadError(error)) {
+      const last = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) || "0")
+      if (Date.now() - last > 15_000) {
+        sessionStorage.setItem(CHUNK_RELOAD_KEY, String(Date.now()))
+        window.location.reload()
+      }
+    }
+  }
+
+  componentDidUpdate(prevProps: { resetKey: string }) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false })
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      const { zh } = this.props
+      return (
+        <div className="flex min-h-dvh items-center justify-center bg-background p-6 text-foreground">
+          <Empty className="max-w-md border bg-card">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <RotateCw aria-hidden="true" />
+              </EmptyMedia>
+              <EmptyTitle>
+                {zh ? "页面加载遇到异常" : "Something went wrong"}
+              </EmptyTitle>
+              <EmptyDescription>
+                {zh
+                  ? "可能是应用刚刚更新或网络波动导致，刷新页面即可恢复。"
+                  : "A recent update or network hiccup interrupted this view. Reload to recover."}
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button onClick={() => window.location.reload()}>
+                <RotateCw data-icon="inline-start" aria-hidden="true" />
+                {zh ? "刷新页面" : "Reload page"}
+              </Button>
+            </EmptyContent>
+          </Empty>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+function PortalErrorBoundary({ children }: { children: ReactNode }) {
+  const { pathname, search } = useLocation()
+  const zh = pathname === "/zh" || pathname.startsWith("/zh/")
+  return (
+    <PortalErrorBoundaryInner resetKey={`${pathname}${search}`} zh={zh}>
+      {children}
+    </PortalErrorBoundaryInner>
+  )
+}
+
 export function PortalApp() {
   return (
     <BrowserRouter>
       <TooltipProvider delayDuration={300}>
         <DemoProvider>
           <AuthTransitionOverlay />
-          <Routes>
-            <Route index element={<RootRedirect />} />
-            {/* Compatibility entry routes for external marketing site links */}
-            <Route path="checkout" element={<ExternalCheckoutRedirect />} />
-            <Route path="checkout/:plan" element={<ExternalCheckoutRedirect />} />
-            <Route path="auth" element={<ExternalAuthRedirect />} />
-            <Route path="account/register" element={<ExternalAuthRedirect defaultMode="register" />} />
-            <Route path="account/*" element={<ExternalAuthRedirect />} />
-            <Route path="portal" element={<ExternalPathRedirect target="workspace" />} />
-            <Route path="portal/*" element={<ExternalPathRedirect target="workspace" />} />
-            <Route path="admin" element={<ExternalPathRedirect target="admin-orders" />} />
-            <Route path="admin/*" element={<ExternalPathRedirect target="admin-orders" />} />
-            <Route path=":locale" element={<LocaleLayout />}>
-              <Route index element={<LocaleIndexEntry />} />
-              <Route path="auth" element={<AuthPage />} />
-              <Route element={<RequireClientAuth />}>
-                <Route path="checkout" element={<CheckoutPage />} />
-                <Route element={<ClientConsoleShell />}>
-                  <Route path="workspace" element={<WorkspacePage />} />
-                  <Route path="order-chat" element={<ClientOrderHubRoute />} />
+          <PortalErrorBoundary>
+            <Routes>
+              <Route index element={<RootRedirect />} />
+              {/* Compatibility entry routes for external marketing site links */}
+              <Route path="checkout" element={<ExternalCheckoutRedirect />} />
+              <Route path="checkout/:plan" element={<ExternalCheckoutRedirect />} />
+              <Route path="auth" element={<ExternalAuthRedirect />} />
+              <Route path="account/register" element={<ExternalAuthRedirect defaultMode="register" />} />
+              <Route path="account/*" element={<ExternalAuthRedirect />} />
+              <Route path="portal" element={<ExternalPathRedirect target="workspace" />} />
+              <Route path="portal/*" element={<ExternalPathRedirect target="workspace" />} />
+              <Route path="admin" element={<ExternalPathRedirect target="admin-orders" />} />
+              <Route path="admin/*" element={<ExternalPathRedirect target="admin-orders" />} />
+              <Route path=":locale" element={<LocaleLayout />}>
+                <Route index element={<LocaleIndexEntry />} />
+                <Route path="auth" element={<AuthPage />} />
+                <Route element={<RequireClientAuth />}>
+                  <Route path="checkout" element={<CheckoutPage />} />
+                  <Route element={<ClientConsoleShell />}>
+                    <Route path="workspace" element={<WorkspacePage />} />
+                    <Route path="order-chat" element={<ClientOrderHubRoute />} />
+                    <Route
+                      path="video-review"
+                      element={<ClientOrderHubRoute />}
+                    />
+                  </Route>
+                </Route>
+                <Route path="admin/login" element={<AdminLoginPage />} />
+                <Route element={<RequireTeamAuth />}>
+                  <Route path="admin" element={<AdminOrdersPage />} />
+                  <Route path="admin-orders" element={<AdminOrdersPage />} />
                   <Route
-                    path="video-review"
-                    element={<ClientOrderHubRoute />}
+                    path="admin-workspace"
+                    element={<StudioWorkspacePage />}
+                  />
+                  <Route path="admin-settings" element={<AdminSettingsPage />} />
+                  <Route
+                    path="admin-permissions"
+                    element={<AdminPermissionsPage />}
                   />
                 </Route>
+                <Route path="*" element={<NotFound />} />
               </Route>
-              <Route path="admin/login" element={<AdminLoginPage />} />
-              <Route element={<RequireTeamAuth />}>
-                <Route path="admin" element={<AdminOrdersPage />} />
-                <Route path="admin-orders" element={<AdminOrdersPage />} />
-                <Route
-                  path="admin-workspace"
-                  element={<StudioWorkspacePage />}
-                />
-                <Route path="admin-settings" element={<AdminSettingsPage />} />
-                <Route
-                  path="admin-permissions"
-                  element={<AdminPermissionsPage />}
-                />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Route>
-          </Routes>
+            </Routes>
+          </PortalErrorBoundary>
           <Toaster />
         </DemoProvider>
       </TooltipProvider>

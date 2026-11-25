@@ -274,10 +274,9 @@ export function ClientConsoleShell() {
       onSignOut={
         isLiveSupabase
           ? () => {
-              void signOutAll().then(() => {
-                toast.info(t("已退出登录", "Signed out"))
-                void navigate(href("auth"), { replace: true })
-              })
+              void signOutAll()
+              toast.info(t("已退出登录", "Signed out"))
+              void navigate(href("auth"), { replace: true })
             }
           : undefined
       }
