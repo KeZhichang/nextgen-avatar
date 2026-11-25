@@ -57,7 +57,9 @@ import {
   demoClientPassword,
   demoExperienceEnabled,
   formatDollars,
+  isTestEnvironment,
   marketingSiteUrl,
+  testEnvAccounts,
   useDemo,
   usePortal,
   type CustomQuoteRecord,
@@ -172,6 +174,35 @@ export function AuthPage() {
               "Google sign-in is temporarily unavailable. Please try again or continue with email."
             )
       )
+    }
+  }
+
+  async function quickSignInTestClient() {
+    if (submitting) return
+    setError("")
+    const { email: testEmail, password: testPassword } = testEnvAccounts.client
+    setEmail(testEmail)
+    setPassword(testPassword)
+    if (!isLiveSupabase) {
+      finishDemo(testEmail, testEnvAccounts.client.name)
+      return
+    }
+    setSubmitting(true)
+    try {
+      const res = await signInClient(testEmail, testPassword)
+      if (!res.ok) {
+        setError(
+          t(
+            "测试客户账号登录失败，请先在测试 Supabase 执行 supabase/seed_test_environment.sql 初始化账号。",
+            "Test account sign-in failed. Run supabase/seed_test_environment.sql in your test Supabase SQL Editor first."
+          )
+        )
+        return
+      }
+      toast.success(t("已登录测试客户工作台", "Signed in as test client"))
+      void navigate(resolveDestination(), { replace: true })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -473,6 +504,36 @@ export function AuthPage() {
                             ? t("发送重置链接", "Send reset link")
                             : labels.register}
                       </Button>
+                      {panel === "login" && isTestEnvironment && (
+                        <div className="flex flex-col gap-3 pt-1">
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            <Separator className="min-w-0 flex-1" />
+                            <span>
+                              {t("测试环境快捷登录", "Test environment quick sign-in")}
+                            </span>
+                            <Separator className="min-w-0 flex-1" />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={submitting}
+                            className="h-auto justify-between gap-3 px-3 py-2 text-left"
+                            onClick={() => void quickSignInTestClient()}
+                          >
+                            <span className="flex min-w-0 flex-col">
+                              <span className="truncate text-sm font-medium">
+                                {testEnvAccounts.client.name}
+                              </span>
+                              <span className="truncate font-mono text-[11px] text-muted-foreground">
+                                {testEnvAccounts.client.email}
+                              </span>
+                            </span>
+                            <Badge variant="secondary">
+                              {t("测试客户", "Test client")}
+                            </Badge>
+                          </Button>
+                        </div>
+                      )}
                       {panel === "forgot" && resetSent && (
                         <Alert>
                           <CheckCircle2 aria-hidden="true" />
@@ -490,15 +551,17 @@ export function AuthPage() {
               ))}
             </Tabs>
           </CardContent>
-          <CardFooter className="justify-between border-t bg-muted/25 py-3 text-xs text-muted-foreground">
-            <span>{t("内部制作或管理员？", "Studio team or admin?")}</span>
-            <Link
-              to={href("admin/login")}
-              className="font-medium text-primary underline-offset-4 hover:underline"
-            >
-              {t("前往管理后台登录 →", "Studio Console sign in →")}
-            </Link>
-          </CardFooter>
+          {isTestEnvironment && (
+            <CardFooter className="justify-between border-t bg-muted/25 py-3 text-xs text-muted-foreground">
+              <span>{t("测试环境 · 内部制作后台", "Test env · Studio Console")}</span>
+              <Link
+                to={href("admin/login")}
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                {t("前往管理后台登录 →", "Studio Console sign in →")}
+              </Link>
+            </CardFooter>
+          )}
         </Card>
       </main>
     </div>

@@ -68,6 +68,46 @@ export type {
 
 export const sampleOrder = "NGA-20261108"
 const storageKey = "nextgen-avatar-demo-v2"
+const rawAppEnv = (
+  (import.meta.env.VITE_APP_ENV as string | undefined)?.trim().toLowerCase() ??
+  ""
+)
+export const isTestEnvironment =
+  rawAppEnv === "production" || rawAppEnv === "prod"
+    ? false
+    : rawAppEnv === "test" ||
+        rawAppEnv === "staging" ||
+        rawAppEnv === "development" ||
+        rawAppEnv === "dev"
+      ? true
+      : import.meta.env.DEV
+
+export const testEnvAccounts = {
+  client: {
+    name: "Sarah Lin",
+    email: "client@nextgenavatar.test",
+    password: "NextGen2026!",
+  },
+  team: [
+    {
+      name: "Alex Chen",
+      email: "admin@nextgenavatar.test",
+      password: "NextGen2026!",
+      roleId: "admin" as const,
+      roleZh: "管理员",
+      roleEn: "Admin",
+    },
+    {
+      name: "Chloe Rivera",
+      email: "producer@nextgenavatar.test",
+      password: "NextGen2026!",
+      roleId: "producer" as const,
+      roleZh: "制作人员",
+      roleEn: "Producer",
+    },
+  ],
+} as const
+
 const enableLocalDemoInSupabase =
   (import.meta.env.VITE_ENABLE_DEMO_MODE as string | undefined)
     ?.trim()

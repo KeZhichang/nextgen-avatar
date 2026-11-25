@@ -115,7 +115,9 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   demoExperienceEnabled,
   demoTeamPassword,
+  isTestEnvironment,
   studioImage,
+  testEnvAccounts,
   useDemo,
   usePortal,
   useTeamAuth,
@@ -408,6 +410,37 @@ export function AdminLoginPage() {
     void navigate(targetUrl, { replace: true })
   }
 
+  async function quickSignInTestTeam(
+    account: (typeof testEnvAccounts.team)[number]
+  ) {
+    if (submitting) return
+    setError("")
+    setEmail(account.email)
+    setPassword(account.password)
+    setSubmitting(true)
+    try {
+      const res = await signInTeamWithPassword(account.email, account.password)
+      if (!res.ok) {
+        setError(
+          res.reason === "not_team_member"
+            ? t(
+                "该测试账号尚未关联后台权限，请先执行 supabase/seed_test_environment.sql。",
+                "Test team account is not linked yet. Run supabase/seed_test_environment.sql first."
+              )
+            : t(
+                "测试后台账号登录失败，请先在测试 Supabase 执行 supabase/seed_test_environment.sql 初始化账号。",
+                "Test team sign-in failed. Run supabase/seed_test_environment.sql in your test Supabase SQL Editor first."
+              )
+        )
+        return
+      }
+      toast.success(t("已登录制作管理后台", "Signed in to Studio Console"))
+      void navigate(targetUrl, { replace: true })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError("")
@@ -601,6 +634,54 @@ export function AdminLoginPage() {
               </FieldGroup>
             </form>
 
+            {isTestEnvironment && isLiveSupabase && (
+              <>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <Separator className="min-w-0 flex-1" />
+                  <span>
+                    {t("测试环境快捷登录", "Test environment quick sign-in")}
+                  </span>
+                  <Separator className="min-w-0 flex-1" />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {testEnvAccounts.team.map((item) => (
+                    <Button
+                      key={item.email}
+                      type="button"
+                      variant="outline"
+                      disabled={submitting}
+                      className="h-auto justify-between gap-3 px-3 py-2 text-left"
+                      onClick={() => void quickSignInTestTeam(item)}
+                    >
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        <Avatar className="size-7">
+                          <AvatarFallback className="bg-brand-navy text-[11px] font-semibold text-white">
+                            {item.name.slice(0, 1)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="flex min-w-0 flex-col">
+                          <span className="truncate text-sm font-medium">
+                            {item.name}
+                          </span>
+                          <span className="truncate font-mono text-[11px] text-muted-foreground">
+                            {item.email}
+                          </span>
+                        </span>
+                      </span>
+                      <Badge
+                        variant={
+                          item.roleId === "admin" ? "default" : "secondary"
+                        }
+                      >
+                        {zh ? item.roleZh : item.roleEn}
+                      </Badge>
+                    </Button>
+                  ))}
+                </div>
+              </>
+            )}
+
             {showDemoTeam && (
               <>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -658,9 +739,11 @@ export function AdminLoginPage() {
                 "Accounts are provisioned by administrators."
               )}
             </span>
-            <ActionLink size="xs" variant="ghost" to={href("auth")}>
-              {t("← 返回客户端登录", "← Back to client sign in")}
-            </ActionLink>
+            {isTestEnvironment && (
+              <ActionLink size="xs" variant="ghost" to={href("auth")}>
+                {t("← 返回客户端登录", "← Back to client sign in")}
+              </ActionLink>
+            )}
           </CardFooter>
         </Card>
       </main>
