@@ -67,11 +67,21 @@ async function checkR2Available(): Promise<boolean> {
       headers: { Accept: "application/json" },
     })
       .then(async (res) => {
-        if (!res.ok) return false
+        if (!res.ok) {
+          r2AvailabilityPromise = null
+          return false
+        }
         const data = (await res.json()) as { configured?: boolean }
-        return Boolean(data.configured)
+        if (!data.configured) {
+          r2AvailabilityPromise = null
+          return false
+        }
+        return true
       })
-      .catch(() => false)
+      .catch(() => {
+        r2AvailabilityPromise = null
+        return false
+      })
   }
   return r2AvailabilityPromise
 }
@@ -84,18 +94,36 @@ async function requestR2Presign<T>(
   const {
     data: { session },
   } = await sb.auth.getSession()
-  const token = session?.access_token
+  let token = session?.access_token
+  if (!token) {
+    const { data: refreshed } = await sb.auth.refreshSession()
+    token = refreshed.session?.access_token
+  }
   if (!token) return null
 
-  const response = await fetch("/api/storage/r2", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(payload),
-  })
-  if (!response.ok) return null
+  const run = (accessToken: string) =>
+    fetch("/api/storage/r2", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    })
+
+  let response = await run(token)
+  if (response.status === 401) {
+    const { data: refreshed } = await sb.auth.refreshSession()
+    const nextToken = refreshed.session?.access_token
+    if (nextToken && nextToken !== token) {
+      response = await run(nextToken)
+    }
+  }
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "")
+    console.warn("[r2] presign request failed:", response.status, errText)
+    return null
+  }
   return (await response.json()) as T
 }
 

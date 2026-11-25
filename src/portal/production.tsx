@@ -47,6 +47,14 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
   Editable,
   EditableArea,
   EditableInput,
@@ -120,6 +128,7 @@ import {
   useTeamAuth,
   type ChatAttachment,
   type Entry,
+  type EntryVersionRef,
   type Order,
   type Version,
 } from "./demo"
@@ -250,6 +259,264 @@ function formatVersionLabel(
     return t(`第 ${itemIndex} 条 · ${base}`, `Video #${itemIndex} · ${base}`)
   }
   return base
+}
+
+function VersionRefCard({
+  order,
+  versionRef,
+  hasMultipleDeliverables,
+  side,
+  onOpenReview,
+}: {
+  order: Order
+  versionRef: EntryVersionRef
+  hasMultipleDeliverables: boolean
+  side: Entry["side"]
+  onOpenReview?: (versionId?: string) => void
+}) {
+  const { t } = usePortal()
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+  const [resolvedUrl, setResolvedUrl] = useState<string | null | undefined>(
+    undefined
+  )
+
+  const refCode = versionRef.id.replace(/^#\d+-/, "")
+  const matchedVersion =
+    order.versions.find((v) => v.id === versionRef.id) ??
+    order.versions.find(
+      (v) =>
+        getVersionCode(v) === refCode &&
+        (!versionRef.itemIndex ||
+          getVersionItemIndex(v) === versionRef.itemIndex)
+    )
+  const fileId = matchedVersion?.fileId
+
+  useEffect(() => {
+    if (!fileId) return
+    let active = true
+    let revokeFn: (() => void) | undefined
+    resolveFileSource(fileId)
+      .then((res) => {
+        if (!active) {
+          res?.revoke?.()
+          return
+        }
+        if (!res) {
+          setResolvedUrl(null)
+          return
+        }
+        revokeFn = res.revoke
+        setResolvedUrl(res.url)
+      })
+      .catch(() => {
+        if (active) setResolvedUrl(null)
+      })
+    return () => {
+      active = false
+      revokeFn?.()
+    }
+  }, [fileId, retryCount])
+
+  const label = formatVersionLabel(
+    versionRef.id,
+    versionRef.type,
+    t,
+    versionRef.itemIndex,
+    hasMultipleDeliverables
+  )
+  const badgeText =
+    versionRef.type === "final" ? "FINAL" : refCode.toUpperCase()
+  const videoSrc = fileId ? (resolvedUrl ?? undefined) : sampleVideo
+  const canDownload = side === "studio" || versionRef.type === "final"
+
+  async function handleDownload() {
+    try {
+      await downloadOrderFile(
+        fileId,
+        sampleVideo,
+        matchedVersion?.file ?? `${order.id}-${refCode}.mp4`
+      )
+      toast.success(t("开始下载视频", "Downloading video"))
+    } catch {
+      toast.error(
+        t(
+          "当前视频暂不可下载，请稍后重试。",
+          "This video is temporarily unavailable. Please try again."
+        )
+      )
+    }
+  }
+
+  return (
+    <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+      <div className="mt-1.5 flex w-80 max-w-full items-center gap-3 rounded-xl border border-border bg-card p-2.5 shadow-2xs">
+        <DialogTrigger asChild>
+          <button
+            type="button"
+            aria-label={t(`预览 ${label}`, `Preview ${label}`)}
+            className="group relative h-14 w-20 shrink-0 cursor-pointer overflow-hidden rounded-lg bg-brand-navy text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          >
+            {videoSrc ? (
+              <video
+                src={`${videoSrc}#t=0.1`}
+                muted
+                playsInline
+                preload="metadata"
+                aria-hidden="true"
+                className="size-full object-cover transition-transform duration-200 group-hover:scale-105"
+              />
+            ) : (
+              <img
+                src={coverImage}
+                alt=""
+                className="size-full object-cover opacity-80"
+              />
+            )}
+            <span className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover:bg-black/35">
+              <span className="flex size-7 items-center justify-center rounded-full bg-brand-navy/85 text-white shadow-xs transition-transform duration-200 group-hover:scale-105">
+                <Play aria-hidden="true" className="size-3.5 fill-current" />
+              </span>
+            </span>
+          </button>
+        </DialogTrigger>
+
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-xs font-semibold text-foreground">
+              {label}
+            </span>
+            <Badge
+              variant="secondary"
+              className="px-1.5 py-0 font-mono text-[10px]"
+            >
+              {badgeText}
+            </Badge>
+          </div>
+          {versionRef.note && (
+            <p className="line-clamp-1 text-xs text-muted-foreground">
+              {versionRef.note}
+            </p>
+          )}
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+            {onOpenReview ? (
+              <>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant={
+                    versionRef.type === "preview" &&
+                    order.status === "waiting_confirm"
+                      ? "default"
+                      : "outline"
+                  }
+                  onClick={() => onOpenReview(versionRef.id)}
+                >
+                  {versionRef.type === "final"
+                    ? t("查看并下载成片", "View & download")
+                    : order.status === "waiting_confirm"
+                      ? t("去审片 / 提意见", "Review & feedback")
+                      : t("查看该版本", "View version")}
+                </Button>
+                <DialogTrigger asChild>
+                  <Button type="button" size="xs" variant="ghost">
+                    <Play data-icon="inline-start" aria-hidden="true" />
+                    {t("预览", "Preview")}
+                  </Button>
+                </DialogTrigger>
+              </>
+            ) : (
+              <DialogTrigger asChild>
+                <Button type="button" size="xs" variant="outline">
+                  <Play data-icon="inline-start" aria-hidden="true" />
+                  {t("预览视频", "Preview video")}
+                </Button>
+              </DialogTrigger>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <DialogContent className="max-h-[92dvh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader className="min-w-0 pe-6">
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            <span>{label}</span>
+            <Badge variant="secondary" className="font-mono text-[11px]">
+              {badgeText}
+            </Badge>
+          </DialogTitle>
+          <DialogDescription>
+            {versionRef.note ||
+              t(
+                `#${order.id} 交付视频在线预览`,
+                `#${order.id} video delivery preview`
+              )}
+          </DialogDescription>
+        </DialogHeader>
+
+        {fileId && resolvedUrl === null ? (
+          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/30 px-6 py-12 text-center">
+            <p className="text-sm text-muted-foreground">
+              {t(
+                "暂时无法加载该视频源，请检查网络或点击重试。",
+                "Couldn't load this video right now. Please try again."
+              )}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setResolvedUrl(undefined)
+                setRetryCount((n) => n + 1)
+              }}
+            >
+              {t("重试加载", "Retry")}
+            </Button>
+          </div>
+        ) : (
+          <PortalVideo
+            poster={coverImage}
+            src={videoSrc}
+            label={`${label} · ${badgeText}`}
+          />
+        )}
+
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <span className="truncate font-mono text-xs text-muted-foreground">
+            {matchedVersion?.file ?? `#${order.id}`}
+          </span>
+          <div className="flex items-center gap-2">
+            {canDownload && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void handleDownload()}
+              >
+                <Download data-icon="inline-start" aria-hidden="true" />
+                {t("下载视频", "Download")}
+              </Button>
+            )}
+            {onOpenReview && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setPreviewOpen(false)
+                  onOpenReview(versionRef.id)
+                }}
+              >
+                {versionRef.type === "final"
+                  ? t("前往交付页", "Open delivery view")
+                  : t("前往审片确认 / 提意见", "Review & feedback")}
+              </Button>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 function ChatPanel({
@@ -449,76 +716,13 @@ function ChatPanel({
                           </Bubble>
                         )}
                         {entry.versionRef && (
-                          <div className="mt-1.5 flex w-72 max-w-full items-center gap-3 rounded-xl border border-border bg-card p-2.5 shadow-2xs">
-                            <div className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-brand-navy">
-                              <img
-                                src={coverImage}
-                                alt=""
-                                className="size-full object-cover opacity-80"
-                              />
-                              <span className="absolute inset-0 flex items-center justify-center">
-                                <span className="flex size-6 items-center justify-center rounded-full bg-brand-navy/85 text-white">
-                                  <Play
-                                    aria-hidden="true"
-                                    className="size-3 fill-current"
-                                  />
-                                </span>
-                              </span>
-                            </div>
-                            <div className="flex min-w-0 flex-1 flex-col gap-1">
-                              <div className="flex items-center gap-1.5">
-                                <span className="truncate text-xs font-semibold text-foreground">
-                                  {formatVersionLabel(
-                                    entry.versionRef.id,
-                                    entry.versionRef.type,
-                                    t,
-                                    entry.versionRef.itemIndex,
-                                    hasMultipleDeliverables
-                                  )}
-                                </span>
-                                <Badge
-                                  variant="secondary"
-                                  className="px-1.5 py-0 font-mono text-[10px]"
-                                >
-                                  {entry.versionRef.type === "final"
-                                    ? "FINAL"
-                                    : entry.versionRef.id
-                                        .replace(/^#\d+-/, "")
-                                        .toUpperCase()}
-                                </Badge>
-                              </div>
-                              {entry.versionRef.note && (
-                                <p className="line-clamp-1 text-xs text-muted-foreground">
-                                  {entry.versionRef.note}
-                                </p>
-                              )}
-                              {onOpenReview && (
-                                <Button
-                                  type="button"
-                                  size="xs"
-                                  variant={
-                                    entry.versionRef.type === "preview" &&
-                                      order.status === "waiting_confirm"
-                                      ? "default"
-                                      : "outline"
-                                  }
-                                  className="mt-0.5 w-fit"
-                                  onClick={() =>
-                                    onOpenReview(entry.versionRef?.id)
-                                  }
-                                >
-                                  {entry.versionRef.type === "final"
-                                    ? t("查看并下载成片", "View & download")
-                                    : order.status === "waiting_confirm"
-                                      ? t(
-                                        "去审片 / 提意见",
-                                        "Review & feedback"
-                                      )
-                                      : t("查看该版本", "View version")}
-                                </Button>
-                              )}
-                            </div>
-                          </div>
+                          <VersionRefCard
+                            order={order}
+                            versionRef={entry.versionRef}
+                            hasMultipleDeliverables={hasMultipleDeliverables}
+                            side={side}
+                            onOpenReview={onOpenReview}
+                          />
                         )}
                         {!!attachments.length && (
                           <div

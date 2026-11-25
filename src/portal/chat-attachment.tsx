@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react"
-import { Download, FileText, Image, Play } from "lucide-react"
+import { Download, FileText, Image, Play, RotateCw } from "lucide-react"
 import { cn } from "cn"
 
 import {
@@ -41,6 +41,7 @@ export function ChatAttachmentCard({
   compact?: boolean
 }) {
   const { t } = usePortal()
+  const [retryCount, setRetryCount] = useState(0)
   const [source, setSource] = useState<{
     url: string
     blob?: Blob
@@ -100,7 +101,7 @@ export function ChatAttachmentCard({
       active = false
       revokeFn?.()
     }
-  }, [file, fileId])
+  }, [file, fileId, retryCount])
 
   const name = file?.name ?? attachment!.name
   const type = file?.type || attachment?.type || source?.mimeType || ""
@@ -195,27 +196,40 @@ export function ChatAttachmentCard({
                 "group-data-[orientation=vertical]/attachment:top-2 group-data-[orientation=vertical]/attachment:right-1"
             )}
           >
-            {action ?? (
-              <AttachmentAction
-                type="button"
-                variant={stacked ? "secondary" : "ghost"}
-                aria-label={downloadLabel}
-                disabled={!source}
-                onClick={() => {
-                  if (file) {
-                    downloadFile(file, name)
-                  } else if (attachment) {
-                    void downloadOrderFile(
-                      attachment.fileId,
-                      source?.url ?? "",
-                      name
-                    )
-                  }
-                }}
-              >
-                <Download aria-hidden="true" />
-              </AttachmentAction>
-            )}
+            {action ??
+              (source === null && attachment ? (
+                <AttachmentAction
+                  type="button"
+                  variant={stacked ? "secondary" : "ghost"}
+                  aria-label={t("重试加载附件", "Retry loading attachment")}
+                  onClick={() => {
+                    setSource(undefined)
+                    setRetryCount((n) => n + 1)
+                  }}
+                >
+                  <RotateCw aria-hidden="true" />
+                </AttachmentAction>
+              ) : (
+                <AttachmentAction
+                  type="button"
+                  variant={stacked ? "secondary" : "ghost"}
+                  aria-label={downloadLabel}
+                  disabled={!source}
+                  onClick={() => {
+                    if (file) {
+                      downloadFile(file, name)
+                    } else if (attachment) {
+                      void downloadOrderFile(
+                        attachment.fileId,
+                        source?.url ?? "",
+                        name
+                      )
+                    }
+                  }}
+                >
+                  <Download aria-hidden="true" />
+                </AttachmentAction>
+              ))}
           </AttachmentActions>
         )}
         {visual && (
