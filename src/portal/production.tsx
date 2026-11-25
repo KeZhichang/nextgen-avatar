@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Play,
   Plus,
+  RotateCcw,
   Search,
   Send,
   Upload,
@@ -113,6 +114,7 @@ import { ChatComposer } from "./chat-composer"
 import {
   buildNextVersionForItem,
   clientImage,
+  countDeliveredVideos,
   coverImage,
   entryAttachments,
   getOrderDeliverableSlots,
@@ -835,12 +837,16 @@ function ReviewPanel({
   onOpenChat: () => void
 }) {
   const { t } = usePortal()
-  const { submitOrderReview } = useDemo()
+  const { submitOrderReview, completeOrder } = useDemo()
   const [revision, setRevision] = useState("")
   const [manualSlot, setManualSlot] = useState<number | null>(null)
+  const [completing, setCompleting] = useState(false)
 
   const slots = getOrderDeliverableSlots(order)
   const isMultiVideo = slots.length > 1
+  const deliveredCount = countDeliveredVideos(order)
+  const hasAnyFinal = order.versions.some((item) => item.type === "final")
+  const canClientComplete = order.status !== "completed" && hasAnyFinal
 
   const requestedVersion = selectedVersionId
     ? order.versions.find((item) => item.id === selectedVersionId)
@@ -928,6 +934,27 @@ function ReviewPanel({
         )
       }
     })
+  }
+
+  async function handleClientComplete() {
+    if (completing || !canClientComplete) return
+    setCompleting(true)
+    const ok = await completeOrder(
+      order.id,
+      "client",
+      t(
+        "我已确认收到正式成片，订单已办结。",
+        "I have received the final video(s) and marked this order as completed."
+      )
+    )
+    setCompleting(false)
+    if (ok) {
+      toast.success(
+        t("订单已办结，您仍可随时在聊天中联系我们。", "Order completed. Chat remains open anytime.")
+      )
+    } else {
+      toast.error(t("办结失败，请稍后重试。", "Could not complete order. Please try again."))
+    }
   }
 
   async function download() {
@@ -1430,6 +1457,67 @@ function ReviewPanel({
                   )}
                 </>
               )}
+
+              {canClientComplete && (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200/80 bg-emerald-50/50 px-3.5 py-3">
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className="text-xs font-semibold text-emerald-950">
+                      {t("全部成片满意？", "Satisfied with delivery?")}
+                    </span>
+                    <span className="text-[11px] text-emerald-900/75">
+                      {t(
+                        `已交付 ${deliveredCount} / ${order.count} 条 · 办结后仍可沟通`,
+                        `Delivered ${deliveredCount}/${order.count} · Chat stays open`
+                      )}
+                    </span>
+                  </div>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="outline"
+                        disabled={completing}
+                        className="shrink-0 border-emerald-300 bg-background text-emerald-800 hover:bg-emerald-50"
+                      >
+                        <CheckCircle2 data-icon="inline-start" aria-hidden="true" />
+                        {t("办结订单", "Complete order")}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogMedia className="bg-emerald-100 text-emerald-700">
+                          <CheckCircle2 aria-hidden="true" />
+                        </AlertDialogMedia>
+                        <AlertDialogTitle>
+                          {t("确认办结此订单？", "Mark this order as completed?")}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {t(
+                            `当前已交付 ${deliveredCount} / ${order.count} 条正式成片。办结后订单将归档为「已交付」，但聊天沟通与成片下载依然随时开放。`,
+                            `${deliveredCount} of ${order.count} final video(s) delivered. Completing archives the order, while chat and downloads stay available anytime.`
+                          )}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>{t("取消", "Cancel")}</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => void handleClientComplete()}>
+                          {t("确认办结", "Confirm completion")}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
+
+              {order.status === "completed" && (
+                <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  {t(
+                    "订单已办结归档；如后续有售后疑问，仍可随时在聊天窗口中联系制作团队。",
+                    "Order is completed. Chat remains open if you ever need follow-up support."
+                  )}
+                </div>
+              )}
             </CardContent>
 
             <CardFooter className="justify-between gap-2 border-t bg-muted/25 px-5 py-3">
@@ -1787,10 +1875,196 @@ export function VideoReviewPage() {
   return <ClientOrderHubPage initialView="review" />
 }
 
+function StudioVersionHistoryItem({
+  orderId,
+  version,
+  showItemPrefix,
+}: {
+  orderId: string
+  version: Version
+  showItemPrefix: boolean
+}) {
+  const { t } = usePortal()
+  const [open, setOpen] = useState(false)
+  const [resolvedUrl, setResolvedUrl] = useState<string | null | undefined>(
+    undefined
+  )
+  const [retryCount, setRetryCount] = useState(0)
+  const fileId = version.fileId
+
+  useEffect(() => {
+    if (!open || !fileId) return
+    let active = true
+    let revokeFn: (() => void) | undefined
+    resolveFileSource(fileId)
+      .then((res) => {
+        if (!active) {
+          res?.revoke?.()
+          return
+        }
+        if (!res) {
+          setResolvedUrl(null)
+          return
+        }
+        revokeFn = res.revoke
+        setResolvedUrl(res.url)
+      })
+      .catch(() => {
+        if (active) setResolvedUrl(null)
+      })
+    return () => {
+      active = false
+      revokeFn?.()
+    }
+  }, [open, fileId, retryCount])
+
+  const code = getVersionCode(version).toUpperCase()
+  const itemIdx = getVersionItemIndex(version)
+  const label = formatVersionLabel(
+    version.id,
+    version.type,
+    t,
+    itemIdx,
+    showItemPrefix
+  )
+  const badgeText = version.type === "final" ? "FINAL" : code
+  const videoSrc = fileId ? (resolvedUrl ?? undefined) : sampleVideo
+
+  async function handleDownload() {
+    try {
+      await downloadOrderFile(
+        fileId,
+        sampleVideo,
+        version.file ?? `${orderId}-${getVersionCode(version)}.mp4`
+      )
+      toast.success(t("开始下载视频", "Downloading video"))
+    } catch {
+      toast.error(
+        t(
+          "当前视频暂不可下载，请稍后重试。",
+          "This video is temporarily unavailable."
+        )
+      )
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <div className="flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-muted/20 px-2.5 py-2 transition-colors hover:bg-muted/40">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-xs font-medium text-foreground">
+              {label}
+            </span>
+            <Badge
+              variant={version.type === "final" ? "default" : "secondary"}
+              className={cn(
+                "px-1.5 py-0 font-mono text-[10px]",
+                version.type === "final" &&
+                  "bg-emerald-600 text-white hover:bg-emerald-600"
+              )}
+            >
+              {badgeText}
+            </Badge>
+          </div>
+          {(version.note || version.file) && (
+            <span className="truncate text-[11px] text-muted-foreground">
+              {version.note || version.file}
+            </span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <DialogTrigger asChild>
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="ghost"
+              aria-label={t(`预览 ${label}`, `Preview ${label}`)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <Play aria-hidden="true" className="size-3.5" />
+            </Button>
+          </DialogTrigger>
+          <Button
+            type="button"
+            size="icon-xs"
+            variant="ghost"
+            aria-label={t(`下载 ${label}`, `Download ${label}`)}
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => void handleDownload()}
+          >
+            <Download aria-hidden="true" className="size-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      <DialogContent className="max-h-[92dvh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader className="min-w-0 pe-6">
+          <DialogTitle className="flex flex-wrap items-center gap-2">
+            <span>{label}</span>
+            <Badge variant="secondary" className="font-mono text-[11px]">
+              {badgeText}
+            </Badge>
+          </DialogTitle>
+          <DialogDescription>
+            {version.note ||
+              version.file ||
+              t(`#${orderId} 已推送版本预览`, `#${orderId} published version preview`)}
+          </DialogDescription>
+        </DialogHeader>
+        {fileId && resolvedUrl === null ? (
+          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/30 px-6 py-12 text-center">
+            <p className="text-sm text-muted-foreground">
+              {t("暂时无法加载该视频，请重试。", "Couldn't load this video.")}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setResolvedUrl(undefined)
+                setRetryCount((n) => n + 1)
+              }}
+            >
+              {t("重试加载", "Retry")}
+            </Button>
+          </div>
+        ) : (
+          <PortalVideo
+            poster={coverImage}
+            src={videoSrc}
+            label={`${label} · ${badgeText}`}
+          />
+        )}
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <span className="truncate font-mono text-xs text-muted-foreground">
+            {version.file ?? `#${orderId}`}
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void handleDownload()}
+          >
+            <Download data-icon="inline-start" aria-hidden="true" />
+            {t("下载视频", "Download")}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function StudioWorkspacePage() {
   const [query, setQuery] = useSearchParams()
   const { t, zh } = usePortal()
-  const { data, startOrderProduction, publishOrderVersion } = useDemo()
+  const {
+    data,
+    startOrderProduction,
+    publishOrderVersion,
+    completeOrder,
+    reopenOrder,
+  } = useDemo()
   const { member, can } = useTeamAuth()
   const prefersReducedMotion = useReducedMotion()
   const studioSpring = prefersReducedMotion
@@ -1800,6 +2074,7 @@ export function StudioWorkspacePage() {
   const [note, setNote] = useState("")
   const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
+  const [statusBusy, setStatusBusy] = useState(false)
   const [uploadPercent, setUploadPercent] = useState(0)
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null)
   const [itemTitle, setItemTitle] = useState("")
@@ -1891,6 +2166,47 @@ export function StudioWorkspacePage() {
     (order.demo && order.id === sampleOrder ? sampleMaterials.length : 0)
   const canDeliver = hasFinalPerm
   const file = files[0]
+  const deliveredCount = countDeliveredVideos(order)
+  const requiresVideoFile = !order.demo && !file
+
+  async function handleStudioComplete() {
+    if (statusBusy || order.status === "completed") return
+    setStatusBusy(true)
+    const ok = await completeOrder(
+      order.id,
+      "studio",
+      t(
+        "制作团队已将本订单标记为办结；聊天窗口保持开放，如有后续需求欢迎随时联系。",
+        "The production team has marked this order as completed. Chat remains open anytime."
+      )
+    )
+    setStatusBusy(false)
+    if (ok) {
+      toast.success(
+        t("订单已标记为办结。", "Order marked as completed.")
+      )
+    } else {
+      toast.error(t("办结失败，请稍后重试。", "Could not complete order."))
+    }
+  }
+
+  async function handleStudioReopen() {
+    if (statusBusy || order.status !== "completed") return
+    setStatusBusy(true)
+    const ok = await reopenOrder(
+      order.id,
+      t(
+        "制作团队已重新开启本订单，继续为您制作或补充交付。",
+        "The production team has reopened this order for further production or delivery."
+      )
+    )
+    setStatusBusy(false)
+    if (ok) {
+      toast.success(t("订单已重新开启为「制作中」。", "Order reopened."))
+    } else {
+      toast.error(t("重新开启失败，请稍后重试。", "Could not reopen order."))
+    }
+  }
 
   function startProduction() {
     if (order.status !== "waiting_assets") return
@@ -1914,7 +2230,8 @@ export function StudioWorkspacePage() {
   }
 
   async function publishVersion() {
-    if (busy || (effectiveKind === "final" && !canDeliver)) return
+    if (busy || requiresVideoFile || (effectiveKind === "final" && !canDeliver))
+      return
     setBusy(true)
     setUploadPercent(file ? 5 : 0)
     try {
@@ -1983,6 +2300,7 @@ export function StudioWorkspacePage() {
 
   function handlePublishSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (requiresVideoFile) return
     if (effectiveKind === "final") {
       if (canDeliver) setConfirmFinalOpen(true)
       return
@@ -2176,7 +2494,10 @@ export function StudioWorkspacePage() {
             </div>
             <StatusBadge status={order.status} />
           </div>
-          <FadeTransition key={order.id} className="grid min-h-0 flex-1">
+          <FadeTransition
+            key={order.id}
+            className="flex min-h-0 flex-1 flex-col"
+          >
             <ChatPanel
               key={order.id}
               order={order}
@@ -2282,13 +2603,24 @@ export function StudioWorkspacePage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex flex-col gap-0.5">
-                    <h2 className="text-sm font-semibold">
-                      {t("正式版本推送", "Publish review / final version")}
-                    </h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-semibold">
+                        {t("正式版本推送", "Publish review / final version")}
+                      </h2>
+                      <Badge
+                        variant="secondary"
+                        className="px-1.5 py-0 font-mono text-[10px]"
+                      >
+                        {t(
+                          `成片 ${deliveredCount}/${order.count}`,
+                          `${deliveredCount}/${order.count} final`
+                        )}
+                      </Badge>
+                    </div>
                     <span className="text-[11px] text-muted-foreground">
                       {t(
-                        "推送至客户审片页并自动更新订单状态",
-                        "Publishes to client review & updates order status"
+                        "推送至客户审片页；交付成片不会强制关闭聊天",
+                        "Publishes to client review without closing chat"
                       )}
                     </span>
                   </div>
@@ -2366,6 +2698,15 @@ export function StudioWorkspacePage() {
                     />
                   </div>
                 )}
+                {order.status === "approved" && !hasFinalPerm && (
+                  <div className="rounded-lg border border-sky-200/80 bg-sky-50/70 px-3 py-2 text-xs leading-relaxed text-sky-900">
+                    {t(
+                      "客户已确认定稿。当前账号仅有初稿权限，正式无水印成片需由管理员或具备交付权限的成员上传。",
+                      "Client approved this cut. Final watermark-free delivery requires an admin or member with delivery permission."
+                    )}
+                  </div>
+                )}
+
                 <Tabs
                   value={effectiveKind}
                   onValueChange={(value) =>
@@ -2476,26 +2817,32 @@ export function StudioWorkspacePage() {
 
                 <Button
                   type="submit"
-                  disabled={busy || (effectiveKind === "final" && !canDeliver)}
+                  disabled={
+                    busy ||
+                    requiresVideoFile ||
+                    (effectiveKind === "final" && !canDeliver)
+                  }
                 >
                   {busy ? (
                     <Spinner data-icon="inline-start" />
                   ) : (
                     <Send data-icon="inline-start" aria-hidden="true" />
                   )}
-                  {effectiveKind === "final"
-                    ? isMultiVideo
-                      ? t(
-                          `交付第 ${activeSlotIndex} 条正式成片`,
-                          `Deliver Video #${activeSlotIndex} final`
-                        )
-                      : t("交付正式成片", "Deliver final video")
-                    : isMultiVideo
-                      ? t(
-                          `推送第 ${activeSlotIndex} 条初稿`,
-                          `Send Video #${activeSlotIndex} draft`
-                        )
-                      : t("推送初稿至客户", "Send draft to client")}
+                  {requiresVideoFile
+                    ? t("请先选择视频文件", "Choose a video file first")
+                    : effectiveKind === "final"
+                      ? isMultiVideo
+                        ? t(
+                            `交付第 ${activeSlotIndex} 条正式成片`,
+                            `Deliver Video #${activeSlotIndex} final`
+                          )
+                        : t("交付正式成片", "Deliver final video")
+                      : isMultiVideo
+                        ? t(
+                            `推送第 ${activeSlotIndex} 条初稿`,
+                            `Send Video #${activeSlotIndex} draft`
+                          )
+                        : t("推送初稿至客户", "Send draft to client")}
                 </Button>
               </form>
 
@@ -2518,8 +2865,8 @@ export function StudioWorkspacePage() {
                     </AlertDialogTitle>
                     <AlertDialogDescription>
                       {t(
-                        "交付后将向客户开放无水印成片下载；如后续仍需修改或补传新视频，可随时继续推送。",
-                        "This unlocks watermark-free final video download for the client. You can still publish additional revisions or videos later if needed."
+                        "交付后将向客户开放无水印成片下载，但不会自动关闭订单或聊天；全部满意后可由任意一方点击「办结订单」。",
+                        "This unlocks watermark-free download without closing the order or chat. Either side can mark the order completed when ready."
                       )}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
@@ -2531,6 +2878,43 @@ export function StudioWorkspacePage() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+
+              <Separator />
+
+              <section className="flex flex-col gap-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-semibold">
+                      {t("已推送版本", "Published versions")}
+                    </h2>
+                    <Badge variant="secondary" className="font-mono">
+                      {order.versions.length}
+                    </Badge>
+                  </div>
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    {t(
+                      `配额 ${deliveredCount}/${order.count}`,
+                      `${deliveredCount}/${order.count} final`
+                    )}
+                  </span>
+                </div>
+                {order.versions.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {[...order.versions].reverse().map((ver) => (
+                      <StudioVersionHistoryItem
+                        key={ver.id}
+                        orderId={order.id}
+                        version={ver}
+                        showItemPrefix={isMultiVideo || order.count > 1}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                    {t("尚未推送任何预览或成片版本", "No versions published yet")}
+                  </p>
+                )}
+              </section>
 
               <Separator />
 
@@ -2555,6 +2939,91 @@ export function StudioWorkspacePage() {
                   <p className="text-xs text-muted-foreground">
                     {t("暂无修改意见", "No revision notes")}
                   </p>
+                )}
+              </section>
+
+              <Separator />
+
+              <section className="flex flex-col gap-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-sm font-semibold">
+                    {t("订单办结状态", "Order completion")}
+                  </h2>
+                  <StatusBadge status={order.status} />
+                </div>
+                {order.status === "completed" ? (
+                  <div className="flex flex-col gap-2 rounded-xl border border-border/80 bg-muted/25 p-3">
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {t(
+                        "本订单已办结归档，聊天通道依然保持开放。如需继续返工或补传视频，可随时重新开启。",
+                        "This order is completed while chat stays open. Reopen it anytime for additional work."
+                      )}
+                    </p>
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      disabled={statusBusy}
+                      className="w-full bg-background"
+                      onClick={() => void handleStudioReopen()}
+                    >
+                      <RotateCcw data-icon="inline-start" aria-hidden="true" />
+                      {t("重新开启订单", "Reopen order")}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2 rounded-xl border border-border/80 bg-muted/20 p-3">
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {t(
+                        `已交付 ${deliveredCount} / ${order.count} 条正式成片。全部确认无误后可手动办结，聊天沟通不会被关闭。`,
+                        `${deliveredCount}/${order.count} final video(s) delivered. Complete manually when finished; chat stays open.`
+                      )}
+                    </p>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="outline"
+                          disabled={statusBusy}
+                          className="w-full bg-background"
+                        >
+                          <CheckCircle2
+                            data-icon="inline-start"
+                            aria-hidden="true"
+                          />
+                          {t("手动办结订单", "Mark order completed")}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogMedia className="bg-emerald-100 text-emerald-700">
+                            <CheckCircle2 aria-hidden="true" />
+                          </AlertDialogMedia>
+                          <AlertDialogTitle>
+                            {t("确认将此订单标记为已办结？", "Mark this order completed?")}
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {deliveredCount < order.count
+                              ? t(
+                                  `当前仅交付了 ${deliveredCount} / ${order.count} 条正式成片。确认仍要提前办结吗？办结后聊天仍保持开放，也可随时重新开启。`,
+                                  `Only ${deliveredCount} of ${order.count} final video(s) have been delivered. Complete anyway? Chat stays open and you can reopen anytime.`
+                                )
+                              : t(
+                                  `已交付全部 ${deliveredCount} / ${order.count} 条正式成片。办结后订单将归档为「已交付」，聊天沟通仍保持开放。`,
+                                  `All ${deliveredCount}/${order.count} final video(s) delivered. Chat will remain open after completion.`
+                                )}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>{t("取消", "Cancel")}</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => void handleStudioComplete()}>
+                            {t("确认办结", "Confirm completion")}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 )}
               </section>
             </FadeTransition>

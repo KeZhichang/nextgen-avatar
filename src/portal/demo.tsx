@@ -744,6 +744,12 @@ type DemoContextValue = {
     messageText: string,
     revisionNote?: string
   ) => Promise<boolean>
+  completeOrder: (
+    orderId: string,
+    side: Entry["side"],
+    messageText: string
+  ) => Promise<boolean>
+  reopenOrder: (orderId: string, messageText: string) => Promise<boolean>
   saveCustomQuote: (quote: {
     id: string
     clientEmail: string
@@ -1569,7 +1575,11 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         ? 1
         : 0
     const nextStatus: Status =
-      version.type === "final" ? "completed" : "waiting_confirm"
+      version.type === "final"
+        ? targetOrder?.status === "completed"
+          ? "completed"
+          : "approved"
+        : "waiting_confirm"
     const versionRef: EntryVersionRef = {
       id: version.id,
       type: version.type,
@@ -1674,6 +1684,92 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         orderId,
         live.user.id,
         "client",
+        messageText
+      )
+      return true
+    } catch {
+      await refreshFromSupabase()
+      return false
+    }
+  }
+
+  async function completeOrder(
+    orderId: string,
+    side: Entry["side"],
+    messageText: string
+  ) {
+    const demoOnly = isDemoOrder(orderId)
+    const targetOrder = dataRef.current.orders.find((o) => o.id === orderId)
+    updateOrder(orderId, (value) =>
+      appendEntry(
+        {
+          ...value,
+          status: "completed",
+          revision: undefined,
+        },
+        side,
+        messageText
+      )
+    )
+    const live = getLiveDbUser()
+    if (!live || demoOnly) return true
+    try {
+      await updateOrderInDb(live.sb, orderId, {
+        status: "completed",
+        latest_revision_note: null,
+      })
+      await insertMessageInDb(
+        live.sb,
+        orderId,
+        live.user.id,
+        side,
+        messageText
+      )
+      if (
+        side === "studio" &&
+        targetOrder?.clientId &&
+        targetOrder.clientId !== live.user.id
+      ) {
+        await insertNotificationInDb(live.sb, {
+          recipientUserId: targetOrder.clientId,
+          orderId,
+          eventType: "final_delivered",
+          titleZh: "订单已标记为办结",
+          titleEn: "Order marked as completed",
+          bodyZh: `${targetOrder.zh} (#${orderId})`,
+          bodyEn: `${targetOrder.en} (#${orderId})`,
+        }).catch(() => undefined)
+      }
+      return true
+    } catch {
+      await refreshFromSupabase()
+      return false
+    }
+  }
+
+  async function reopenOrder(orderId: string, messageText: string) {
+    const demoOnly = isDemoOrder(orderId)
+    updateOrder(orderId, (value) =>
+      appendEntry(
+        {
+          ...value,
+          status: "producing",
+        },
+        "studio",
+        messageText
+      )
+    )
+    const live = getLiveDbUser()
+    if (!live || demoOnly) return true
+    try {
+      await updateOrderInDb(live.sb, orderId, {
+        status: "producing",
+      })
+      await insertMessageInDb(
+        live.sb,
+        orderId,
+        live.user.id,
+        "studio",
         messageText
       )
       return true
@@ -1900,6 +1996,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         sendChatMessage,
         publishOrderVersion,
         submitOrderReview,
+        completeOrder,
+        reopenOrder,
         saveCustomQuote,
         toggleTeamRolePermission,
         resetTeamRolePermissions,
