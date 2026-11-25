@@ -35,23 +35,23 @@ export function BrandLoader({
           <span className="sr-only">{label}</span>
 
           <motion.div
-            initial={{ opacity: 0, scale: 0.92 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.06 }}
+            initial={{ opacity: 0, y: 6, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 1.03 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="flex flex-col items-center gap-7"
+            className="flex flex-col items-center gap-6"
           >
-            {/* Brand Emblem + Dual Orbital Ring */}
-            <div className="relative flex size-24 items-center justify-center">
-              {/* Soft ambient glow */}
+            {/* Horizontal Brand Lockup matching login & homepage header */}
+            <div className="relative flex items-center gap-3.5">
+              {/* Soft ambient glow behind emblem */}
               <motion.div
                 aria-hidden="true"
                 className={cn(
-                  "pointer-events-none absolute inset-1 rounded-full blur-xl",
-                  dark ? "bg-primary/35" : "bg-primary/18"
+                  "pointer-events-none absolute -left-3 top-1/2 size-16 -translate-y-1/2 rounded-full blur-xl",
+                  dark ? "bg-brand-gold/25" : "bg-primary/18"
                 )}
                 animate={{
-                  scale: [0.92, 1.08, 0.92],
+                  scale: [0.9, 1.12, 0.9],
                   opacity: [0.45, 0.85, 0.45],
                 }}
                 transition={{
@@ -61,100 +61,71 @@ export function BrandLoader({
                 }}
               />
 
-              {/* Subtle static track + rotating gradient arc */}
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 96 96"
-                className="pointer-events-none absolute inset-0 size-24"
-              >
-                <defs>
-                  <linearGradient
-                    id="nga-loader-arc"
-                    x1="0%"
-                    y1="0%"
-                    x2="100%"
-                    y2="100%"
-                  >
-                    <stop
-                      offset="0%"
-                      stopColor={dark ? "#f8cfaa" : "#1f4bc4"}
-                      stopOpacity="1"
-                    />
-                    <stop
-                      offset="55%"
-                      stopColor={dark ? "#60a5fa" : "#3b6df0"}
-                      stopOpacity="0.85"
-                    />
-                    <stop
-                      offset="100%"
-                      stopColor={dark ? "#1f4bc4" : "#e5b77b"}
-                      stopOpacity="0"
-                    />
-                  </linearGradient>
-                </defs>
-                <circle
-                  cx="48"
-                  cy="48"
-                  r="43"
-                  fill="none"
-                  stroke={dark ? "rgba(255,255,255,0.1)" : "rgba(16,27,45,0.08)"}
-                  strokeWidth="2"
-                />
-                <motion.circle
-                  cx="48"
-                  cy="48"
-                  r="43"
-                  fill="none"
-                  stroke="url(#nga-loader-arc)"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeDasharray="92 180"
-                  style={{ transformOrigin: "48px 48px" }}
-                  animate={{ rotate: 360 }}
-                  transition={{
-                    duration: 1.15,
-                    repeat: Infinity,
-                    ease: "linear",
-                  }}
-                />
-              </svg>
-
-              {/* Official NextGen Avatar Mark with gentle breathing */}
               <motion.img
                 src="/portal-media/nextgen-avatar-mark-small.png"
                 alt=""
-                width={44}
-                height={40}
+                width={46}
+                height={42}
                 decoding="async"
-                className="relative z-10 h-10 w-auto object-contain select-none"
-                animate={{ scale: [0.96, 1.03, 0.96] }}
+                className="relative z-10 h-11 w-auto shrink-0 object-contain select-none"
+                animate={{ scale: [0.97, 1.03, 0.97] }}
                 transition={{
-                  duration: 2,
+                  duration: 2.1,
                   repeat: Infinity,
                   ease: "easeInOut",
                 }}
               />
+
+              <div className="relative z-10 flex flex-col text-left leading-none">
+                <span
+                  className={cn(
+                    "font-serif text-[26px] font-bold tracking-tight",
+                    dark ? "text-[#ffe8d1]" : "text-foreground"
+                  )}
+                >
+                  {dark ? "NextGen Studio" : "NextGen Avatar"}
+                </span>
+                <span
+                  className={cn(
+                    "mt-1 text-xs font-medium tracking-normal",
+                    dark ? "text-white/65" : "text-muted-foreground"
+                  )}
+                >
+                  by 2301 Pictures
+                </span>
+              </div>
             </div>
 
-            {/* Minimal hairline progress track (no text) */}
+            {/* Minimal hairline progress track aligned with brand lockup */}
             <div
               aria-hidden="true"
               className={cn(
-                "relative h-1 w-28 overflow-hidden rounded-full",
+                "relative h-[3px] w-52 overflow-hidden rounded-full",
                 dark ? "bg-white/12" : "bg-foreground/10"
               )}
             >
               <motion.div
                 className={cn(
-                  "h-full rounded-full",
+                  "relative h-full overflow-hidden rounded-full",
                   dark
                     ? "bg-gradient-to-r from-primary via-[#60a5fa] to-[#f8cfaa]"
                     : "bg-gradient-to-r from-primary via-primary to-brand-gold"
                 )}
-                initial={{ width: "12%" }}
+                initial={{ width: "14%" }}
                 animate={{ width: `${Math.round(progress * 100)}%` }}
                 transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-              />
+              >
+                <motion.span
+                  className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-white/45 to-transparent"
+                  initial={{ x: "-100%" }}
+                  animate={{ x: "300%" }}
+                  transition={{
+                    duration: 1.25,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
+              </motion.div>
             </div>
           </motion.div>
         </motion.div>
