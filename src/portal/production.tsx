@@ -1335,8 +1335,8 @@ function ReviewPanel({
               <Button
                 type="button"
                 size="sm"
-                variant="ghost"
-                className="w-full"
+                variant="outline"
+                className="w-full bg-background"
                 onClick={onOpenChat}
               >
                 <MessageSquare data-icon="inline-start" aria-hidden="true" />
