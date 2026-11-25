@@ -1,6 +1,7 @@
 import {
   useEffect,
   useEffectEvent,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -54,6 +55,28 @@ const appearance: Appearance = {
     borderRadius: "8px",
   },
   rules: { ".Input": { border: "1px solid #cbd4e2", boxShadow: "none" } },
+}
+
+const expressCheckoutOptions = {
+  buttonHeight: 44,
+  buttonTheme: { applePay: "black" as const },
+  buttonType: { applePay: "buy" as const },
+  layout: { maxColumns: 1, maxRows: 1 },
+  paymentMethodOrder: ["apple_pay"],
+  paymentMethods: {
+    applePay: "auto" as const,
+    googlePay: "never" as const,
+    link: "never" as const,
+    paypal: "never" as const,
+    amazonPay: "never" as const,
+    klarna: "never" as const,
+  },
+}
+
+const paymentElementOptions = {
+  layout: { type: "accordion" as const, defaultCollapsed: false },
+  paymentMethodOrder: ["card", "us_bank_account"],
+  wallets: { applePay: "never" as const, googlePay: "never" as const },
 }
 
 type Session = { id: string; clientSecret: string }
@@ -168,21 +191,7 @@ function StripeForm({
         aria-hidden={!walletVisible}
       >
         <ExpressCheckoutElement
-          options={{
-            buttonHeight: 44,
-            buttonTheme: { applePay: "black" },
-            buttonType: { applePay: "buy" },
-            layout: { maxColumns: 1, maxRows: 1 },
-            paymentMethodOrder: ["apple_pay"],
-            paymentMethods: {
-              applePay: "auto",
-              googlePay: "never",
-              link: "never",
-              paypal: "never",
-              amazonPay: "never",
-              klarna: "never",
-            },
-          }}
+          options={expressCheckoutOptions}
           onReady={(event) =>
             setWalletVisible(Boolean(event.availablePaymentMethods?.applePay))
           }
@@ -192,11 +201,7 @@ function StripeForm({
       {walletVisible && <Separator />}
       {!ready && <PaymentLoading />}
       <PaymentElement
-        options={{
-          layout: { type: "accordion", defaultCollapsed: false },
-          paymentMethodOrder: ["card", "us_bank_account"],
-          wallets: { applePay: "never", googlePay: "never" },
-        }}
+        options={paymentElementOptions}
         onReady={() => setReady(true)}
         onLoadError={() => setLoadFailed(true)}
       />
@@ -263,8 +268,20 @@ export function StripePreviewPayment({
   const [failedCode, setFailedCode] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const { script, duration } = extras
-  const addonsKey = JSON.stringify(addons ?? [])
-  const addonIdsKey = JSON.stringify(addonIds ?? [])
+  const requestBody = JSON.stringify({
+    planId,
+    planName,
+    planPrice,
+    videoCount,
+    extras: { script, duration },
+    addons: addons?.length ? addons : undefined,
+    addonIds: addonIds?.length ? addonIds : undefined,
+    clientId: clientId || undefined,
+    customerEmail: customerEmail || undefined,
+    customQuoteId: customQuoteId || undefined,
+    projectName: projectName || undefined,
+    locale,
+  })
   const [stripe] = useState(() => loadStripe(publishableKey!, { locale }))
 
   useEffect(() => {
@@ -286,20 +303,7 @@ export function StripePreviewPayment({
         const response = await fetch("/api/stripe-preview/session", {
           method: "POST",
           headers,
-          body: JSON.stringify({
-            planId,
-            planName,
-            planPrice,
-            videoCount,
-            extras: { script, duration },
-            addons: addons?.length ? addons : undefined,
-            addonIds: addonIds?.length ? addonIds : undefined,
-            clientId: clientId || undefined,
-            customerEmail: customerEmail || undefined,
-            customQuoteId: customQuoteId || undefined,
-            projectName: projectName || undefined,
-            locale,
-          }),
+          body: requestBody,
           signal: abort.signal,
         })
         if (!response.ok) {
@@ -312,7 +316,10 @@ export function StripePreviewPayment({
           return
         }
         const result = (await response.json()) as Session
-        if (!abort.signal.aborted) setSession(result)
+        if (!abort.signal.aborted) {
+          setFailedCode(null)
+          setSession(result)
+        }
       } catch {
         if (!abort.signal.aborted) setFailedCode("session_failed")
       }
@@ -321,24 +328,18 @@ export function StripePreviewPayment({
       window.clearTimeout(start)
       abort.abort()
     }
-  }, [
-    planId,
-    planName,
-    planPrice,
-    videoCount,
-    script,
-    duration,
-    addonsKey,
-    addons,
-    addonIdsKey,
-    addonIds,
-    clientId,
-    customerEmail,
-    customQuoteId,
-    projectName,
-    locale,
-    attempt,
-  ])
+  }, [requestBody, attempt])
+
+  const providerOptions = useMemo(
+    () =>
+      session
+        ? {
+            clientSecret: session.clientSecret,
+            elementsOptions: { appearance },
+          }
+        : null,
+    [session]
+  )
 
   function retry() {
     setFailedCode(null)
@@ -377,15 +378,12 @@ export function StripePreviewPayment({
       </Alert>
     )
   }
-  if (!session) return <PaymentLoading />
+  if (!session || !providerOptions) return <PaymentLoading />
   return (
     <CheckoutElementsProvider
       key={session.id}
       stripe={stripe}
-      options={{
-        clientSecret: session.clientSecret,
-        elementsOptions: { appearance },
-      }}
+      options={providerOptions}
     >
       <StripeForm
         session={session}
