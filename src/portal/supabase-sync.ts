@@ -552,7 +552,18 @@ export async function createOrderInDb(
   order: Order,
   addonIds: string[] = [],
   options?: { customQuoteId?: string; receiptUrl?: string }
-) {
+): Promise<{ orderId: string; existed: boolean }> {
+  if (order.paymentSession) {
+    const { data: existing } = await sb
+      .from("orders")
+      .select("id")
+      .eq("stripe_checkout_session_id", order.paymentSession)
+      .maybeSingle()
+    if (existing?.id) {
+      return { orderId: existing.id, existed: true }
+    }
+  }
+
   const method: PaymentMethodType =
     order.method === "apple" || order.method === "ach" ? order.method : "card"
   const { error } = await sb.from("orders").insert({
@@ -572,7 +583,21 @@ export async function createOrderInDb(
     stripe_checkout_session_id: order.paymentSession ?? null,
     receipt_url: options?.receiptUrl ?? order.receiptUrl ?? null,
   })
-  if (error) throw error
+  if (error) {
+    // Handle race condition when Stripe Webhook inserted the order milliseconds earlier
+    if (order.paymentSession && error.code === "23505") {
+      const { data: existing } = await sb
+        .from("orders")
+        .select("id")
+        .eq("stripe_checkout_session_id", order.paymentSession)
+        .maybeSingle()
+      if (existing?.id) {
+        return { orderId: existing.id, existed: true }
+      }
+    }
+    throw error
+  }
+  return { orderId: order.id, existed: false }
 }
 
 export async function updateOrderInDb(

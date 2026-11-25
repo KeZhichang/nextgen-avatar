@@ -73,6 +73,10 @@ const hideSampleData =
     ?.trim()
     .toLowerCase() === "true"
 
+export const marketingSiteUrl = (
+  (import.meta.env.VITE_MARKETING_SITE_URL as string | undefined)?.trim() ?? ""
+).replace(/\/+$/, "")
+
 export const demoExperienceEnabled = !hideSampleData
 export const demoClientEmail = "sarah.lin@gmail.com"
 export const demoClientPassword = "nextgen-demo"
@@ -281,9 +285,9 @@ function order(
     en,
     client,
     status,
-    plan: "pro",
+    plan: "presenter-5",
     count: 5,
-    total: 299,
+    total: 459,
     method: "card",
     owner,
     entries: [],
@@ -979,21 +983,24 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           receiptUrl: options?.receiptUrl,
         }
       )
-        .then(async () => {
-          if (options?.customQuoteId) {
-            await markCustomQuotePaidInDb(live.sb, options.customQuoteId).catch(
-              () => undefined
-            )
+        .then(async ({ existed }) => {
+          if (!existed) {
+            if (options?.customQuoteId) {
+              await markCustomQuotePaidInDb(
+                live.sb,
+                options.customQuoteId
+              ).catch(() => undefined)
+            }
+            await insertNotificationInDb(live.sb, {
+              recipientUserId: live.user.id,
+              orderId: id,
+              eventType: "order_created",
+              titleZh: orderNotif.titleZh,
+              titleEn: orderNotif.titleEn,
+              bodyZh: orderNotif.bodyZh,
+              bodyEn: orderNotif.bodyEn,
+            }).catch(() => undefined)
           }
-          await insertNotificationInDb(live.sb, {
-            recipientUserId: live.user.id,
-            orderId: id,
-            eventType: "order_created",
-            titleZh: orderNotif.titleZh,
-            titleEn: orderNotif.titleEn,
-            bodyZh: orderNotif.bodyZh,
-            bodyEn: orderNotif.bodyEn,
-          }).catch(() => undefined)
           await loadSnapshotForUser(live.user)
         })
         .catch(() => undefined)

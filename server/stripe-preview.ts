@@ -145,6 +145,44 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
       const returnQuery = new URLSearchParams({ plan: planId })
       if (extras.script) returnQuery.set("script", "1")
       if (extras.duration) returnQuery.set("duration", "1")
+      const clientId =
+        typeof inputRecord.clientId === "string" && inputRecord.clientId.trim()
+          ? inputRecord.clientId.trim().slice(0, 64)
+          : ""
+      const customQuoteId =
+        typeof inputRecord.customQuoteId === "string" &&
+        inputRecord.customQuoteId.trim()
+          ? inputRecord.customQuoteId.trim().slice(0, 64)
+          : ""
+      const projectName =
+        typeof inputRecord.projectName === "string" &&
+        inputRecord.projectName.trim()
+          ? inputRecord.projectName.trim().slice(0, 100)
+          : ""
+      const videoCount =
+        typeof inputRecord.videoCount === "number" &&
+        Number.isFinite(inputRecord.videoCount) &&
+        inputRecord.videoCount > 0
+          ? String(Math.floor(inputRecord.videoCount))
+          : presetPlan
+            ? String(presetPlan.count)
+            : ""
+      const addonIds = Array.isArray(inputRecord.addonIds)
+        ? (inputRecord.addonIds as unknown[])
+            .filter(
+              (v): v is string => typeof v === "string" && Boolean(v.trim())
+            )
+            .map((v) => v.trim().slice(0, 32))
+            .slice(0, 10)
+            .join(",")
+        : ""
+      const customerEmail =
+        typeof inputRecord.customerEmail === "string" &&
+        inputRecord.customerEmail.includes("@")
+          ? inputRecord.customerEmail.trim().slice(0, 120)
+          : "checkout-preview@example.com"
+      if (customQuoteId) returnQuery.set("quote", customQuoteId)
+
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
         ui_mode: "elements",
@@ -156,7 +194,7 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
         ],
         locale,
         return_url: `${origin}/${locale}/checkout?${returnQuery}&stripe_session={CHECKOUT_SESSION_ID}`,
-        customer_email: "checkout-preview@example.com",
+        customer_email: customerEmail,
         line_items: details.map(({ name, price }) => ({
           quantity: 1,
           price_data: {
@@ -168,8 +206,14 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
         metadata: {
           purpose,
           planId,
+          locale,
           script: extras.script ? "1" : "0",
           duration: extras.duration ? "1" : "0",
+          ...(clientId ? { clientId } : {}),
+          ...(customQuoteId ? { customQuoteId } : {}),
+          ...(projectName ? { projectName } : {}),
+          ...(videoCount ? { videoCount } : {}),
+          ...(addonIds ? { addonIds } : {}),
         },
       })
       if (

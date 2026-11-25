@@ -57,6 +57,7 @@ import {
   demoClientPassword,
   demoExperienceEnabled,
   formatDollars,
+  marketingSiteUrl,
   useDemo,
   usePortal,
   type CustomQuoteRecord,
@@ -65,6 +66,7 @@ import {
 import {
   StripePreviewPayment,
   StripePreviewStatus,
+  stripeIsLiveMode,
   stripePreviewConfigured,
 } from "./stripe-preview-payment"
 import { ActionLink, BackLink, PageWidth, TopBar } from "./layout"
@@ -266,9 +268,15 @@ export function AuthPage() {
   return (
     <div className="flex min-h-dvh flex-col">
       <TopBar title={t("客户服务平台", "Client Service Platform")}>
-        <ActionLink size="sm" to={href()}>
-          {t("返回首页", "Back to home")}
-        </ActionLink>
+        {marketingSiteUrl ? (
+          <Button asChild variant="outline" size="sm">
+            <a href={marketingSiteUrl}>{t("返回首页", "Back to home")}</a>
+          </Button>
+        ) : (
+          <ActionLink size="sm" to={href()}>
+            {t("返回首页", "Back to home")}
+          </ActionLink>
+        )}
       </TopBar>
       <main className="flex flex-1 items-center justify-center p-4 sm:p-8">
         <Card className="w-full max-w-md shadow-sm">
@@ -495,11 +503,14 @@ export function AuthPage() {
 export function CheckoutPage() {
   const { href, t, zh, locale } = usePortal()
   const [query, setQuery] = useSearchParams()
-  const { data, createOrder, loadCustomQuote } = useDemo()
+  const { data, authUser, createOrder, loadCustomQuote } = useDemo()
   const amount = Number(query.get("amount"))
   const quota = Number(query.get("quota"))
   const quote = query.get("quote")?.trim() || ""
   const queryProject = query.get("project")?.trim().slice(0, 80) ?? ""
+  const [termsAccepted, setTermsAccepted] = useState(
+    () => query.get("terms") === "1" || Boolean(query.get("stripe_session"))
+  )
   const [dbQuote, setDbQuote] = useState<CustomQuoteRecord | null>(null)
 
   useEffect(() => {
@@ -535,20 +546,30 @@ export function CheckoutPage() {
           active: true,
         }
       : undefined
+  const requestedPlanId = query.get("plan")?.trim() || ""
   const activePlans = data.plans.filter((item) => item.active !== false)
+  const fallbackRequestedPlan =
+    requestedPlanId &&
+    !activePlans.some((item) => item.id === requestedPlanId)
+      ? stripePreviewPlans.find(
+          (item) => item.id === requestedPlanId && item.id !== "quote"
+        )
+      : undefined
+  const basePlans = fallbackRequestedPlan
+    ? [fallbackRequestedPlan, ...activePlans]
+    : activePlans
   const plans = quotedPlan
-    ? [...activePlans, quotedPlan]
-    : activePlans.length
-      ? activePlans
+    ? [...basePlans, quotedPlan]
+    : basePlans.length
+      ? basePlans
       : [defaultQuote]
   const activeAddons = data.addons.filter((item) => item.active)
   const [choice, setChoice] = useState(() => {
     if (quotedPlan) return "quote"
-    const requested = query.get("plan")
-    if (requested && plans.some((item) => item.id === requested)) {
-      return requested
+    if (requestedPlanId && plans.some((item) => item.id === requestedPlanId)) {
+      return requestedPlanId
     }
-    return plans[0]?.id ?? "pro"
+    return plans[0]?.id ?? "presenter-5"
   })
   const stripeSession = stripePreviewConfigured
     ? query.get("stripe_session")
@@ -746,6 +767,12 @@ export function CheckoutPage() {
                                 `${item.count} 条 1080P 成片配额`,
                                 `${item.count} 1080P video ${item.count === 1 ? "credit" : "credits"}`
                               )}
+                              {item.renewal
+                                ? t(
+                                    ` · 续费 ${formatDollars(item.renewal)}/月（无自动扣费）`,
+                                    ` · Renew ${formatDollars(item.renewal)}/mo (no auto-charge)`
+                                  )
+                                : ""}
                             </span>
                           </span>
                         </span>
@@ -862,6 +889,40 @@ export function CheckoutPage() {
               </strong>
             </div>
 
+            {!created && !stripeSession && (
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border/80 bg-muted/25 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+                <Checkbox
+                  checked={termsAccepted}
+                  disabled={locked}
+                  onCheckedChange={(checked) =>
+                    setTermsAccepted(checked === true)
+                  }
+                  className="mt-0.5"
+                />
+                <span>
+                  {t("我已确认订单明细并同意 ", "I have reviewed this order and agree to the ")}
+                  <a
+                    href={`${marketingSiteUrl || "https://nextgenavatar.com"}/forms/nextgenavatar-standard-service-terms-2026-11-24-review.txt`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-foreground underline decoration-border underline-offset-2 hover:text-primary"
+                  >
+                    {t("标准制作服务条款", "Standard Production Terms")}
+                  </a>
+                  {t(" 及 ", " and ")}
+                  <a
+                    href={`${marketingSiteUrl || "https://nextgenavatar.com"}/refund-policy`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-foreground underline decoration-border underline-offset-2 hover:text-primary"
+                  >
+                    {t("账单与退款说明", "Billing & refunds")}
+                  </a>
+                  {t("。", ".")}
+                </span>
+              </label>
+            )}
+
             {created ? (
               <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 text-emerald-950">
                 <div className="flex items-start gap-2.5">
@@ -921,14 +982,25 @@ export function CheckoutPage() {
                 planId={plan.id}
                 planName={zh ? plan.zh : plan.en}
                 planPrice={plan.price}
+                videoCount={plan.count}
                 extras={stripeExtras}
                 addons={stripeAddonPayload}
+                addonIds={selectedAddonList.map((item) => item.id)}
+                clientId={authUser && !authUser.isDemo ? authUser.id : undefined}
+                customerEmail={authUser?.email || data.account.email || undefined}
+                customQuoteId={plan.id === "quote" && quote ? quote : undefined}
+                projectName={
+                  plan.id === "quote"
+                    ? resolvedQuoteName
+                    : queryProject || undefined
+                }
+                canSubmit={termsAccepted}
                 total={total}
                 setBusy={setBusy}
               />
             ) : (
               <div className="flex flex-col gap-3">
-                {stripePreviewConfigured && (
+                {stripePreviewConfigured && !stripeIsLiveMode && (
                   <p className="text-xs text-muted-foreground">
                     {t(
                       "测试支付模式，确认后将自动创建订单。",
@@ -939,7 +1011,16 @@ export function CheckoutPage() {
                 <CheckoutPayment
                   total={total}
                   email={data.account.email}
-                  onPay={(method) =>
+                  onPay={(method) => {
+                    if (!termsAccepted) {
+                      toast.warning(
+                        t(
+                          "请先勾选同意服务条款后再完成支付。",
+                          "Please accept the Standard Production Terms before paying."
+                        )
+                      )
+                      return
+                    }
                     setCreated(
                       createOrder(plan, total, method, {
                         projectName: queryProject || undefined,
@@ -948,7 +1029,7 @@ export function CheckoutPage() {
                           .map((item) => item.id),
                       })
                     )
-                  }
+                  }}
                 />
               </div>
             )}

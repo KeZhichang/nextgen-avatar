@@ -31,7 +31,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { usePortal } from "./demo"
+import { marketingSiteUrl, usePortal } from "./demo"
 import { BrandMark, LanguageSwitch } from "./layout"
 
 export type WorkbenchNavItem = {
@@ -219,10 +219,17 @@ function WorkbenchSidebar({
                       {accountActions}
                       {showHomeLink && (
                         <DropdownMenuItem asChild>
-                          <Link to={href()} onClick={closeMenu}>
-                            <Home aria-hidden="true" />
-                            {t("返回官网首页", "Back to website")}
-                          </Link>
+                          {marketingSiteUrl ? (
+                            <a href={marketingSiteUrl} onClick={closeMenu}>
+                              <Home aria-hidden="true" />
+                              {t("返回官网首页", "Back to website")}
+                            </a>
+                          ) : (
+                            <Link to={href()} onClick={closeMenu}>
+                              <Home aria-hidden="true" />
+                              {t("返回官网首页", "Back to website")}
+                            </Link>
+                          )}
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuGroup>

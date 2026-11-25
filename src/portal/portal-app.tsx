@@ -89,11 +89,80 @@ const AdminSettingsPage = lazy(() =>
   }))
 )
 
+function resolveIncomingLocale(search: string) {
+  const params = new URLSearchParams(search)
+  const raw = (params.get("lang") ?? params.get("locale") ?? "")
+    .trim()
+    .toLowerCase()
+  if (raw === "zh" || raw === "zh-cn" || raw === "zh-hans") return "zh"
+  return defaultLocale
+}
+
 function RootRedirect() {
   const { search, hash } = useLocation()
   return (
     <Navigate
-      to={{ pathname: "/" + defaultLocale, search, hash }}
+      to={{ pathname: "/" + resolveIncomingLocale(search), search, hash }}
+      replace
+    />
+  )
+}
+
+function ExternalCheckoutRedirect() {
+  const { plan } = useParams()
+  const { search, hash } = useLocation()
+  const locale = resolveIncomingLocale(search)
+  const params = new URLSearchParams(search)
+  params.delete("lang")
+  params.delete("locale")
+  if (plan) params.set("plan", plan)
+  const query = params.toString()
+  return (
+    <Navigate
+      to={{
+        pathname: `/${locale}/checkout`,
+        search: query ? `?${query}` : "",
+        hash,
+      }}
+      replace
+    />
+  )
+}
+
+function ExternalAuthRedirect({ defaultMode }: { defaultMode?: string }) {
+  const { search, hash } = useLocation()
+  const locale = resolveIncomingLocale(search)
+  const params = new URLSearchParams(search)
+  params.delete("lang")
+  params.delete("locale")
+  if (defaultMode && !params.has("mode")) params.set("mode", defaultMode)
+  const query = params.toString()
+  return (
+    <Navigate
+      to={{
+        pathname: `/${locale}/auth`,
+        search: query ? `?${query}` : "",
+        hash,
+      }}
+      replace
+    />
+  )
+}
+
+function ExternalPathRedirect({ target }: { target: string }) {
+  const { search, hash } = useLocation()
+  const locale = resolveIncomingLocale(search)
+  const params = new URLSearchParams(search)
+  params.delete("lang")
+  params.delete("locale")
+  const query = params.toString()
+  return (
+    <Navigate
+      to={{
+        pathname: `/${locale}/${target}`,
+        search: query ? `?${query}` : "",
+        hash,
+      }}
       replace
     />
   )
@@ -260,6 +329,16 @@ export function PortalApp() {
         <DemoProvider>
           <Routes>
             <Route index element={<RootRedirect />} />
+            {/* Compatibility entry routes for external marketing site links */}
+            <Route path="checkout" element={<ExternalCheckoutRedirect />} />
+            <Route path="checkout/:plan" element={<ExternalCheckoutRedirect />} />
+            <Route path="auth" element={<ExternalAuthRedirect />} />
+            <Route path="account/register" element={<ExternalAuthRedirect defaultMode="register" />} />
+            <Route path="account/*" element={<ExternalAuthRedirect />} />
+            <Route path="portal" element={<ExternalPathRedirect target="workspace" />} />
+            <Route path="portal/*" element={<ExternalPathRedirect target="workspace" />} />
+            <Route path="admin" element={<ExternalPathRedirect target="admin-orders" />} />
+            <Route path="admin/*" element={<ExternalPathRedirect target="admin-orders" />} />
             <Route path=":locale" element={<LocaleLayout />}>
               <Route index element={<MarketingHome />} />
               <Route path="auth" element={<AuthPage />} />

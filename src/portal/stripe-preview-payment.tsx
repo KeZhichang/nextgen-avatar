@@ -27,10 +27,16 @@ import {
 } from "./checkout-catalog"
 import { formatDollars, usePortal } from "./demo"
 
-const publishableKey = import.meta.env.VITE_STRIPE_PREVIEW_PUBLISHABLE_KEY as
-  string | undefined
+const publishableKey = (
+  (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined) ||
+  (import.meta.env.VITE_STRIPE_PREVIEW_PUBLISHABLE_KEY as string | undefined)
+)?.trim()
+
+export const stripeIsLiveMode = Boolean(publishableKey?.startsWith("pk_live_"))
 export const stripePreviewConfigured = Boolean(
-  publishableKey?.startsWith("pk_test_")
+  publishableKey &&
+    (publishableKey.startsWith("pk_test_") ||
+      publishableKey.startsWith("pk_live_"))
 )
 
 const appearance: Appearance = {
@@ -63,11 +69,13 @@ function PaymentLoading() {
 function StripeForm({
   session,
   total,
+  canSubmit = true,
   setBusy,
   retry,
 }: {
   session: Session
   total: number
+  canSubmit?: boolean
   setBusy: (busy: boolean) => void
   retry: () => void
 }) {
@@ -82,7 +90,7 @@ function StripeForm({
   const submitting = useRef(false)
 
   async function confirm(wallet?: StripeExpressCheckoutElementConfirmEvent) {
-    if (result.type !== "success" || submitting.current) return
+    if (result.type !== "success" || submitting.current || !canSubmit) return
     submitting.current = true
     setSubmitting(true)
     setBusy(true)
@@ -196,17 +204,19 @@ function StripeForm({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      <p className="text-xs text-muted-foreground">
-        {t(
-          "测试支付模式，请使用测试卡完成验证。",
-          "Test payment mode. Use a test card to complete checkout."
-        )}
-      </p>
+      {!stripeIsLiveMode && (
+        <p className="text-xs text-muted-foreground">
+          {t(
+            "测试支付模式，请使用测试卡完成验证。",
+            "Test payment mode. Use a test card to complete checkout."
+          )}
+        </p>
+      )}
       <Button
         type="submit"
         size="lg"
         className="min-h-11"
-        disabled={!ready || busy}
+        disabled={!ready || busy || !canSubmit}
       >
         {busy
           ? t("正在确认付款…", "Confirming payment…")
@@ -220,16 +230,30 @@ export function StripePreviewPayment({
   planId,
   planName,
   planPrice,
+  videoCount,
   extras,
   addons,
+  addonIds,
+  clientId,
+  customerEmail,
+  customQuoteId,
+  projectName,
+  canSubmit = true,
   total,
   setBusy,
 }: {
   planId: string
   planName?: string
   planPrice?: number
+  videoCount?: number
   extras: CheckoutExtras
   addons?: { name: string; price: number }[]
+  addonIds?: string[]
+  clientId?: string
+  customerEmail?: string
+  customQuoteId?: string
+  projectName?: string
+  canSubmit?: boolean
   total: number
   setBusy: (busy: boolean) => void
 }) {
@@ -239,6 +263,7 @@ export function StripePreviewPayment({
   const [attempt, setAttempt] = useState(0)
   const { script, duration } = extras
   const addonsKey = JSON.stringify(addons ?? [])
+  const addonIdsKey = JSON.stringify(addonIds ?? [])
   const [stripe] = useState(() => loadStripe(publishableKey!, { locale }))
 
   useEffect(() => {
@@ -252,8 +277,14 @@ export function StripePreviewPayment({
             planId,
             planName,
             planPrice,
+            videoCount,
             extras: { script, duration },
             addons: addons?.length ? addons : undefined,
+            addonIds: addonIds?.length ? addonIds : undefined,
+            clientId: clientId || undefined,
+            customerEmail: customerEmail || undefined,
+            customQuoteId: customQuoteId || undefined,
+            projectName: projectName || undefined,
             locale,
           }),
           signal: abort.signal,
@@ -273,10 +304,17 @@ export function StripePreviewPayment({
     planId,
     planName,
     planPrice,
+    videoCount,
     script,
     duration,
     addonsKey,
     addons,
+    addonIdsKey,
+    addonIds,
+    clientId,
+    customerEmail,
+    customQuoteId,
+    projectName,
     locale,
     attempt,
   ])
@@ -291,10 +329,15 @@ export function StripePreviewPayment({
     return (
       <Alert variant="destructive">
         <AlertDescription className="grid gap-3">
-          {t(
-            "暂时无法连接 Stripe 测试环境。",
-            "Couldn't connect to the Stripe sandbox."
-          )}
+          {stripeIsLiveMode
+            ? t(
+                "暂时无法连接 Stripe 支付服务，请稍后重试。",
+                "Couldn't connect to Stripe checkout. Please try again."
+              )
+            : t(
+                "暂时无法连接 Stripe 测试环境。",
+                "Couldn't connect to the Stripe sandbox."
+              )}
           <Button
             variant="outline"
             className="justify-self-start"
@@ -319,6 +362,7 @@ export function StripePreviewPayment({
       <StripeForm
         session={session}
         total={total}
+        canSubmit={canSubmit}
         setBusy={setBusy}
         retry={retry}
       />

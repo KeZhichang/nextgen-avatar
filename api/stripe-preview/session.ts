@@ -2,12 +2,18 @@ import type { IncomingMessage, ServerResponse } from "node:http"
 import Stripe from "stripe"
 
 const purpose = "nextgen_avatar_checkout_preview"
-const defaultAddons = { script: 49, duration: 79 }
+const defaultAddons = { script: 50, duration: 25 }
 const defaultPlans = [
-  { id: "pro", zh: "专业 5 条套餐", en: "Pro 5-Pack", price: 299 },
-  { id: "trial", zh: "新用户尝鲜单条", en: "Starter Trial", price: 59 },
-  { id: "ent", zh: "企业 15 条套餐", en: "Enterprise 15-Pack", price: 765 },
-  { id: "quote", zh: "定制报价单", en: "Custom quote", price: 1250 },
+  { id: "trial", zh: "体验视频（单条）", en: "Trial Video (1 video)", price: 59, count: 1 },
+  { id: "presenter-5", zh: "AI 标准版口播 · 5 条套餐", en: "AI Standard Presenter · 5 Videos", price: 459, count: 5 },
+  { id: "presenter-10", zh: "AI 标准版口播 · 10 条套餐", en: "AI Standard Presenter · 10 Videos", price: 759, count: 10 },
+  { id: "presenter-15", zh: "AI 标准版口播 · 15 条套餐", en: "AI Standard Presenter · 15 Videos", price: 999, count: 15 },
+  { id: "cinematic-4", zh: "AI 电影版口播 · 4 条套餐", en: "AI Cinematic Presenter · 4 Videos", price: 459, count: 4 },
+  { id: "cinematic-6", zh: "AI 电影版口播 · 6 条套餐", en: "AI Cinematic Presenter · 6 Videos", price: 599, count: 6 },
+  { id: "cinematic-8", zh: "AI 电影版口播 · 8 条套餐", en: "AI Cinematic Presenter · 8 Videos", price: 739, count: 8 },
+  { id: "pro", zh: "专业 5 条套餐", en: "Pro 5-Pack", price: 299, count: 5 },
+  { id: "ent", zh: "企业 15 条套餐", en: "Enterprise 15-Pack", price: 765, count: 15 },
+  { id: "quote", zh: "定制报价单", en: "Custom quote", price: 1250, count: 10 },
 ]
 
 type CheckoutExtras = { script: boolean; duration: boolean }
@@ -19,6 +25,7 @@ type StripePreviewReceipt = {
   method: "card" | "apple" | "ach"
   status: "paid" | "processing" | "open" | "expired" | "failed"
   receiptUrl?: string
+  livemode?: boolean
 }
 
 type Req = IncomingMessage & {
@@ -63,13 +70,19 @@ function resolveOrigin(req: IncomingMessage) {
     : (protoHeader ?? "https")
   const host = req.headers["x-forwarded-host"] ?? req.headers.host
   const cleanHost = Array.isArray(host) ? host[0] : host
-  return cleanHost ? `${proto}://${cleanHost}` : "https://localhost"
+  return cleanHost ? `${proto}://${cleanHost}` : "https://nextgenavatar.com"
 }
 
 export default async function handler(req: Req, res: ServerResponse) {
-  const secret = process.env.STRIPE_PREVIEW_SECRET_KEY?.trim()
-  if (!secret || !/^(?:sk|rk|rkcs)_test_/.test(secret)) {
-    sendJson(res, 503, { error: "preview_unavailable" })
+  const secret = (
+    process.env.STRIPE_SECRET_KEY ||
+    process.env.STRIPE_PREVIEW_SECRET_KEY ||
+    ""
+  ).trim()
+  const isLiveKey = /^(?:sk|rk)_live_/.test(secret)
+  const isTestKey = /^(?:sk|rk|rkcs)_test_/.test(secret)
+  if (!secret || (!isLiveKey && !isTestKey)) {
+    sendJson(res, 503, { error: "stripe_unavailable" })
     return
   }
 
@@ -79,7 +92,7 @@ export default async function handler(req: Req, res: ServerResponse) {
   try {
     if (req.method === "POST") {
       const input = (await readBody(req)) as Record<string, unknown>
-      const planId = typeof input?.planId === "string" ? input.planId : ""
+      const planId = typeof input?.planId === "string" ? input.planId.trim() : ""
       const extras = extrasFrom(input?.extras) ?? {
         script: false,
         duration: false,
@@ -140,13 +153,13 @@ export default async function handler(req: Req, res: ServerResponse) {
       } else {
         if (extras.script) {
           lineItems.push({
-            name: zh ? "额外口播脚本" : "Additional script",
+            name: zh ? "定制口播脚本撰写" : "Custom script copywriting",
             price: defaultAddons.script,
           })
         }
         if (extras.duration) {
           lineItems.push({
-            name: zh ? "延长视频时长" : "Extended duration",
+            name: zh ? "单条延长时长 (+30 秒)" : "Extra runtime (+30 seconds)",
             price: defaultAddons.duration,
           })
         }
@@ -177,12 +190,23 @@ export default async function handler(req: Req, res: ServerResponse) {
         Number.isFinite(input.videoCount) &&
         input.videoCount > 0
           ? String(Math.floor(input.videoCount))
-          : ""
+          : presetPlan
+            ? String(presetPlan.count)
+            : ""
+      const addonIds = Array.isArray(input?.addonIds)
+        ? (input.addonIds as unknown[])
+            .filter((v): v is string => typeof v === "string" && Boolean(v.trim()))
+            .map((v) => v.trim().slice(0, 32))
+            .slice(0, 10)
+            .join(",")
+        : ""
       const customerEmail =
         typeof input?.customerEmail === "string" &&
         input.customerEmail.includes("@")
           ? input.customerEmail.trim().slice(0, 120)
-          : "checkout-preview@example.com"
+          : undefined
+
+      if (customQuoteId) returnQuery.set("quote", customQuoteId)
 
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
@@ -195,7 +219,11 @@ export default async function handler(req: Req, res: ServerResponse) {
         ],
         locale,
         return_url: `${origin}/${locale}/checkout?${returnQuery}&stripe_session={CHECKOUT_SESSION_ID}`,
-        customer_email: customerEmail,
+        ...(customerEmail
+          ? { customer_email: customerEmail }
+          : !isLiveKey
+            ? { customer_email: "checkout-preview@example.com" }
+            : {}),
         line_items: lineItems.map(({ name, price }) => ({
           quantity: 1,
           price_data: {
@@ -214,11 +242,12 @@ export default async function handler(req: Req, res: ServerResponse) {
           ...(customQuoteId ? { customQuoteId } : {}),
           ...(projectName ? { projectName } : {}),
           ...(videoCount ? { videoCount } : {}),
+          ...(addonIds ? { addonIds } : {}),
         },
       })
 
       if (
-        session.livemode ||
+        session.livemode !== isLiveKey ||
         !session.client_secret ||
         session.amount_total !== expectedCents
       ) {
@@ -229,6 +258,7 @@ export default async function handler(req: Req, res: ServerResponse) {
       sendJson(res, 200, {
         id: session.id,
         clientSecret: session.client_secret,
+        livemode: session.livemode,
       })
       return
     }
@@ -236,7 +266,10 @@ export default async function handler(req: Req, res: ServerResponse) {
     if (req.method === "GET") {
       const urlObj = new URL(req.url ?? "/", origin)
       const id = urlObj.searchParams.get("id")
-      if (!id || !/^cs_test_[A-Za-z0-9_]{1,180}$/.test(id)) {
+      const sessionPattern = isLiveKey
+        ? /^cs_live_[A-Za-z0-9_]{1,180}$/
+        : /^cs_test_[A-Za-z0-9_]{1,180}$/
+      if (!id || !sessionPattern.test(id)) {
         sendJson(res, 400, { error: "invalid_session" })
         return
       }
@@ -250,7 +283,7 @@ export default async function handler(req: Req, res: ServerResponse) {
         duration: metadata?.duration === "1",
       }
       if (
-        session.livemode ||
+        session.livemode !== isLiveKey ||
         metadata?.purpose !== purpose ||
         !planId ||
         session.currency !== "usd"
@@ -288,21 +321,18 @@ export default async function handler(req: Req, res: ServerResponse) {
               : session.status === "complete"
                 ? "failed"
                 : "open"
-      const preset = defaultPlans.find((item) => item.id === planId)
-      const total =
-        typeof session.amount_total === "number"
-          ? session.amount_total / 100
-          : (preset?.price ?? 0)
-      const result: StripePreviewReceipt = {
+
+      const receipt: StripePreviewReceipt = {
         id,
         planId,
         extras,
-        total,
+        total: (session.amount_total ?? 0) / 100,
         method,
         status,
         receiptUrl: latestCharge?.receipt_url ?? undefined,
+        livemode: session.livemode,
       }
-      sendJson(res, 200, result)
+      sendJson(res, 200, receipt)
       return
     }
 
