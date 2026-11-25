@@ -124,7 +124,6 @@ import {
   sampleMaterials,
   sampleOrder,
   sampleVideo,
-  studioImage,
   useDemo,
   usePortal,
   useTeamAuth,
@@ -738,7 +737,14 @@ function ChatPanel({
                       >
                         <Message align={own ? "end" : "start"}>
                       <MessageAvatar className="self-start">
-                        <Avatar className="size-8">
+                        <Avatar
+                          className={cn(
+                            "size-8",
+                            !client &&
+                              !showStudioIdentity &&
+                              "bg-card p-1.5 ring-1 ring-border/80 shadow-2xs"
+                          )}
+                        >
                           {showStudioIdentity ? (
                             <AvatarFallback
                               className={cn(
@@ -748,15 +754,26 @@ function ChatPanel({
                             >
                               {sender.slice(0, 1).toUpperCase()}
                             </AvatarFallback>
-                          ) : (
+                          ) : client ? (
                             <>
                               <AvatarImage
-                                src={client ? clientAvatar : studioImage}
+                                src={clientAvatar}
                                 alt=""
                                 referrerPolicy="no-referrer"
                               />
                               <AvatarFallback>
                                 {sender.slice(0, 1)}
+                              </AvatarFallback>
+                            </>
+                          ) : (
+                            <>
+                              <AvatarImage
+                                src="/portal-media/nextgen-avatar-mark-small.png"
+                                alt={t("制作团队", "Production team")}
+                                className="object-contain"
+                              />
+                              <AvatarFallback className="bg-brand-navy text-[10px] font-semibold text-[#ffe8d1]">
+                                NG
                               </AvatarFallback>
                             </>
                           )}
