@@ -595,7 +595,7 @@ function OrderDetailInspector({
               <UserCheck className="size-3.5" aria-hidden="true" />
               <span>{t("负责制作师", "Assigned producer")}</span>
             </div>
-            {canAssign ? (
+            {canAssign && order.status !== "completed" ? (
               <Select
                 value={order.owner || "unassigned"}
                 onValueChange={(value) => onAssign(order.id, value)}
@@ -608,6 +608,14 @@ function OrderDetailInspector({
                     <SelectItem value="unassigned">
                       {t("待分配", "Unassigned")}
                     </SelectItem>
+                    {order.owner &&
+                      !assignableMembers.some(
+                        (item) => item.name === order.owner
+                      ) && (
+                        <SelectItem value={order.owner}>
+                          {order.owner}
+                        </SelectItem>
+                      )}
                     {assignableMembers.map((item) => (
                       <SelectItem key={item.id} value={item.name}>
                         {item.name}
@@ -617,8 +625,20 @@ function OrderDetailInspector({
                 </SelectContent>
               </Select>
             ) : (
-              <Badge variant="secondary" className="font-medium">
-                {order.owner || t("待分配", "Unassigned")}
+              <Badge
+                variant="secondary"
+                title={
+                  order.status === "completed"
+                    ? t("订单已交付，已锁定负责人", "Delivered orders cannot be reassigned")
+                    : undefined
+                }
+                className={cn(
+                  "font-medium",
+                  order.status === "completed" &&
+                    "bg-muted/70 text-muted-foreground"
+                )}
+              >
+                {order.owner || t("未指派", "Unassigned")}
               </Badge>
             )}
           </div>
@@ -1182,7 +1202,18 @@ export function AdminOrdersPage() {
                         const plan = data.plans.find(
                           (item) => item.id === value.plan
                         )
+                        const dbClient = data.clients.find(
+                          (c) =>
+                            (value.clientId && c.id === value.clientId) ||
+                            c.name === value.client
+                        )
                         const meta = clientDirectoryMeta[value.client]
+                        const clientCompany = (
+                          dbClient?.company ||
+                          meta?.company ||
+                          ""
+                        ).replace(" (US)", "")
+                        const isCompleted = value.status === "completed"
                         const deliveredCount = countDeliveredVideos(value)
                         const remaining = Math.max(
                           0,
@@ -1209,7 +1240,7 @@ export function AdminOrdersPage() {
                                 <div
                                   className={cn(
                                     "mt-1 text-xs font-medium tabular-nums",
-                                    value.status === "completed"
+                                    isCompleted
                                       ? "text-muted-foreground"
                                       : "text-emerald-700"
                                   )}
@@ -1231,9 +1262,9 @@ export function AdminOrdersPage() {
                                       ? value.zh
                                       : value.en}
                                 </span>
-                                {canViewAll && meta && (
+                                {canViewAll && clientCompany && (
                                   <span className="text-xs font-normal text-muted-foreground">
-                                    · {meta.company.replace(" (US)", "")}
+                                    · {clientCompany}
                                   </span>
                                 )}
                               </div>
@@ -1245,7 +1276,7 @@ export function AdminOrdersPage() {
                                       : plan.en
                                     : t("定制报价", "Custom quote")}{" "}
                                   ·{" "}
-                                  {value.status === "completed"
+                                  {isCompleted
                                     ? t(
                                         `已交付 · ${deliveredCount} 条`,
                                         `Delivered · ${deliveredCount} video${deliveredCount > 1 ? "s" : ""}`
@@ -1262,54 +1293,77 @@ export function AdminOrdersPage() {
                             </TableCell>
                             <TableCell>
                               {canAssign ? (
-                                <div className="flex items-center gap-2">
-                                  <Select
-                                    value={value.owner || "unassigned"}
-                                    onValueChange={(owner) =>
-                                      assign(value.id, owner)
-                                    }
+                                isCompleted ? (
+                                  <div
+                                    title={t(
+                                      "已交付订单不可重新指派",
+                                      "Delivered orders cannot be reassigned"
+                                    )}
+                                    className="inline-flex h-8 w-36 cursor-not-allowed items-center rounded-md border border-border/60 bg-muted/50 px-2.5 text-xs text-muted-foreground select-none"
                                   >
-                                    <SelectTrigger
-                                      size="sm"
-                                      aria-label={t(
-                                        "订单负责人",
-                                        "Order assignee"
-                                      )}
-                                      className="h-8 w-28 bg-card"
-                                    >
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectGroup>
-                                        <SelectItem value="unassigned">
-                                          {t("待分配", "Unassigned")}
-                                        </SelectItem>
-                                        {assignableMembers.map((person) => (
-                                          <SelectItem
-                                            key={person.id}
-                                            value={person.name}
-                                          >
-                                            {person.name}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectGroup>
-                                    </SelectContent>
-                                  </Select>
-                                  {!value.owner && (
-                                    <Button
-                                      variant="secondary"
-                                      size="xs"
-                                      onClick={() =>
-                                        assign(value.id, firstAssignee)
+                                    <span className="truncate">
+                                      {value.owner || t("已归档", "Archived")}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <Select
+                                      value={value.owner || "unassigned"}
+                                      onValueChange={(owner) =>
+                                        assign(value.id, owner)
                                       }
                                     >
-                                      {t(
-                                        `派给 ${firstAssignee}`,
-                                        `Assign ${firstAssignee}`
-                                      )}
-                                    </Button>
-                                  )}
-                                </div>
+                                      <SelectTrigger
+                                        size="sm"
+                                        aria-label={t(
+                                          "订单负责人",
+                                          "Order assignee"
+                                        )}
+                                        className="h-8 w-36 bg-card"
+                                      >
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectGroup>
+                                          <SelectItem value="unassigned">
+                                            {t("待分配", "Unassigned")}
+                                          </SelectItem>
+                                          {value.owner &&
+                                            !assignableMembers.some(
+                                              (person) =>
+                                                person.name === value.owner
+                                            ) && (
+                                              <SelectItem value={value.owner}>
+                                                {value.owner}
+                                              </SelectItem>
+                                            )}
+                                          {assignableMembers.map((person) => (
+                                            <SelectItem
+                                              key={person.id}
+                                              value={person.name}
+                                            >
+                                              {person.name}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectGroup>
+                                      </SelectContent>
+                                    </Select>
+                                    {!value.owner && (
+                                      <Button
+                                        variant="secondary"
+                                        size="xs"
+                                        onClick={() =>
+                                          assign(value.id, firstAssignee)
+                                        }
+                                      >
+                                        {t(
+                                          `派给 ${firstAssignee}`,
+                                          `Assign ${firstAssignee}`
+                                        )}
+                                      </Button>
+                                    )}
+                                  </div>
+                                )
                               ) : (
                                 <span className="text-sm text-muted-foreground">
                                   {value.owner || t("待分配", "Unassigned")}

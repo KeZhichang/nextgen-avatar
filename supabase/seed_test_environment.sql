@@ -257,9 +257,10 @@ begin
     (
       'NGA-20261125-DONE', v_client_uid,
       '数字人首单体验样片', 'Digital Presenter Trial Video',
-      'completed', 'trial', 1, 1, 5900, 'usd', 'card', v_admin_member_id
+      'completed', 'trial', 1, 1, 5900, 'usd', 'card', v_producer_member_id
     )
-  on conflict (id) do nothing;
+  on conflict (id) do update
+    set assigned_member_id = coalesce(public.orders.assigned_member_id, excluded.assigned_member_id);
 
   -- 3.7 写入真实聊天记录（幂等：仅当该订单暂无消息时写入）
   if not exists (select 1 from public.order_messages where order_id = 'NGA-20261125-PROD') then
@@ -269,9 +270,19 @@ begin
   end if;
 
   if not exists (select 1 from public.order_messages where order_id = 'NGA-20261125-REVW') then
-    insert into public.order_messages (order_id, sender_user_id, sender_side, body) values
-      ('NGA-20261125-REVW', v_client_uid, 'client', 'Uploaded our presenter reference video and voice sample. Please keep captions crisp and clean.'),
-      ('NGA-20261125-REVW', v_producer_uid, 'studio', 'Initial draft v1 is now ready for your online review. Let us know if you would like any pacing tweaks!');
+    insert into public.order_messages (order_id, sender_user_id, sender_side, body, metadata) values
+      ('NGA-20261125-REVW', v_client_uid, 'client', 'Uploaded our presenter reference video and voice sample. Please keep captions crisp and clean.', '{}'::jsonb),
+      ('NGA-20261125-REVW', v_producer_uid, 'studio', 'Initial draft v1 is now ready for your online review. Let us know if you would like any pacing tweaks!',
+        '{"versionRef":{"id":"v1","type":"preview","itemIndex":1,"note":"初稿 v1 已完成口型同步与双语字幕，请审片确认。"}}'::jsonb);
+  end if;
+
+  if not exists (select 1 from public.order_messages where order_id = 'NGA-20261125-DONE') then
+    insert into public.order_messages (order_id, sender_user_id, sender_side, body, metadata) values
+      ('NGA-20261125-DONE', v_client_uid, 'client', 'Here is our presenter photo and 45-second intro script for the trial video.', '{}'::jsonb),
+      ('NGA-20261125-DONE', v_producer_uid, 'studio', 'Materials confirmed! Rendering your trial presenter preview now.', '{}'::jsonb),
+      ('NGA-20261125-DONE', v_client_uid, 'client', 'Looks super natural and lip-sync is spot on. Approved for final 1080P delivery!', '{}'::jsonb),
+      ('NGA-20261125-DONE', v_producer_uid, 'studio', '1080P final video has been delivered. Thank you for working with NextGen Avatar!',
+        '{"versionRef":{"id":"final","type":"final","itemIndex":1,"note":"1080P 正式成片已交付。"}}'::jsonb);
   end if;
 
   -- 3.8 写入真实视频版本记录（使用静态可播放示例 MP4 方便直接在线预览，后续上传的新版本将直传 R2）
