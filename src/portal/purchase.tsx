@@ -4,7 +4,6 @@ import { LayoutGroup, motion } from "motion/react"
 import {
   Check,
   CheckCircle2,
-  Clapperboard,
   Copy,
   Eye,
   EyeOff,
@@ -12,9 +11,7 @@ import {
   LogIn,
   Mail,
   ShieldCheck,
-  Sparkles,
   UserRound,
-  Video,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "cn"
@@ -69,6 +66,11 @@ import {
   stripePreviewConfigured,
 } from "./stripe-preview-payment"
 import { BackLink, PageWidth, TopBar } from "./layout"
+import {
+  AppMorphIcon,
+  checkoutPlanMorphIcons,
+  type MorphIconPair,
+} from "./morph-icons"
 
 const authModes = ["login", "register", "forgot"] as const
 type AuthMode = (typeof authModes)[number]
@@ -803,7 +805,7 @@ export function CheckoutPage() {
     id: PlanFamily
     title: string
     summary: string
-    icon: typeof Video
+    morph: MorphIconPair
     items: Plan[]
   }[] = [
     ...(presenterPlans.length > 0
@@ -815,7 +817,7 @@ export function CheckoutPage() {
               "固定机位自然口播 · 适合科普、教学与品牌日常更新",
               "Fixed-camera natural delivery · Ideal for explainers & FAQs"
             ),
-            icon: Video,
+            morph: checkoutPlanMorphIcons.presenter,
             items: presenterPlans,
           },
         ]
@@ -829,7 +831,7 @@ export function CheckoutPage() {
               "多场景多机位运镜 · 适合新品发布、商业广告与品牌片",
               "Multi-scene angles & transitions · Built for launches & brand films"
             ),
-            icon: Clapperboard,
+            morph: checkoutPlanMorphIcons.cinematic,
             items: cinematicPlans,
           },
         ]
@@ -843,7 +845,7 @@ export function CheckoutPage() {
               "更多定制化制作配额方案",
               "Additional production packages"
             ),
-            icon: Sparkles,
+            morph: checkoutPlanMorphIcons.other,
             items: otherStandardPlans,
           },
         ]
@@ -1053,7 +1055,6 @@ export function CheckoutPage() {
                         )}
                       >
                         {families.map((family) => {
-                          const Icon = family.icon
                           const isFamilyActive =
                             plan.id !== "trial" &&
                             plan.id !== "quote" &&
@@ -1089,15 +1090,20 @@ export function CheckoutPage() {
                                 <span className="inline-flex items-center gap-2 font-semibold text-foreground">
                                   <span
                                     className={cn(
-                                      "flex size-7 items-center justify-center rounded-lg border transition-colors",
+                                      "flex size-7 items-center justify-center rounded-lg border transition-colors duration-200",
                                       isFamilyActive
                                         ? "border-primary/25 bg-primary text-primary-foreground"
                                         : "border-border bg-muted/60 text-muted-foreground"
                                     )}
                                   >
-                                    <Icon
+                                    <AppMorphIcon
+                                      icon={
+                                        isFamilyActive
+                                          ? family.morph.active
+                                          : family.morph.idle
+                                      }
+                                      size={15}
                                       aria-hidden="true"
-                                      className="size-3.5"
                                     />
                                   </span>
                                   <span className="text-sm">{family.title}</span>
@@ -1231,13 +1237,21 @@ export function CheckoutPage() {
                     <div className="flex min-w-0 items-center gap-3">
                       <span
                         className={cn(
-                          "flex size-8 shrink-0 items-center justify-center rounded-lg border",
+                          "flex size-8 shrink-0 items-center justify-center rounded-lg border transition-colors duration-200",
                           plan.id === trialPlan.id
                             ? "border-primary/30 bg-primary text-primary-foreground"
                             : "border-border bg-card text-primary"
                         )}
                       >
-                        <Sparkles aria-hidden="true" className="size-4" />
+                        <AppMorphIcon
+                          icon={
+                            plan.id === trialPlan.id
+                              ? checkoutPlanMorphIcons.trial.active
+                              : checkoutPlanMorphIcons.trial.idle
+                          }
+                          size={16}
+                          aria-hidden="true"
+                        />
                       </span>
                       <div className="flex min-w-0 flex-col gap-0.5">
                         <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
