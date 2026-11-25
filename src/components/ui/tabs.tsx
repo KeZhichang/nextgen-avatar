@@ -3,76 +3,32 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
-import { LayoutGroup, motion, useReducedMotion } from "motion/react"
-import { Tabs as TabsPrimitive } from "radix-ui"
-
-type TabsContextValue = {
-  value: string | undefined
-  layoutId: string
-}
-
-const TabsContext = React.createContext<TabsContextValue>({
-  value: undefined,
-  layoutId: "",
-})
-
-type TabsListContextValue = {
-  variant: "default" | "line"
-}
-
-const TabsListContext = React.createContext<TabsListContextValue>({
-  variant: "default",
-})
+import * as TabsPrimitive from "@animate-ui/react/primitives/radix-ui/tabs"
 
 function Tabs({
   className,
   orientation = "horizontal",
-  value: valueProp,
-  defaultValue,
-  onValueChange,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Root>) {
-  const autoId = React.useId()
-  const isControlled = valueProp !== undefined
-  const [uncontrolledValue, setUncontrolledValue] = React.useState(defaultValue)
-  const activeValue = isControlled ? valueProp : uncontrolledValue
-  const layoutId = `tabs-indicator-${autoId}`
-
-  const handleValueChange = React.useCallback(
-    (next: string) => {
-      if (!isControlled) setUncontrolledValue(next)
-      onValueChange?.(next)
-    },
-    [isControlled, onValueChange]
-  )
-
   return (
-    <TabsContext.Provider value={{ value: activeValue, layoutId }}>
-      <LayoutGroup id={layoutId}>
-        <TabsPrimitive.Root
-          data-slot="tabs"
-          data-orientation={orientation}
-          orientation={orientation}
-          value={activeValue}
-          defaultValue={defaultValue}
-          onValueChange={handleValueChange}
-          className={cn(
-            "group/tabs flex gap-2 data-horizontal:flex-col",
-            className
-          )}
-          {...props}
-        />
-      </LayoutGroup>
-    </TabsContext.Provider>
+    <TabsPrimitive.Root
+      data-slot="tabs"
+      data-orientation={orientation}
+      className={cn(
+        "group/tabs flex gap-2 data-horizontal:flex-col",
+        className
+      )}
+      {...props}
+    />
   )
 }
 
 const tabsListVariants = cva(
-  "group/tabs-list relative inline-flex min-h-8 w-fit items-stretch justify-center rounded-lg p-[3px] text-muted-foreground group-data-vertical/tabs:flex-col data-[variant=line]:rounded-none",
+  "group/tabs-list inline-flex min-h-8 w-fit items-stretch justify-center rounded-lg p-[3px] text-muted-foreground group-data-vertical/tabs:flex-col data-[variant=line]:rounded-none",
   {
     variants: {
       variant: {
-        default: "border border-border/70 bg-muted/80",
+        default: "bg-muted",
         line: "gap-1 bg-transparent",
       },
     },
@@ -85,91 +41,54 @@ const tabsListVariants = cva(
 function TabsList({
   className,
   variant = "default",
+  transition = { type: "spring", stiffness: 420, damping: 34, mass: 0.88 },
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List> &
   VariantProps<typeof tabsListVariants>) {
-  const resolvedVariant = variant ?? "default"
   return (
-    <TabsListContext.Provider value={{ variant: resolvedVariant }}>
-      <TabsPrimitive.List
-        data-slot="tabs-list"
-        data-variant={resolvedVariant}
-        className={cn(tabsListVariants({ variant: resolvedVariant }), className)}
-        {...props}
-      />
-    </TabsListContext.Provider>
+    <TabsPrimitive.List
+      data-slot="tabs-list"
+      data-variant={variant}
+      transition={transition}
+      className={cn(tabsListVariants({ variant }), className)}
+      {...props}
+    />
   )
 }
 
 function TabsTrigger({
   className,
-  children,
-  value,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
-  const { value: activeValue, layoutId } = React.useContext(TabsContext)
-  const { variant } = React.useContext(TabsListContext)
-  const prefersReducedMotion = useReducedMotion()
-  const isSelected = activeValue !== undefined && activeValue === value
-
   return (
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
-      value={value}
       className={cn(
-        "relative inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2.5 py-1 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors duration-200 group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 data-[state=active]:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative inline-flex flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2.5 py-0.5 text-sm font-medium whitespace-nowrap text-foreground/60 outline-none transition-colors group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-foreground disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 dark:text-muted-foreground dark:hover:text-foreground group-data-[variant=default]/tabs-list:data-active:shadow-sm group-data-[variant=line]/tabs-list:data-active:shadow-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-active:bg-transparent dark:group-data-[variant=line]/tabs-list:data-active:border-transparent dark:group-data-[variant=line]/tabs-list:data-active:bg-transparent",
+        "data-active:bg-background data-active:text-foreground dark:data-active:border-input dark:data-active:bg-input/30 dark:data-active:text-foreground",
+        "after:absolute after:bg-foreground after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:bottom-[-5px] group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100",
         className
       )}
       {...props}
-    >
-      {isSelected && layoutId && (
-        <motion.span
-          layoutId={layoutId}
-          aria-hidden="true"
-          transition={
-            prefersReducedMotion
-              ? { duration: 0 }
-              : { type: "spring", stiffness: 420, damping: 34, mass: 0.88 }
-          }
-          className={cn(
-            "pointer-events-none absolute z-0",
-            variant === "line"
-              ? "inset-x-0 -bottom-[3px] h-0.5 rounded-full bg-primary"
-              : "inset-0 rounded-md bg-card shadow-xs"
-          )}
-        />
-      )}
-      <span className="relative z-10 inline-flex items-center gap-1.5">
-        {children}
-      </span>
-    </TabsPrimitive.Trigger>
+    />
   )
 }
 
 function TabsContent({
   className,
-  children,
+  transition = { duration: 0.18, ease: "easeOut" },
+  exitTransition = { duration: 0.1, ease: "easeIn" },
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Content>) {
-  const prefersReducedMotion = useReducedMotion()
   return (
     <TabsPrimitive.Content
       data-slot="tabs-content"
       className={cn("flex-1 text-sm outline-none", className)}
+      transition={transition}
+      exitTransition={exitTransition}
       {...props}
-    >
-      <motion.div
-        initial={prefersReducedMotion ? false : { opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={
-          prefersReducedMotion
-            ? { duration: 0 }
-            : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
-        }
-      >
-        {children}
-      </motion.div>
-    </TabsPrimitive.Content>
+    />
   )
 }
 

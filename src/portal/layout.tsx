@@ -122,7 +122,7 @@ export function LanguageSwitch({ dark = false }: { dark?: boolean }) {
                 }
               }}
               className={cn(
-                "relative inline-flex h-7 items-center justify-center rounded-md px-2.5 text-xs font-medium transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                "relative inline-flex h-7 items-center justify-center rounded-md px-2.5 text-xs font-medium outline-none transition-colors duration-200",
                 option.minWidth,
                 selected
                   ? dark
