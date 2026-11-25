@@ -195,7 +195,8 @@ export function EditableOrderTitle({ order }: { order: Order }) {
 function useOrder() {
   const [query] = useSearchParams()
   const { data } = useDemo()
-  const id = query.get("order") ?? sampleOrder
+  const id = query.get("order")
+  if (!id) return data.orders[0]
   return data.orders.find((value) => value.id === id)
 }
 
@@ -269,7 +270,7 @@ function ChatPanel({
       ? data.account.avatarUrl
       : clientImage
   const sample: Entry[] =
-    order.id === sampleOrder
+    order.demo && order.id === sampleOrder
       ? [
         {
           id: "sample-client",
@@ -1118,18 +1119,19 @@ function ClientOrderHubPage({
   initialView: "chat" | "review"
 }) {
   const current = useOrder()
-  const { data } = useDemo()
+  const { data, authUser } = useDemo()
   const { t, href, zh } = usePortal()
   const navigate = useNavigate()
   const [listFilter, setListFilter] = useState<"all" | "review">("all")
   const [search, setSearch] = useState("")
   const [selectedVersionId, setSelectedVersionId] = useState("")
 
-  const threads = data.orders.filter(
-    (value) => value.client === data.account.name
-  )
-  const order =
-    current && current.client === data.account.name ? current : threads[0]
+  const isOwnOrder = (value: Order) =>
+    authUser && !authUser.isDemo && value.clientId
+      ? value.clientId === authUser.id
+      : value.client === data.account.name
+  const threads = data.orders.filter(isOwnOrder)
+  const order = current && isOwnOrder(current) ? current : threads[0]
 
   if (!order) return <MissingOrder />
 
@@ -1469,7 +1471,8 @@ export function StudioWorkspacePage() {
     .filter((entry) => entry.side === "client")
     .flatMap(entryAttachments)
   const totalMaterialCount =
-    attachments.length + (order.id === sampleOrder ? sampleMaterials.length : 0)
+    attachments.length +
+    (order.demo && order.id === sampleOrder ? sampleMaterials.length : 0)
   const canDeliver = hasFinalPerm
   const file = files[0]
 
@@ -1574,7 +1577,7 @@ export function StudioWorkspacePage() {
   async function packageMaterials() {
     try {
       const content: Record<string, Uint8Array> = {}
-      if (order.id === sampleOrder) {
+      if (order.demo && order.id === sampleOrder) {
         const samples = await Promise.all(
           sampleMaterials.map(async (item) => {
             const response = await fetch(item.src)
@@ -1805,7 +1808,8 @@ export function StudioWorkspacePage() {
                     {t("打包下载", "Download ZIP")}
                   </Button>
                 </div>
-                {order.id === sampleOrder &&
+                {order.demo &&
+                  order.id === sampleOrder &&
                   sampleMaterials.map((item) => (
                     <Button
                       key={item.src}

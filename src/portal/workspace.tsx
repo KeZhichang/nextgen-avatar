@@ -78,7 +78,6 @@ import {
   coverImage,
   formatDollars,
   getVersionCode,
-  sampleOrder,
   sampleVideo,
   useDemo,
   usePortal,
@@ -121,6 +120,7 @@ export function ClientConsoleShell() {
   const { t, href, zh } = usePortal()
   const {
     data,
+    authUser,
     isLiveSupabase,
     signOutAll,
     markNotificationRead,
@@ -130,8 +130,10 @@ export function ClientConsoleShell() {
   const { pathname } = useLocation()
   const [query] = useSearchParams()
 
-  const orders = data.orders.filter(
-    (value) => value.client === data.account.name
+  const orders = data.orders.filter((value) =>
+    authUser && !authUser.isDemo && value.clientId
+      ? value.clientId === authUser.id
+      : value.client === data.account.name
   )
   const unreadNotifications = data.notifications.filter((item) => !item.isRead)
   const unreadCount = unreadNotifications.length
@@ -143,7 +145,7 @@ export function ClientConsoleShell() {
     orders.find((value) => value.id === contextOrderId) ??
     orders.find((value) => value.status === "waiting_confirm") ??
     orders[0]
-  const orderParams = { order: contextOrder?.id ?? sampleOrder }
+  const orderParams = contextOrder ? { order: contextOrder.id } : undefined
 
   const isHub =
     pathname.includes("/order-chat") || pathname.includes("/video-review")
@@ -607,8 +609,10 @@ export function WorkspacePage() {
         ? "profile"
         : "overview"
   const [filter, setFilter] = useState("all")
-  const orders = data.orders.filter(
-    (value) => value.client === data.account.name
+  const orders = data.orders.filter((value) =>
+    authUser && !authUser.isDemo && value.clientId
+      ? value.clientId === authUser.id
+      : value.client === data.account.name
   )
   const active = orders.filter((value) => value.status !== "completed").length
   const delivered = orders.filter((value) => countDeliveredVideos(value) > 0)

@@ -69,7 +69,7 @@ import {
   stripeIsLiveMode,
   stripePreviewConfigured,
 } from "./stripe-preview-payment"
-import { ActionLink, BackLink, PageWidth, TopBar } from "./layout"
+import { BackLink, PageWidth, TopBar } from "./layout"
 
 const authModes = ["login", "register", "forgot"] as const
 type AuthMode = (typeof authModes)[number]
@@ -270,13 +270,9 @@ export function AuthPage() {
       <TopBar title={t("客户服务平台", "Client Service Platform")}>
         {marketingSiteUrl ? (
           <Button asChild variant="outline" size="sm">
-            <a href={marketingSiteUrl}>{t("返回首页", "Back to home")}</a>
+            <a href={marketingSiteUrl}>{t("返回官网", "Back to website")}</a>
           </Button>
-        ) : (
-          <ActionLink size="sm" to={href()}>
-            {t("返回首页", "Back to home")}
-          </ActionLink>
-        )}
+        ) : null}
       </TopBar>
       <main className="flex flex-1 items-center justify-center p-4 sm:p-8">
         <Card className="w-full max-w-md shadow-sm">
@@ -494,6 +490,15 @@ export function AuthPage() {
               ))}
             </Tabs>
           </CardContent>
+          <CardFooter className="justify-between border-t bg-muted/25 py-3 text-xs text-muted-foreground">
+            <span>{t("内部制作或管理员？", "Studio team or admin?")}</span>
+            <Link
+              to={href("admin/login")}
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {t("前往管理后台登录 →", "Studio Console sign in →")}
+            </Link>
+          </CardFooter>
         </Card>
       </main>
     </div>

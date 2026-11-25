@@ -165,7 +165,7 @@ export function TopBar({
                   : "text-foreground hover:text-primary"
               }
             >
-              <Link to={href()}>
+              <Link to={studio ? href("admin-orders") : href()}>
                 <BrandMark studio={studio} dark={dark} />
               </Link>
             </BreadcrumbLink>

@@ -115,7 +115,6 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   demoExperienceEnabled,
   demoTeamPassword,
-  sampleOrder,
   studioImage,
   useDemo,
   usePortal,
@@ -253,9 +252,10 @@ function TeamConsoleShell() {
             label: t("制作协同", "Production"),
             icon: Headphones,
             active: activeNav === "production",
-            to: href("admin-workspace", {
-              order: studioTarget?.id ?? sampleOrder,
-            }),
+            to: href(
+              "admin-workspace",
+              studioTarget ? { order: studioTarget.id } : undefined
+            ),
           },
         ]
       : []),
@@ -651,11 +651,16 @@ export function AdminLoginPage() {
             )}
           </CardContent>
 
-          <CardFooter className="justify-center text-center text-xs text-muted-foreground">
-            {t(
-              "内部账号由管理员统一分配，不支持公开注册。",
-              "Accounts are provisioned by administrators."
-            )}
+          <CardFooter className="flex-col gap-2 border-t bg-muted/25 py-3 text-center text-xs text-muted-foreground">
+            <span>
+              {t(
+                "内部账号由管理员统一分配，不支持公开注册。",
+                "Accounts are provisioned by administrators."
+              )}
+            </span>
+            <ActionLink size="xs" variant="ghost" to={href("auth")}>
+              {t("← 返回客户端登录", "← Back to client sign in")}
+            </ActionLink>
           </CardFooter>
         </Card>
       </main>

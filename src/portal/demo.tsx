@@ -68,16 +68,21 @@ export type {
 
 export const sampleOrder = "NGA-20261108"
 const storageKey = "nextgen-avatar-demo-v2"
-const hideSampleData =
-  (import.meta.env.VITE_HIDE_SAMPLE_DATA as string | undefined)
+const enableLocalDemoInSupabase =
+  (import.meta.env.VITE_ENABLE_DEMO_MODE as string | undefined)
     ?.trim()
     .toLowerCase() === "true"
+const hideSampleData = supabaseConfigured
+  ? !enableLocalDemoInSupabase
+  : (import.meta.env.VITE_HIDE_SAMPLE_DATA as string | undefined)
+      ?.trim()
+      .toLowerCase() === "true"
 
 export const marketingSiteUrl = (
   (import.meta.env.VITE_MARKETING_SITE_URL as string | undefined)?.trim() ?? ""
 ).replace(/\/+$/, "")
 
-export const demoExperienceEnabled = !hideSampleData
+export const demoExperienceEnabled = !supabaseConfigured || !hideSampleData
 export const demoClientEmail = "sarah.lin@gmail.com"
 export const demoClientPassword = "nextgen-demo"
 export const demoTeamPassword = "studio-demo"

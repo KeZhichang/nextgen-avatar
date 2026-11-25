@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect, useRef } from "react"
+import { lazy, Suspense, useEffect } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Separator } from "@/components/ui/separator"
+import { Spinner } from "@/components/ui/spinner"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import {
@@ -10,7 +10,6 @@ import {
   Route,
   Routes,
   useLocation,
-  useNavigate,
   useParams,
 } from "react-router"
 import { Compass } from "lucide-react"
@@ -25,7 +24,7 @@ import {
 } from "@/components/ui/empty"
 import { DemoProvider, useDemo, usePortal, useTeamAuth } from "./demo"
 import { defaultLocale, isLocale, setDocumentLocale } from "./i18n"
-import { ActionLink, FadeTransition, LanguageSwitch, PageWidth } from "./layout"
+import { ActionLink, FadeTransition, PageWidth } from "./layout"
 
 const AuthPage = lazy(() =>
   import("./purchase").then(({ AuthPage }) => ({ default: AuthPage }))
@@ -214,84 +213,33 @@ function LocaleLayout() {
   )
 }
 
-function MarketingHome() {
-  const { locale, t, href } = usePortal()
-  const { data } = useDemo()
-  const { isAuthenticated } = useTeamAuth()
-  const navigate = useNavigate()
-  const frame = useRef<HTMLIFrameElement>(null)
+function LocaleIndexEntry() {
+  const { href } = usePortal()
+  const { search, hash } = useLocation()
+  const { isLiveSupabase, authLoading, authUser } = useDemo()
+  const { isAuthenticated: isTeamAuthenticated } = useTeamAuth()
 
-  useEffect(() => {
-    function handleMessage(event: MessageEvent) {
-      if (
-        event.source !== frame.current?.contentWindow ||
-        event.origin !== window.location.origin
-      )
-        return
-      if (event.data?.type === "nextgen-marketing-ready") {
-        frame.current?.contentWindow?.postMessage(
-          { type: "nextgen-marketing-catalog", plans: data.plans },
-          window.location.origin
-        )
-        return
-      }
-      if (event.data?.type !== "nextgen-marketing-checkout") return
-      const plan = event.data.plan
-      if (typeof plan !== "string" || !plan.trim()) return
-      void navigate(
-        "/" +
-          locale +
-          "/auth?redirect=checkout&plan=" +
-          encodeURIComponent(plan)
-      )
-    }
-    window.addEventListener("message", handleMessage)
-    return () => window.removeEventListener("message", handleMessage)
-  }, [locale, navigate, data.plans])
-
-  function sendCatalog() {
-    frame.current?.contentWindow?.postMessage(
-      { type: "nextgen-marketing-catalog", plans: data.plans },
-      window.location.origin
+  if (isLiveSupabase && authLoading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-background">
+        <Spinner className="size-6 text-primary" />
+      </div>
     )
   }
 
-  useEffect(() => {
-    frame.current?.contentWindow?.postMessage(
-      { type: "nextgen-marketing-catalog", plans: data.plans },
-      window.location.origin
-    )
-  }, [data.plans])
+  if (isTeamAuthenticated) {
+    return <Navigate to={href("admin-orders")} replace />
+  }
+
+  if (isLiveSupabase && authUser) {
+    return <Navigate to={href("workspace")} replace />
+  }
 
   return (
-    <main className="relative h-dvh bg-card">
-      <iframe
-        ref={frame}
-        src={"/marketing/index.html?portal=" + locale}
-        title={t("NextGen Avatar 官网", "NextGen Avatar website")}
-        className="block size-full border-0"
-        onLoad={sendCatalog}
-      />
-      <nav
-        aria-label={t("工作台入口", "Workspace shortcuts")}
-        className="absolute right-3 bottom-3 z-10 flex flex-wrap items-center justify-end gap-2 rounded-xl border border-border bg-card/95 p-1.5 shadow-lg backdrop-blur-md sm:right-5 sm:bottom-5"
-      >
-        <LanguageSwitch />
-        <Separator
-          orientation="vertical"
-          className="hidden h-5 data-vertical:self-center sm:block"
-        />
-        <ActionLink primary size="sm" to={href("auth")}>
-          {t("客户登录", "Client login")}
-        </ActionLink>
-        <ActionLink
-          size="sm"
-          to={href(isAuthenticated ? "admin-orders" : "admin/login")}
-        >
-          {t("制作后台", "Team console")}
-        </ActionLink>
-      </nav>
-    </main>
+    <Navigate
+      to={{ pathname: href("auth"), search, hash }}
+      replace
+    />
   )
 }
 
@@ -314,7 +262,7 @@ function NotFound() {
         </EmptyHeader>
         <EmptyContent>
           <ActionLink primary to={href()}>
-            {t("返回首页", "Back to home")}
+            {t("返回登录 / 工作台", "Back to sign in")}
           </ActionLink>
         </EmptyContent>
       </Empty>
@@ -340,7 +288,7 @@ export function PortalApp() {
             <Route path="admin" element={<ExternalPathRedirect target="admin-orders" />} />
             <Route path="admin/*" element={<ExternalPathRedirect target="admin-orders" />} />
             <Route path=":locale" element={<LocaleLayout />}>
-              <Route index element={<MarketingHome />} />
+              <Route index element={<LocaleIndexEntry />} />
               <Route path="auth" element={<AuthPage />} />
               <Route element={<RequireClientAuth />}>
                 <Route path="checkout" element={<CheckoutPage />} />

@@ -276,7 +276,7 @@ function OrderDetailInspector({
   )
 
   const recentEntries = [
-    ...(order.id === sampleOrder && order.entries.length === 0
+    ...(order.demo && order.id === sampleOrder && order.entries.length === 0
       ? [
           {
             id: "inspector-sample-1",

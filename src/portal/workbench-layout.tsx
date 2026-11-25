@@ -212,24 +212,17 @@ function WorkbenchSidebar({
                     </span>
                   </div>
                 </DropdownMenuLabel>
-                {(accountActions || showHomeLink) && (
+                {(accountActions || (showHomeLink && marketingSiteUrl)) && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuGroup>
                       {accountActions}
-                      {showHomeLink && (
+                      {showHomeLink && marketingSiteUrl && (
                         <DropdownMenuItem asChild>
-                          {marketingSiteUrl ? (
-                            <a href={marketingSiteUrl} onClick={closeMenu}>
-                              <Home aria-hidden="true" />
-                              {t("返回官网首页", "Back to website")}
-                            </a>
-                          ) : (
-                            <Link to={href()} onClick={closeMenu}>
-                              <Home aria-hidden="true" />
-                              {t("返回官网首页", "Back to website")}
-                            </Link>
-                          )}
+                          <a href={marketingSiteUrl} onClick={closeMenu}>
+                            <Home aria-hidden="true" />
+                            {t("返回官网首页", "Back to website")}
+                          </a>
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuGroup>
