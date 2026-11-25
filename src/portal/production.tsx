@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import { useLocation, useNavigate, useSearchParams } from "react-router"
-import { LayoutGroup, motion, useReducedMotion } from "motion/react"
+import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/react"
 import {
   AlertTriangle,
   ArrowDown,
@@ -401,16 +401,27 @@ function ChatPanel({
                   </EmptyHeader>
                 </Empty>
               )}
-              {entries.map((entry) => {
-                const own = entry.side === side
-                const client = entry.side === "client"
-                const sender = client
-                  ? order.client
-                  : t("制作团队", "Production team")
-                const attachments = entryAttachments(entry)
-                return (
-                  <MessageScrollerItem key={entry.id} messageId={entry.id}>
-                    <Message align={own ? "end" : "start"}>
+              <AnimatePresence initial={false}>
+                {entries.map((entry) => {
+                  const own = entry.side === side
+                  const client = entry.side === "client"
+                  const sender = client
+                    ? order.client
+                    : t("制作团队", "Production team")
+                  const attachments = entryAttachments(entry)
+                  return (
+                    <MessageScrollerItem key={entry.id} messageId={entry.id}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.985 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 460,
+                          damping: 34,
+                          mass: 0.82,
+                        }}
+                      >
+                        <Message align={own ? "end" : "start"}>
                       <MessageAvatar className="self-start">
                         <Avatar className="size-8">
                           <AvatarImage
@@ -529,9 +540,11 @@ function ChatPanel({
                         )}
                       </MessageContent>
                     </Message>
+                    </motion.div>
                   </MessageScrollerItem>
                 )
               })}
+              </AnimatePresence>
             </MessageScrollerContent>
           </MessageScrollerViewport>
           <MessageScrollerButton
@@ -771,43 +784,62 @@ function ReviewPanel({
     <ScrollArea className="min-h-0 flex-1">
       <div className="flex flex-col gap-5 p-5 sm:p-6">
         {isMultiVideo && (
-          <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-border/80 bg-card px-4 py-2.5 shadow-2xs">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {slots.map((slot) => {
-                const isActive = slot.index === activeItemIndex
-                return (
-                  <button
-                    key={slot.index}
-                    type="button"
-                    onClick={() => selectSlot(slot.index)}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors",
-                      isActive
-                        ? "border-primary bg-primary/8 font-semibold text-foreground shadow-2xs"
-                        : "border-border/80 bg-muted/25 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                    )}
-                  >
-                    <span
+          <LayoutGroup id={`review-video-slots-${order.id}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-border/80 bg-card px-4 py-2.5 shadow-2xs">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {slots.map((slot) => {
+                  const isActive = slot.index === activeItemIndex
+                  return (
+                    <button
+                      key={slot.index}
+                      type="button"
+                      onClick={() => selectSlot(slot.index)}
                       className={cn(
-                        "size-1.5 shrink-0 rounded-full",
-                        slot.hasFinal ? "bg-emerald-500" : "bg-primary"
+                        "relative inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors duration-200",
+                        isActive
+                          ? "border-transparent font-semibold text-foreground"
+                          : "border-border/80 bg-muted/25 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                       )}
-                      aria-hidden="true"
-                    />
-                    <span className="font-mono">#{slot.index}</span>
-                    {slot.title && (
-                      <span className="max-w-32 truncate">{slot.title}</span>
-                    )}
-                  </button>
-                )
-              })}
+                    >
+                      {isActive && (
+                        <motion.span
+                          layoutId={`review-video-slot-pill-${order.id}`}
+                          aria-hidden="true"
+                          transition={{
+                            type: "spring",
+                            stiffness: 420,
+                            damping: 34,
+                            mass: 0.88,
+                          }}
+                          className="pointer-events-none absolute inset-0 z-0 rounded-lg border border-primary bg-primary/8 shadow-2xs"
+                        />
+                      )}
+                      <span
+                        className={cn(
+                          "relative z-10 size-1.5 shrink-0 rounded-full",
+                          slot.hasFinal ? "bg-emerald-500" : "bg-primary"
+                        )}
+                        aria-hidden="true"
+                      />
+                      <span className="relative z-10 font-mono">
+                        #{slot.index}
+                      </span>
+                      {slot.title && (
+                        <span className="relative z-10 max-w-32 truncate">
+                          {slot.title}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+              {activeSlotMeta?.title && (
+                <span className="text-xs text-muted-foreground">
+                  {activeSlotMeta.title}
+                </span>
+              )}
             </div>
-            {activeSlotMeta?.title && (
-              <span className="text-xs text-muted-foreground">
-                {activeSlotMeta.title}
-              </span>
-            )}
-          </div>
+          </LayoutGroup>
         )}
 
         <div className="grid items-start gap-6 lg:grid-cols-12">
@@ -1242,52 +1274,62 @@ function ClientOrderHubPage({
         </div>
 
         <ScrollArea className="min-h-0 flex-1">
-          <div className="flex flex-col divide-y">
-            {filteredThreads.map((item) => {
-              const isSelected = item.id === order.id
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  aria-current={isSelected ? "page" : undefined}
-                  onClick={() => switchOrder(item.id)}
-                  className={cn(
-                    "flex w-full flex-col gap-1.5 border-l-2 px-3.5 py-3 text-left transition-colors hover:bg-muted/50",
-                    isSelected
-                      ? "border-l-primary bg-accent/60"
-                      : "border-l-transparent"
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate font-mono text-xs text-muted-foreground">
-                      #{item.id}
-                    </span>
-                    <StatusBadge status={item.status} />
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                      {zh ? item.zh : item.en}
-                    </span>
-                    {item.versions.length > 0 && (
-                      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                        {t(
-                          `${item.versions.length} 版`,
-                          `v${item.versions.length}`
-                        )}
-                      </span>
+          <LayoutGroup id="client-order-threads-group">
+            <div className="flex flex-col divide-y">
+              {filteredThreads.map((item) => {
+                const isSelected = item.id === order.id
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-current={isSelected ? "page" : undefined}
+                    onClick={() => switchOrder(item.id)}
+                    className={cn(
+                      "relative flex w-full flex-col gap-1.5 px-3.5 py-3 text-left transition-colors duration-200",
+                      !isSelected && "hover:bg-muted/50"
                     )}
-                  </div>
-                </button>
-              )
-            })}
-            {filteredThreads.length === 0 && (
-              <p className="p-6 text-center text-xs text-muted-foreground">
-                {listFilter === "review"
-                  ? t("当前没有待确认的视频", "No videos awaiting review")
-                  : t("没有匹配的订单", "No matching orders")}
-              </p>
-            )}
-          </div>
+                  >
+                    {isSelected && (
+                      <motion.span
+                        layoutId="client-order-thread-active"
+                        aria-hidden="true"
+                        transition={springTransition}
+                        className="pointer-events-none absolute inset-0 z-0 bg-accent/65"
+                      >
+                        <span className="absolute inset-y-0 left-0 w-0.5 bg-primary" />
+                      </motion.span>
+                    )}
+                    <div className="relative z-10 flex items-center justify-between gap-2">
+                      <span className="truncate font-mono text-xs text-muted-foreground">
+                        #{item.id}
+                      </span>
+                      <StatusBadge status={item.status} />
+                    </div>
+                    <div className="relative z-10 flex items-center justify-between gap-2">
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                        {zh ? item.zh : item.en}
+                      </span>
+                      {item.versions.length > 0 && (
+                        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                          {t(
+                            `${item.versions.length} 版`,
+                            `v${item.versions.length}`
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                )
+              })}
+              {filteredThreads.length === 0 && (
+                <p className="p-6 text-center text-xs text-muted-foreground">
+                  {listFilter === "review"
+                    ? t("当前没有待确认的视频", "No videos awaiting review")
+                    : t("没有匹配的订单", "No matching orders")}
+                </p>
+              )}
+            </div>
+          </LayoutGroup>
         </ScrollArea>
       </aside>
 
@@ -1387,7 +1429,17 @@ function ClientOrderHubPage({
           </LayoutGroup>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col">
+        <motion.div
+          key={`${order.id}:${initialView}`}
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={
+            prefersReducedMotion
+              ? { duration: 0 }
+              : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }
+          }
+          className="flex min-h-0 flex-1 flex-col"
+        >
           {initialView === "chat" ? (
             <ChatPanel
               key={order.id}
@@ -1405,7 +1457,7 @@ function ClientOrderHubPage({
               onOpenChat={() => switchView("chat")}
             />
           )}
-        </div>
+        </motion.div>
       </main>
     </div>
   )
@@ -1741,52 +1793,62 @@ export function StudioWorkspacePage() {
             </InputGroup>
           </div>
           <ScrollArea className="min-h-0 flex-1">
-            <div className="flex flex-col divide-y">
-              {queueOrders.map((item) => {
-                const isSelected = item.id === order.id
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => selectOrder(item.id)}
-                    className={cn(
-                      "flex w-full flex-col gap-1.5 border-l-2 px-3.5 py-3 text-left transition-colors hover:bg-muted/50",
-                      isSelected
-                        ? "border-l-primary bg-accent/60"
-                        : "border-l-transparent"
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate font-mono text-xs text-muted-foreground">
-                        #{item.id}
-                      </span>
-                      <StatusBadge status={item.status} />
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                        {canViewAll ? item.client : zh ? item.zh : item.en}
-                      </span>
-                    </div>
-                    {canViewAll && (
-                      <span className="truncate text-xs text-muted-foreground">
-                        {zh ? item.zh : item.en}
-                      </span>
-                    )}
-                    {item.revision && (
-                      <div className="truncate rounded bg-brand-gold/15 px-2 py-0.5 text-xs text-amber-900">
-                        {t("有修改意见：", "Revision: ")}
-                        {item.revision}
+            <LayoutGroup id="studio-order-threads-group">
+              <div className="flex flex-col divide-y">
+                {queueOrders.map((item) => {
+                  const isSelected = item.id === order.id
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => selectOrder(item.id)}
+                      className={cn(
+                        "relative flex w-full flex-col gap-1.5 px-3.5 py-3 text-left transition-colors duration-200",
+                        !isSelected && "hover:bg-muted/50"
+                      )}
+                    >
+                      {isSelected && (
+                        <motion.span
+                          layoutId="studio-order-thread-active"
+                          aria-hidden="true"
+                          transition={studioSpring}
+                          className="pointer-events-none absolute inset-0 z-0 bg-accent/65"
+                        >
+                          <span className="absolute inset-y-0 left-0 w-0.5 bg-primary" />
+                        </motion.span>
+                      )}
+                      <div className="relative z-10 flex items-center justify-between gap-2">
+                        <span className="truncate font-mono text-xs text-muted-foreground">
+                          #{item.id}
+                        </span>
+                        <StatusBadge status={item.status} />
                       </div>
-                    )}
-                  </button>
-                )
-              })}
-              {queueOrders.length === 0 && (
-                <p className="p-6 text-center text-xs text-muted-foreground">
-                  {t("暂无匹配会话", "No matching threads")}
-                </p>
-              )}
-            </div>
+                      <div className="relative z-10 flex items-center justify-between gap-2">
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                          {canViewAll ? item.client : zh ? item.zh : item.en}
+                        </span>
+                      </div>
+                      {canViewAll && (
+                        <span className="relative z-10 truncate text-xs text-muted-foreground">
+                          {zh ? item.zh : item.en}
+                        </span>
+                      )}
+                      {item.revision && (
+                        <div className="relative z-10 truncate rounded bg-brand-gold/15 px-2 py-0.5 text-xs text-amber-900">
+                          {t("有修改意见：", "Revision: ")}
+                          {item.revision}
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+                {queueOrders.length === 0 && (
+                  <p className="p-6 text-center text-xs text-muted-foreground">
+                    {t("暂无匹配会话", "No matching threads")}
+                  </p>
+                )}
+              </div>
+            </LayoutGroup>
           </ScrollArea>
         </aside>
 

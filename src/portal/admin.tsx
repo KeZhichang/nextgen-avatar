@@ -19,7 +19,7 @@ import {
   UserCheck,
 } from "lucide-react"
 import { toast } from "sonner"
-import { motion } from "motion/react"
+import { LayoutGroup, motion } from "motion/react"
 import { cn } from "cn"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -1593,86 +1593,108 @@ export function AdminSettingsPage() {
                   />
                 </InputGroup>
               </CardHeader>
-              <CardContent className="divide-y p-0">
-                {filteredClients
-                  .slice(
-                    (clientPage - 1) * clientPageSize,
-                    clientPage * clientPageSize
-                  )
-                  .map((name) => {
-                    const ordersForClient = data.orders.filter(
-                      (value) => value.client === name
-                    )
-                    const creditsLeft = ordersForClient.reduce(
-                      (sum, item) =>
-                        sum +
-                        Math.max(0, item.count - countDeliveredVideos(item)),
-                      0
-                    )
-                    const dbClient = data.clients.find((c) => c.name === name)
-                    const meta = clientDirectoryMeta[name]
-                    const email =
-                      dbClient?.email ||
-                      (name === data.account.name
-                        ? data.account.email
-                        : (meta?.email ?? ""))
-                    const company = (
-                      dbClient?.company ||
-                      (name === data.account.name
-                        ? data.account.company
-                        : (meta?.company ?? ""))
-                    ).replace(" (US)", "")
-                    const avatar =
-                      dbClient?.avatarUrl ||
-                      (name === data.account.name
-                        ? data.account.avatarUrl
-                        : undefined) ||
-                      meta?.avatar
-                    const isSelected = name === activeClientName
-                    return (
-                      <button
-                        key={name}
-                        type="button"
-                        onClick={() => setSelectedClient(name)}
-                        className={cn(
-                          "flex w-full items-center justify-between gap-3 border-l-2 px-4 py-3.5 text-left transition-colors hover:bg-muted/50",
-                          isSelected
-                            ? "border-l-primary bg-accent/55"
-                            : "border-l-transparent"
-                        )}
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <Avatar className="size-9 shrink-0">
-                            <AvatarImage
-                              src={avatar}
-                              alt=""
-                              referrerPolicy="no-referrer"
-                            />
-                            <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-                              {name.slice(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex min-w-0 flex-col">
-                            <span className="truncate text-sm font-medium text-foreground">
-                              {name}
-                              {company ? ` · ${company}` : ""}
+              <CardContent className="p-0">
+                <LayoutGroup id="admin-client-directory-group">
+                  <div className="divide-y">
+                    {filteredClients
+                      .slice(
+                        (clientPage - 1) * clientPageSize,
+                        clientPage * clientPageSize
+                      )
+                      .map((name) => {
+                        const ordersForClient = data.orders.filter(
+                          (value) => value.client === name
+                        )
+                        const creditsLeft = ordersForClient.reduce(
+                          (sum, item) =>
+                            sum +
+                            Math.max(
+                              0,
+                              item.count - countDeliveredVideos(item)
+                            ),
+                          0
+                        )
+                        const dbClient = data.clients.find(
+                          (c) => c.name === name
+                        )
+                        const meta = clientDirectoryMeta[name]
+                        const email =
+                          dbClient?.email ||
+                          (name === data.account.name
+                            ? data.account.email
+                            : (meta?.email ?? ""))
+                        const company = (
+                          dbClient?.company ||
+                          (name === data.account.name
+                            ? data.account.company
+                            : (meta?.company ?? ""))
+                        ).replace(" (US)", "")
+                        const avatar =
+                          dbClient?.avatarUrl ||
+                          (name === data.account.name
+                            ? data.account.avatarUrl
+                            : undefined) ||
+                          meta?.avatar
+                        const isSelected = name === activeClientName
+                        return (
+                          <button
+                            key={name}
+                            type="button"
+                            onClick={() => setSelectedClient(name)}
+                            className={cn(
+                              "relative flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors duration-200",
+                              !isSelected && "hover:bg-muted/50"
+                            )}
+                          >
+                            {isSelected && (
+                              <motion.span
+                                layoutId="admin-client-row-active"
+                                aria-hidden="true"
+                                transition={{
+                                  type: "spring",
+                                  stiffness: 420,
+                                  damping: 34,
+                                  mass: 0.88,
+                                }}
+                                className="pointer-events-none absolute inset-0 z-0 bg-accent/60"
+                              >
+                                <span className="absolute inset-y-0 left-0 w-0.5 bg-primary" />
+                              </motion.span>
+                            )}
+                            <div className="relative z-10 flex min-w-0 items-center gap-3">
+                              <Avatar className="size-9 shrink-0">
+                                <AvatarImage
+                                  src={avatar}
+                                  alt=""
+                                  referrerPolicy="no-referrer"
+                                />
+                                <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
+                                  {name.slice(0, 2)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex min-w-0 flex-col">
+                                <span className="truncate text-sm font-medium text-foreground">
+                                  {name}
+                                  {company ? ` · ${company}` : ""}
+                                </span>
+                                <span className="truncate text-xs text-muted-foreground">
+                                  {email}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="relative z-10 shrink-0 font-mono text-xs font-medium text-primary tabular-nums">
+                              {t(`余 ${creditsLeft} 条`, `${creditsLeft} left`)}
                             </span>
-                            <span className="truncate text-xs text-muted-foreground">
-                              {email}
-                            </span>
-                          </div>
-                        </div>
-                        <span className="shrink-0 font-mono text-xs font-medium text-primary tabular-nums">
-                          {t(`余 ${creditsLeft} 条`, `${creditsLeft} left`)}
-                        </span>
-                      </button>
-                    )
-                  })}
-                {filteredClients.length === 0 && (
-                  <p className="p-6 text-center text-xs text-muted-foreground">
-                    {t("未找到匹配客户", "No matching clients")}
-                  </p>
-                )}
+                          </button>
+                        )
+                      })}
+                    {filteredClients.length === 0 && (
+                      <p className="p-6 text-center text-xs text-muted-foreground">
+                        {t("未找到匹配客户", "No matching clients")}
+                      </p>
+                    )}
+                  </div>
+                </LayoutGroup>
                 <DataPagination
                   compact
                   page={clientPage}

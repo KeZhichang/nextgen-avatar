@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react"
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router"
+import { LayoutGroup, motion } from "motion/react"
 import {
   Check,
   CheckCircle2,
@@ -779,36 +780,50 @@ export function CheckoutPage() {
                 <FieldLegend className="sr-only">
                   {t("制作套餐", "Production package")}
                 </FieldLegend>
-                <RadioGroup
-                  value={plan.id}
-                  onValueChange={setChoice}
-                  disabled={locked}
-                  aria-label={t("制作套餐", "Production package")}
-                  className="gap-3"
-                >
-                  {plans.map((item) => {
-                    const isSelected = item.id === plan.id
-                    const original =
-                      item.regular && item.regular > item.price
-                        ? item.regular
-                        : undefined
-                    const savings = original ? original - item.price : 0
-                    const tag = zh
-                      ? item.tagZh || item.tagEn
-                      : item.tagEn || item.tagZh
-                    return (
-                      <Label
-                        key={item.id}
-                        htmlFor={`plan-${item.id}`}
-                        className={cn(
-                          "flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-4 transition-[background-color,border-color,box-shadow] duration-150 hover:border-primary/40 hover:bg-accent/40 motion-reduce:transition-none",
-                          isSelected
-                            ? "border-primary bg-accent/60 ring-1 ring-primary"
-                            : "border-border bg-card",
-                          locked && "cursor-not-allowed opacity-70"
-                        )}
-                      >
-                        <span className="flex min-w-0 items-start gap-3">
+                <LayoutGroup id="checkout-plan-cards-group">
+                  <RadioGroup
+                    value={plan.id}
+                    onValueChange={setChoice}
+                    disabled={locked}
+                    aria-label={t("制作套餐", "Production package")}
+                    className="gap-3"
+                  >
+                    {plans.map((item) => {
+                      const isSelected = item.id === plan.id
+                      const original =
+                        item.regular && item.regular > item.price
+                          ? item.regular
+                          : undefined
+                      const savings = original ? original - item.price : 0
+                      const tag = zh
+                        ? item.tagZh || item.tagEn
+                        : item.tagEn || item.tagZh
+                      return (
+                        <Label
+                          key={item.id}
+                          htmlFor={`plan-${item.id}`}
+                          className={cn(
+                            "relative flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-4 transition-colors duration-200",
+                            isSelected
+                              ? "border-transparent bg-card"
+                              : "border-border bg-card hover:border-primary/40 hover:bg-accent/40",
+                            locked && "cursor-not-allowed opacity-70"
+                          )}
+                        >
+                          {isSelected && (
+                            <motion.span
+                              layoutId="checkout-plan-active-card"
+                              aria-hidden="true"
+                              transition={{
+                                type: "spring",
+                                stiffness: 420,
+                                damping: 34,
+                                mass: 0.88,
+                              }}
+                              className="pointer-events-none absolute inset-0 z-0 rounded-xl border border-primary bg-accent/60 ring-1 ring-primary"
+                            />
+                          )}
+                          <span className="relative z-10 flex min-w-0 items-start gap-3">
                           <RadioGroupItem
                             id={`plan-${item.id}`}
                             value={item.id}
@@ -848,7 +863,7 @@ export function CheckoutPage() {
                             </span>
                           </span>
                         </span>
-                        <span className="shrink-0 text-right tabular-nums">
+                        <span className="relative z-10 shrink-0 text-right tabular-nums">
                           <span className="block text-base font-semibold text-foreground">
                             {formatDollars(item.price)}
                           </span>
@@ -861,7 +876,8 @@ export function CheckoutPage() {
                       </Label>
                     )
                   })}
-                </RadioGroup>
+                  </RadioGroup>
+                </LayoutGroup>
               </FieldSet>
             </CardContent>
           </Card>
