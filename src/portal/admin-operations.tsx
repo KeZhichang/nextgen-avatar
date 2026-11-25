@@ -1689,8 +1689,8 @@ export function CustomQuotesView() {
             </CardTitle>
             <CardDescription className="text-xs">
               {t(
-                "面向企业大单或定制需求生成独立美元付款链接，客户付款后自动建单入账。",
-                "Issue a dedicated USD Stripe checkout link for enterprise or bespoke packages."
+                "对应官网 Cinematic Custom 定制需求，生成独立美元付款链接与报价单，付款后自动建单入账。",
+                "Issue a dedicated USD Stripe payment link for Cinematic Custom or enterprise briefs; paid quotes auto-create orders."
               )}
             </CardDescription>
           </CardHeader>
@@ -1818,18 +1818,31 @@ export function CustomQuotesView() {
               className="pointer-events-none absolute inset-0 size-full object-cover"
             />
             <div className="relative z-10 flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="flex size-6 items-center justify-center rounded-md bg-white/15 font-mono text-[11px] font-bold tracking-tight backdrop-blur-xs">
-                    NG
-                  </span>
-                  <span className="text-xs font-medium tracking-wide text-white/85 uppercase">
-                    {t("专属定制报价单", "Custom Invoice")}
-                  </span>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <img
+                    src="/portal-media/nextgen-avatar-mark-small.png"
+                    alt="NextGen Avatar"
+                    width={30}
+                    height={27}
+                    decoding="async"
+                    className="h-7 w-auto shrink-0 object-contain drop-shadow-xs"
+                  />
+                  <div className="flex flex-col leading-tight">
+                    <span className="font-serif text-[15px] font-bold tracking-tight text-[#ffe8d1]">
+                      NextGen Avatar
+                    </span>
+                    <span className="mt-0.5 text-[10px] font-medium tracking-wide text-white/75">
+                      {t(
+                        "by 2301 Pictures · 专属定制报价单",
+                        "by 2301 Pictures · Cinematic Custom"
+                      )}
+                    </span>
+                  </div>
                 </div>
                 <Badge
                   variant="outline"
-                  className="border-white/25 bg-white/10 font-mono text-xs text-white backdrop-blur-xs"
+                  className="shrink-0 border-white/25 bg-white/10 font-mono text-xs text-white backdrop-blur-xs"
                 >
                   #{quoteRef}
                 </Badge>
@@ -1885,6 +1898,14 @@ export function CustomQuotesView() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">
+                      {t("出品方", "Issued by")}
+                    </span>
+                    <span className="font-medium text-foreground">
+                      2301 Pictures · nextgenavatar.com
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
                       {t("支付保障", "Checkout")}
                     </span>
                     <span className="inline-flex items-center gap-1 font-medium text-foreground">
@@ -1904,7 +1925,7 @@ export function CustomQuotesView() {
                   value={activeUrl}
                   size={104}
                   margin={1}
-                  foregroundColor="#0d1b3e"
+                  foregroundColor="#101b2d"
                   backgroundColor="#ffffff"
                   className="rounded-xl border border-border bg-white p-2 shadow-2xs"
                 >
