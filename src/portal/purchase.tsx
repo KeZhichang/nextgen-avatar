@@ -636,14 +636,35 @@ export function CheckoutPage() {
     : basePlans.length
       ? basePlans
       : [defaultQuote]
+  const ownOrders = data.orders.filter((value) =>
+    authUser && !authUser.isDemo && value.clientId
+      ? value.clientId === authUser.id
+      : value.client === data.account.name
+  )
+  const isRepeatCustomer = ownOrders.length > 0
+  const isTrialLocked = (item: Plan) =>
+    item.id === "trial" && isRepeatCustomer
+  const isRenewalApplied = (item: Plan) =>
+    isRepeatCustomer &&
+    item.id !== "quote" &&
+    Boolean(item.renewal && item.renewal > 0 && item.renewal < item.price)
+  const getEffectivePlanPrice = (item: Plan) =>
+    isRenewalApplied(item) && item.renewal ? item.renewal : item.price
+
+  const selectablePlans = plans.filter((item) => !isTrialLocked(item))
   const activeAddons = data.addons.filter((item) => item.active)
   const [choice, setChoice] = useState(() => {
     if (quotedPlan) return "quote"
-    if (requestedPlanId && plans.some((item) => item.id === requestedPlanId)) {
+    if (
+      requestedPlanId &&
+      selectablePlans.some((item) => item.id === requestedPlanId)
+    ) {
       return requestedPlanId
     }
-    return plans[0]?.id ?? "presenter-5"
+    return selectablePlans[0]?.id ?? plans[0]?.id ?? "presenter-5"
   })
+  const requestedTrialWhileRepeat =
+    requestedPlanId === "trial" && isRepeatCustomer && !quotedPlan
   const stripeSession = stripePreviewConfigured
     ? query.get("stripe_session")
     : null
@@ -658,11 +679,19 @@ export function CheckoutPage() {
   const [busy, setBusy] = useState(false)
   const [receipt, setReceipt] = useState<StripePreviewReceipt>()
   const locked = Boolean(created || stripeSession) || busy
-  const selected = plans.find((item) => item.id === choice) ?? plans[0]
+  const chosenPlan = plans.find((item) => item.id === choice)
+  const selected =
+    (chosenPlan && !isTrialLocked(chosenPlan)
+      ? chosenPlan
+      : selectablePlans[0]) ?? plans[0]
   const plan =
     plans.find((item) => item.id === receipt?.planId) ??
     stripePreviewPlans.find((item) => item.id === receipt?.planId) ??
     selected
+  const effectivePlanPrice = getEffectivePlanPrice(plan)
+  const renewalDiscount = isRenewalApplied(plan)
+    ? plan.price - effectivePlanPrice
+    : 0
   const selectedAddonList = activeAddons.filter(
     (item) => selectedAddons[item.id]
   )
@@ -670,7 +699,7 @@ export function CheckoutPage() {
     (sum, item) => sum + item.price,
     0
   )
-  const total = receipt?.total ?? plan.price + addonsTotal
+  const total = receipt?.total ?? effectivePlanPrice + addonsTotal
   const stripeExtras = {
     script: Boolean(selectedAddons.script),
     duration: Boolean(selectedAddons.duration),
@@ -767,6 +796,39 @@ export function CheckoutPage() {
                   </AlertDescription>
                 </Alert>
               )}
+              {requestedTrialWhileRepeat && (
+                <Alert className="border-amber-300/70 bg-amber-50/70 text-amber-950">
+                  <AlertTitle>
+                    {t(
+                      "新客体验单仅限首单购买",
+                      "Trial video is for first-time customers only"
+                    )}
+                  </AlertTitle>
+                  <AlertDescription className="text-amber-900/90">
+                    {t(
+                      "检测到您的账号已有历史订单，已为您自动切换至月度套餐并开启老客续费优惠价（立省 $100）。",
+                      "Your account already has a previous order. We switched to a monthly package with your automatic renewal rate (save $100)."
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+              {isRepeatCustomer && !requestedTrialWhileRepeat && !quotedPlan && (
+                <Alert className="border-emerald-200 bg-emerald-50/60 text-emerald-950">
+                  <CheckCircle2 aria-hidden="true" className="text-emerald-600" />
+                  <AlertTitle>
+                    {t(
+                      "已自动启用老客续费优惠价",
+                      "Renewal pricing automatically applied"
+                    )}
+                  </AlertTitle>
+                  <AlertDescription className="text-emerald-900/85">
+                    {t(
+                      "感谢回访！选购下方任意月度套餐将直接按续费月价结算（首单尝鲜体验价仅限新客）。",
+                      "Welcome back! Eligible monthly packages below are automatically discounted to your renewal rate (Starter Trial is for new customers only)."
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
               {query.get("profile") && (
                 <Alert className="border-primary/20 bg-accent/60">
                   <UserRound aria-hidden="true" className="text-primary" />
@@ -789,12 +851,16 @@ export function CheckoutPage() {
                     className="gap-3"
                   >
                     {plans.map((item) => {
-                      const isSelected = item.id === plan.id
-                      const original =
-                        item.regular && item.regular > item.price
+                      const itemLocked = isTrialLocked(item)
+                      const isSelected = !itemLocked && item.id === plan.id
+                      const renewalActive = isRenewalApplied(item)
+                      const displayPrice = getEffectivePlanPrice(item)
+                      const original = renewalActive
+                        ? item.price
+                        : item.regular && item.regular > item.price
                           ? item.regular
                           : undefined
-                      const savings = original ? original - item.price : 0
+                      const savings = original ? original - displayPrice : 0
                       const tag = zh
                         ? item.tagZh || item.tagEn
                         : item.tagEn || item.tagZh
@@ -803,10 +869,12 @@ export function CheckoutPage() {
                           key={item.id}
                           htmlFor={`plan-${item.id}`}
                           className={cn(
-                            "relative flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-4 transition-colors duration-200",
-                            isSelected
-                              ? "border-transparent bg-card"
-                              : "border-border bg-card hover:border-primary/40 hover:bg-accent/40",
+                            "relative flex items-center justify-between gap-3 rounded-xl border p-4 transition-colors duration-200",
+                            itemLocked
+                              ? "cursor-not-allowed border-border/70 bg-muted/35 opacity-60"
+                              : isSelected
+                                ? "cursor-pointer border-transparent bg-card"
+                                : "cursor-pointer border-border bg-card hover:border-primary/40 hover:bg-accent/40",
                             locked && "cursor-not-allowed opacity-70"
                           )}
                         >
@@ -827,26 +895,45 @@ export function CheckoutPage() {
                           <RadioGroupItem
                             id={`plan-${item.id}`}
                             value={item.id}
+                            disabled={locked || itemLocked}
                             className="mt-0.5"
                           />
                           <span className="flex min-w-0 flex-col gap-1">
                             <span className="flex flex-wrap items-center gap-2 font-medium text-foreground">
                               <span>{zh ? item.zh : item.en}</span>
-                              {tag && (
+                              {itemLocked ? (
+                                <Badge variant="secondary">
+                                  {t("仅限新客首单", "New customers only")}
+                                </Badge>
+                              ) : renewalActive ? (
                                 <Badge
                                   variant="outline"
-                                  className="border-brand-gold/40 bg-brand-gold/15 text-amber-900"
+                                  className="border-emerald-300 bg-emerald-50 text-emerald-800"
                                 >
-                                  {tag}
-                                </Badge>
-                              )}
-                              {savings > 0 && (
-                                <Badge variant="secondary">
                                   {t(
-                                    `立省 ${formatDollars(savings)}`,
-                                    `Save ${formatDollars(savings)}`
+                                    `老客续费价 · 立省 ${formatDollars(savings)}`,
+                                    `Renewal rate · Save ${formatDollars(savings)}`
                                   )}
                                 </Badge>
+                              ) : (
+                                <>
+                                  {tag && (
+                                    <Badge
+                                      variant="outline"
+                                      className="border-brand-gold/40 bg-brand-gold/15 text-amber-900"
+                                    >
+                                      {tag}
+                                    </Badge>
+                                  )}
+                                  {savings > 0 && (
+                                    <Badge variant="secondary">
+                                      {t(
+                                        `立省 ${formatDollars(savings)}`,
+                                        `Save ${formatDollars(savings)}`
+                                      )}
+                                    </Badge>
+                                  )}
+                                </>
                               )}
                             </span>
                             <span className="text-xs font-normal text-muted-foreground">
@@ -854,18 +941,28 @@ export function CheckoutPage() {
                                 `${item.count} 条 1080P 成片配额`,
                                 `${item.count} 1080P video ${item.count === 1 ? "credit" : "credits"}`
                               )}
-                              {item.renewal
+                              {itemLocked
                                 ? t(
-                                    ` · 续费 ${formatDollars(item.renewal)}/月（无自动扣费）`,
-                                    ` · Renew ${formatDollars(item.renewal)}/mo (no auto-charge)`
+                                    " · 您已完成首单，请选择月度套餐享续费价",
+                                    " · Already ordered; pick a monthly tier for renewal pricing"
                                   )
-                                : ""}
+                                : renewalActive
+                                  ? t(
+                                      " · 已自动应用老客续费优惠价（无自动扣费）",
+                                      " · Automatic returning-customer renewal rate (no auto-charge)"
+                                    )
+                                  : item.renewal
+                                    ? t(
+                                        ` · 次月起续费 ${formatDollars(item.renewal)}/月（无自动扣费）`,
+                                        ` · Renew ${formatDollars(item.renewal)}/mo next order (no auto-charge)`
+                                      )
+                                    : ""}
                             </span>
                           </span>
                         </span>
                         <span className="relative z-10 shrink-0 text-right tabular-nums">
                           <span className="block text-base font-semibold text-foreground">
-                            {formatDollars(item.price)}
+                            {formatDollars(displayPrice)}
                           </span>
                           {original && (
                             <span className="block text-xs font-normal text-muted-foreground line-through">
@@ -944,19 +1041,31 @@ export function CheckoutPage() {
                 </span>
                 <span className="font-medium tabular-nums">
                   {formatDollars(
-                    plan.regular && plan.regular > plan.price
-                      ? plan.regular
-                      : plan.price
+                    renewalDiscount > 0
+                      ? plan.price
+                      : plan.regular && plan.regular > plan.price
+                        ? plan.regular
+                        : effectivePlanPrice
                   )}
                 </span>
               </div>
-              {plan.regular && plan.regular > plan.price && (
+              {renewalDiscount > 0 ? (
                 <div className="flex items-center justify-between text-xs text-emerald-700">
-                  <span>{t("套餐立减", "Package discount")}</span>
+                  <span>{t("老客续费优惠", "Returning-customer renewal")}</span>
                   <span className="font-medium tabular-nums">
-                    −{formatDollars(plan.regular - plan.price)}
+                    −{formatDollars(renewalDiscount)}
                   </span>
                 </div>
+              ) : (
+                plan.regular &&
+                plan.regular > plan.price && (
+                  <div className="flex items-center justify-between text-xs text-emerald-700">
+                    <span>{t("套餐立减", "Package discount")}</span>
+                    <span className="font-medium tabular-nums">
+                      −{formatDollars(plan.regular - plan.price)}
+                    </span>
+                  </div>
+                )
               )}
               {addonsTotal > 0 && (
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -1066,10 +1175,10 @@ export function CheckoutPage() {
               />
             ) : useStripe ? (
               <StripePreviewPayment
-                key={`${locale}:${plan.id}:${plan.price}:${total}`}
+                key={`${locale}:${plan.id}:${effectivePlanPrice}:${total}`}
                 planId={plan.id}
                 planName={zh ? plan.zh : plan.en}
-                planPrice={plan.price}
+                planPrice={effectivePlanPrice}
                 videoCount={plan.count}
                 extras={stripeExtras}
                 addons={stripeAddonPayload}

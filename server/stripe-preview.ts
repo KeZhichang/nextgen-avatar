@@ -3,6 +3,10 @@ import Stripe from "stripe"
 import type { Plugin } from "vite"
 
 import {
+  verifyCheckoutEligibility,
+  type CheckoutEligibilityEnv,
+} from "../api/_lib/checkout-eligibility.ts"
+import {
   defaultAddons,
   stripePreviewPlans,
   type CheckoutExtras,
@@ -36,7 +40,10 @@ function extrasFrom(input: unknown): CheckoutExtras | undefined {
   return { script: input.script, duration: input.duration }
 }
 
-export function stripePreviewPlugin(secret: string | undefined): Plugin {
+export function stripePreviewPlugin(
+  secret: string | undefined,
+  eligibilityEnv?: CheckoutEligibilityEnv
+): Plugin {
   const stripe =
     secret && /^(?:sk|rk|rkcs)_test_/.test(secret)
       ? new Stripe(secret, { timeout: 15000, maxNetworkRetries: 1 })
@@ -86,6 +93,22 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
       }
       const locale = inputRecord.locale === "zh" ? "zh" : "en"
       const zh = locale === "zh"
+      const clientId =
+        typeof inputRecord.clientId === "string" && inputRecord.clientId.trim()
+          ? inputRecord.clientId.trim().slice(0, 64)
+          : ""
+      const eligibility = await verifyCheckoutEligibility({
+        planId,
+        locale,
+        authorizationHeader: request.headers.authorization,
+        clientId,
+        env: eligibilityEnv ?? {},
+      })
+      if (!eligibility.ok) {
+        sendJson(response, eligibility.status, { error: eligibility.error })
+        return
+      }
+
       const customName =
         typeof inputRecord.planName === "string" && inputRecord.planName.trim()
           ? inputRecord.planName.trim().slice(0, 80)
@@ -96,14 +119,23 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
         inputRecord.planPrice > 0
           ? inputRecord.planPrice
           : undefined
-      const resolvedName =
+      const baseName =
+        eligibility.authoritativeName ??
         customName ??
         (presetPlan
           ? zh
             ? presetPlan.zh
             : presetPlan.en
           : "Production Package")
-      const resolvedPrice = customPrice ?? presetPlan?.price
+      const resolvedName = eligibility.appliedRenewal
+        ? zh
+          ? `${baseName}（老客续费价）`
+          : `${baseName} (Renewal Rate)`
+        : baseName
+      const resolvedPrice =
+        planId === "quote"
+          ? (customPrice ?? presetPlan?.price)
+          : (eligibility.authoritativePrice ?? customPrice ?? presetPlan?.price)
       if (!planId || !resolvedPrice || resolvedPrice <= 0) {
         sendJson(response, 400, { error: "invalid_selection" })
         return
@@ -145,10 +177,6 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
       const returnQuery = new URLSearchParams({ plan: planId })
       if (extras.script) returnQuery.set("script", "1")
       if (extras.duration) returnQuery.set("duration", "1")
-      const clientId =
-        typeof inputRecord.clientId === "string" && inputRecord.clientId.trim()
-          ? inputRecord.clientId.trim().slice(0, 64)
-          : ""
       const customQuoteId =
         typeof inputRecord.customQuoteId === "string" &&
         inputRecord.customQuoteId.trim()
@@ -160,13 +188,15 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
           ? inputRecord.projectName.trim().slice(0, 100)
           : ""
       const videoCount =
-        typeof inputRecord.videoCount === "number" &&
-        Number.isFinite(inputRecord.videoCount) &&
-        inputRecord.videoCount > 0
-          ? String(Math.floor(inputRecord.videoCount))
-          : presetPlan
-            ? String(presetPlan.count)
-            : ""
+        eligibility.authoritativeCount && planId !== "quote"
+          ? String(eligibility.authoritativeCount)
+          : typeof inputRecord.videoCount === "number" &&
+              Number.isFinite(inputRecord.videoCount) &&
+              inputRecord.videoCount > 0
+            ? String(Math.floor(inputRecord.videoCount))
+            : presetPlan
+              ? String(presetPlan.count)
+              : ""
       const addonIds = Array.isArray(inputRecord.addonIds)
         ? (inputRecord.addonIds as unknown[])
             .filter(

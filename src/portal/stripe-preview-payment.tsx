@@ -21,6 +21,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
+import { getSupabaseClient } from "@/lib/supabase"
 import {
   type CheckoutExtras,
   type StripePreviewReceipt,
@@ -259,7 +260,7 @@ export function StripePreviewPayment({
 }) {
   const { t, locale } = usePortal()
   const [session, setSession] = useState<Session>()
-  const [failed, setFailed] = useState(false)
+  const [failedCode, setFailedCode] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const { script, duration } = extras
   const addonsKey = JSON.stringify(addons ?? [])
@@ -270,9 +271,21 @@ export function StripePreviewPayment({
     const abort = new AbortController()
     const start = window.setTimeout(async () => {
       try {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        }
+        const sb = getSupabaseClient()
+        if (sb) {
+          const {
+            data: { session: sbSession },
+          } = await sb.auth.getSession()
+          if (sbSession?.access_token) {
+            headers.Authorization = `Bearer ${sbSession.access_token}`
+          }
+        }
         const response = await fetch("/api/stripe-preview/session", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             planId,
             planName,
@@ -289,11 +302,19 @@ export function StripePreviewPayment({
           }),
           signal: abort.signal,
         })
-        if (!response.ok) throw new Error("Session request failed")
+        if (!response.ok) {
+          const payload = (await response
+            .json()
+            .catch(() => null)) as { error?: string } | null
+          if (!abort.signal.aborted) {
+            setFailedCode(payload?.error ?? "session_failed")
+          }
+          return
+        }
         const result = (await response.json()) as Session
         if (!abort.signal.aborted) setSession(result)
       } catch {
-        if (!abort.signal.aborted) setFailed(true)
+        if (!abort.signal.aborted) setFailedCode("session_failed")
       }
     }, 180)
     return () => {
@@ -320,31 +341,38 @@ export function StripePreviewPayment({
   ])
 
   function retry() {
-    setFailed(false)
+    setFailedCode(null)
     setSession(undefined)
     setAttempt((value) => value + 1)
   }
 
-  if (failed) {
+  if (failedCode) {
     return (
       <Alert variant="destructive">
         <AlertDescription className="grid gap-3">
-          {stripeIsLiveMode
+          {failedCode === "trial_new_customers_only"
             ? t(
-                "暂时无法连接 Stripe 支付服务，请稍后重试。",
-                "Couldn't connect to Stripe checkout. Please try again."
+                "体验视频（$59）仅限新客户首单购买，请选择其他月度套餐（已为您自动启用老客续费优惠价）。",
+                "The $59 Trial Video is only available for first-time customers. Please pick a monthly package with your automatic renewal rate."
               )
-            : t(
-                "暂时无法连接 Stripe 测试环境。",
-                "Couldn't connect to the Stripe sandbox."
-              )}
-          <Button
-            variant="outline"
-            className="justify-self-start"
-            onClick={retry}
-          >
-            {t("重试", "Retry")}
-          </Button>
+            : stripeIsLiveMode
+              ? t(
+                  "暂时无法连接 Stripe 支付服务，请稍后重试。",
+                  "Couldn't connect to Stripe checkout. Please try again."
+                )
+              : t(
+                  "暂时无法连接 Stripe 测试环境。",
+                  "Couldn't connect to the Stripe sandbox."
+                )}
+          {failedCode !== "trial_new_customers_only" && (
+            <Button
+              variant="outline"
+              className="justify-self-start"
+              onClick={retry}
+            >
+              {t("重试", "Retry")}
+            </Button>
+          )}
         </AlertDescription>
       </Alert>
     )

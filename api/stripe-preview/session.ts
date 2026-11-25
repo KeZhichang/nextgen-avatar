@@ -1,6 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import Stripe from "stripe"
 
+import { verifyCheckoutEligibility } from "../_lib/checkout-eligibility.js"
+
 const purpose = "nextgen_avatar_checkout_preview"
 const defaultAddons = { script: 50, duration: 25 }
 const defaultPlans = [
@@ -100,6 +102,30 @@ export default async function handler(req: Req, res: ServerResponse) {
       const locale = input?.locale === "zh" ? "zh" : "en"
       const zh = locale === "zh"
 
+      const clientId =
+        typeof input?.clientId === "string" && input.clientId.trim()
+          ? input.clientId.trim().slice(0, 64)
+          : ""
+
+      const eligibility = await verifyCheckoutEligibility({
+        planId,
+        locale,
+        authorizationHeader: req.headers.authorization,
+        clientId,
+        env: {
+          supabaseUrl:
+            process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
+          supabaseAnonKey:
+            process.env.SUPABASE_ANON_KEY ||
+            process.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        },
+      })
+      if (!eligibility.ok) {
+        sendJson(res, eligibility.status, { error: eligibility.error })
+        return
+      }
+
       const presetPlan = defaultPlans.find((item) => item.id === planId)
       const customName =
         typeof input?.planName === "string" && input.planName.trim()
@@ -112,14 +138,23 @@ export default async function handler(req: Req, res: ServerResponse) {
           ? input.planPrice
           : undefined
 
-      const resolvedPlanName =
+      const basePlanName =
+        eligibility.authoritativeName ??
         customName ??
         (presetPlan
           ? zh
             ? presetPlan.zh
             : presetPlan.en
           : "Production Package")
-      const resolvedPlanPrice = customPrice ?? presetPlan?.price
+      const resolvedPlanName = eligibility.appliedRenewal
+        ? zh
+          ? `${basePlanName}（老客续费价）`
+          : `${basePlanName} (Renewal Rate)`
+        : basePlanName
+      const resolvedPlanPrice =
+        planId === "quote"
+          ? (customPrice ?? presetPlan?.price)
+          : (eligibility.authoritativePrice ?? customPrice ?? presetPlan?.price)
 
       if (!planId || !resolvedPlanPrice || resolvedPlanPrice <= 0) {
         sendJson(res, 400, { error: "invalid_selection" })
@@ -173,10 +208,6 @@ export default async function handler(req: Req, res: ServerResponse) {
       if (extras.script) returnQuery.set("script", "1")
       if (extras.duration) returnQuery.set("duration", "1")
 
-      const clientId =
-        typeof input?.clientId === "string" && input.clientId.trim()
-          ? input.clientId.trim().slice(0, 64)
-          : ""
       const customQuoteId =
         typeof input?.customQuoteId === "string" && input.customQuoteId.trim()
           ? input.customQuoteId.trim().slice(0, 64)
@@ -186,13 +217,15 @@ export default async function handler(req: Req, res: ServerResponse) {
           ? input.projectName.trim().slice(0, 100)
           : ""
       const videoCount =
-        typeof input?.videoCount === "number" &&
-          Number.isFinite(input.videoCount) &&
-          input.videoCount > 0
-          ? String(Math.floor(input.videoCount))
-          : presetPlan
-            ? String(presetPlan.count)
-            : ""
+        eligibility.authoritativeCount && planId !== "quote"
+          ? String(eligibility.authoritativeCount)
+          : typeof input?.videoCount === "number" &&
+              Number.isFinite(input.videoCount) &&
+              input.videoCount > 0
+            ? String(Math.floor(input.videoCount))
+            : presetPlan
+              ? String(presetPlan.count)
+              : ""
       const addonIds = Array.isArray(input?.addonIds)
         ? (input.addonIds as unknown[])
           .filter((v): v is string => typeof v === "string" && Boolean(v.trim()))

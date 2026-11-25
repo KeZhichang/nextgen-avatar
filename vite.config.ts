@@ -12,7 +12,12 @@ export default defineConfig(({ mode }) => {
   plugins: [
     react(),
     tailwindcss(),
-    stripePreviewPlugin(allEnv.STRIPE_PREVIEW_SECRET_KEY),
+    stripePreviewPlugin(allEnv.STRIPE_PREVIEW_SECRET_KEY, {
+      supabaseUrl: allEnv.SUPABASE_URL || allEnv.VITE_SUPABASE_URL,
+      supabaseAnonKey:
+        allEnv.SUPABASE_ANON_KEY || allEnv.VITE_SUPABASE_PUBLISHABLE_KEY,
+      supabaseServiceRoleKey: allEnv.SUPABASE_SERVICE_ROLE_KEY,
+    }),
     r2StoragePlugin(allEnv),
   ],
   resolve: {
