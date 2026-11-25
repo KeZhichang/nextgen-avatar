@@ -39,7 +39,6 @@ import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Button } from "@/components/ui/button"
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -68,7 +67,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import {
   FileUpload,
   FileUploadDropzone,
@@ -78,7 +76,10 @@ import { Input } from "@/components/ui/input"
 import {
   InputGroup,
   InputGroupAddon,
+  InputGroupButton,
   InputGroupInput,
+  InputGroupText,
+  InputGroupTextarea,
 } from "@/components/ui/input-group"
 import { Message, MessageAvatar, MessageContent } from "@/components/ui/message"
 import {
@@ -102,7 +103,6 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Tooltip,
   TooltipContent,
@@ -1139,32 +1139,33 @@ function ReviewPanel({
             </div>
           )}
 
-          <Card className="shadow-xs lg:sticky lg:top-6 lg:col-span-4">
-            <CardHeader className="border-b">
-              <CardTitle>
-                <h2>
-                  {isMultiVideo
-                    ? t(
-                        `第 ${activeItemIndex} 条 · 审核与交付`,
-                        `Video #${activeItemIndex} · Review`
-                      )
-                    : t("审核与交付", "Review & delivery")}
-                </h2>
-              </CardTitle>
-              <CardDescription>
+          <Card className="gap-0 overflow-hidden shadow-xs lg:sticky lg:top-6 lg:col-span-4">
+            <CardHeader className="border-b px-5 pt-4 pb-3.5">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-[15px] font-semibold tracking-tight">
+                  <h2>
+                    {isMultiVideo
+                      ? t(
+                          `第 ${activeItemIndex} 条 · 审核与交付`,
+                          `Video #${activeItemIndex} · Review`
+                        )
+                      : t("审核与交付", "Review & delivery")}
+                  </h2>
+                </CardTitle>
+                <StatusBadge status={order.status} />
+              </div>
+              <CardDescription className="text-xs leading-relaxed">
                 {t(
-                  "支持多轮沟通修订，确认无误后将交付正式无水印成片。",
-                  "Submit revision notes as needed; approve to trigger final watermark-free delivery."
+                  "支持多轮修改反馈，确认定稿后将交付 1080P 无水印正式成片。",
+                  "Request revisions as needed; approve to unlock your 1080P watermark-free final."
                 )}
               </CardDescription>
-              <CardAction>
-                <StatusBadge status={order.status} />
-              </CardAction>
             </CardHeader>
-            <CardContent className="flex flex-col gap-4">
+
+            <CardContent className="flex flex-col gap-4 px-5 py-4">
               {!selected ? (
                 <Alert>
-                  <AlertDescription>
+                  <AlertDescription className="text-xs leading-relaxed">
                     {t(
                       `第 ${activeItemIndex} 条暂未上传初稿，可切换至其他已上传条数审片，或前往沟通页补充脚本要求。`,
                       `Video #${activeItemIndex} has no draft yet. Switch to another video slot or share your script in chat.`
@@ -1173,28 +1174,30 @@ function ReviewPanel({
                 </Alert>
               ) : selected.type === "final" ? (
                 <div className="flex flex-col gap-3">
-                  <Alert className="border-emerald-200 bg-emerald-50/70 text-emerald-950">
+                  <div className="flex items-start gap-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50/70 p-3.5 text-emerald-950">
                     <CheckCircle2
                       aria-hidden="true"
-                      className="text-emerald-600"
+                      className="mt-0.5 size-4 shrink-0 text-emerald-600"
                     />
-                    <AlertTitle>
-                      {isMultiVideo
-                        ? t(
-                            `第 ${activeItemIndex} 条正式成片已交付`,
-                            `Video #${activeItemIndex} final delivered`
-                          )
-                        : t("正式成片已交付", "Final video delivered")}
-                    </AlertTitle>
-                    <AlertDescription className="text-emerald-900/80">
-                      {t(
-                        "当前为无水印正式交付版本，可随时在线播放或下载保存。",
-                        "This is your watermark-free final video. Download it anytime."
-                      )}
-                    </AlertDescription>
-                  </Alert>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-semibold">
+                        {isMultiVideo
+                          ? t(
+                              `第 ${activeItemIndex} 条正式成片已交付`,
+                              `Video #${activeItemIndex} final delivered`
+                            )
+                          : t("正式成片已交付", "Final video delivered")}
+                      </span>
+                      <p className="text-xs leading-relaxed text-emerald-900/80">
+                        {t(
+                          "当前为无水印正式交付版本，可随时在线播放或下载保存。",
+                          "This is your watermark-free final video. Download it anytime."
+                        )}
+                      </p>
+                    </div>
+                  </div>
                   <Button
-                    size="lg"
+                    size="default"
                     className="w-full"
                     onClick={() => void download()}
                   >
@@ -1204,7 +1207,7 @@ function ReviewPanel({
                 </div>
               ) : !isLatestPreviewInItem ? (
                 <Alert>
-                  <AlertDescription>
+                  <AlertDescription className="text-xs leading-relaxed">
                     {itemHasFinal
                       ? t(
                           "该条视频已有正式交付版本，请切换到「正式交付版」下载。",
@@ -1219,43 +1222,66 @@ function ReviewPanel({
               ) : (
                 <>
                   {order.status === "approved" && (
-                    <Alert className="border-sky-200 bg-sky-50/70 text-sky-950">
-                      <CheckCircle2 aria-hidden="true" className="text-sky-600" />
-                      <AlertTitle>{t("您已确认定稿", "Version approved")}</AlertTitle>
-                      <AlertDescription className="text-sky-900/85">
-                        {t(
-                          "制作团队正在导出无水印正式成片。如仍有临时修改，可在下方直接补充意见。",
-                          "Your team is rendering the watermark-free final video. You can still submit additional changes below if needed."
-                        )}
-                      </AlertDescription>
-                    </Alert>
+                    <div className="flex items-start gap-2.5 rounded-xl border border-sky-200/80 bg-sky-50/70 p-3.5 text-sky-950">
+                      <CheckCircle2
+                        aria-hidden="true"
+                        className="mt-0.5 size-4 shrink-0 text-sky-600"
+                      />
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-semibold">
+                          {t("您已确认定稿", "Version approved")}
+                        </span>
+                        <p className="text-xs leading-relaxed text-sky-900/85">
+                          {t(
+                            "制作团队正在导出无水印正式成片。如仍有临时修改，可在下方补充意见。",
+                            "Your team is rendering the watermark-free final video. You can still add notes below if needed."
+                          )}
+                        </p>
+                      </div>
+                    </div>
                   )}
 
                   {order.status === "revision" && (
-                    <Alert className="border-brand-gold/40 bg-brand-gold/10 text-amber-950">
-                      <AlertTriangle aria-hidden="true" className="text-amber-700" />
-                      <AlertTitle>
-                        {t("制作团队正在根据意见修改", "Revisions in progress")}
-                      </AlertTitle>
-                      <AlertDescription className="text-amber-900/85">
-                        {t(
-                          "已收到上一轮修改要求，您仍可继续补充新的调整意见，或直接确认当前版本。",
-                          "Your previous notes were sent. You can still add further revisions below or approve this draft."
-                        )}
-                      </AlertDescription>
-                    </Alert>
+                    <div className="flex items-start gap-2.5 rounded-xl border border-brand-gold/40 bg-brand-gold/10 p-3.5 text-amber-950">
+                      <AlertTriangle
+                        aria-hidden="true"
+                        className="mt-0.5 size-4 shrink-0 text-amber-700"
+                      />
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-semibold">
+                          {t("制作团队正在根据意见修改", "Revisions in progress")}
+                        </span>
+                        <p className="text-xs leading-relaxed text-amber-900/85">
+                          {t(
+                            "已收到上一轮修改要求，您仍可继续补充细节，或直接确认当前版本。",
+                            "Your previous notes were sent. You can add further revisions below or approve this draft."
+                          )}
+                        </p>
+                      </div>
+                    </div>
                   )}
 
                   {canApprove && (
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-2.5 rounded-xl border border-primary/15 bg-primary/[0.03] p-3.5">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-semibold text-foreground">
+                          {t("满意当前版本？", "Happy with this cut?")}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {t(
+                            "确认后团队将立即导出无水印正式成片。",
+                            "Approving notifies our studio to render your clean final."
+                          )}
+                        </span>
+                      </div>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button size="lg" className="w-full">
+                          <Button size="default" className="w-full shadow-2xs">
                             <CheckCircle2
                               data-icon="inline-start"
                               aria-hidden="true"
                             />
-                            {t("确认通过", "Approve version")}
+                            {t("确认通过并定稿", "Approve & finalize")}
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
@@ -1294,53 +1320,131 @@ function ReviewPanel({
                     </div>
                   )}
 
-                  {canApprove && <Separator />}
-
                   {canRequestRevision && (
-                    <form onSubmit={requestRevision}>
-                      <FieldGroup className="gap-3">
-                        <Field>
-                          <FieldLabel htmlFor="revision-note">
-                            {order.status === "revision" ||
-                            order.status === "approved"
-                              ? t("补充修改意见", "Add another revision note")
-                              : t("申请修改意见", "Revision notes")}
-                          </FieldLabel>
-                          <Textarea
-                            id="revision-note"
-                            rows={4}
-                            placeholder={t(
-                              "可注明时间点和调整要求，例如：00:24 处语速稍快…",
-                              "Include the timecode and the change you need, e.g. 00:24 pacing…"
-                            )}
-                            value={revision}
-                            onChange={(event) => setRevision(event.target.value)}
-                          />
-                        </Field>
-                        <Button
-                          variant="outline"
-                          type="submit"
-                          className="w-full"
-                          disabled={!revision.trim()}
+                    <form
+                      onSubmit={requestRevision}
+                      className="flex flex-col gap-2.5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <label
+                          htmlFor="revision-note"
+                          className="text-xs font-semibold text-foreground"
                         >
-                          {t("提交修改意见", "Request changes")}
-                        </Button>
-                      </FieldGroup>
+                          {order.status === "revision" ||
+                          order.status === "approved"
+                            ? t("补充修改意见", "Add revision notes")
+                            : t("需要调整？填写修改意见", "Request revisions")}
+                        </label>
+                        <span className="text-[11px] text-muted-foreground">
+                          {t("支持多条时间点", "Multi-point notes")}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          {
+                            label: t("+ 时间点", "+ Timecode"),
+                            snippet: "00:00 ",
+                          },
+                          {
+                            label: t("+ 语速/口型", "+ Pacing"),
+                            snippet: t("00:00 语速/口型：", "00:00 Pacing: "),
+                          },
+                          {
+                            label: t("+ 字幕/画面", "+ Visuals"),
+                            snippet: t("00:00 字幕/画面：", "00:00 Visuals: "),
+                          },
+                        ].map((chip) => (
+                          <button
+                            key={chip.label}
+                            type="button"
+                            onClick={() => {
+                              setRevision((curr) => {
+                                const clean = curr.trimEnd()
+                                return clean
+                                  ? `${clean}\n${chip.snippet}`
+                                  : chip.snippet
+                              })
+                              requestAnimationFrame(() =>
+                                document.getElementById("revision-note")?.focus()
+                              )
+                            }}
+                            className="inline-flex items-center rounded-md border border-border/80 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-border hover:bg-muted hover:text-foreground"
+                          >
+                            {chip.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <InputGroup className="overflow-hidden rounded-xl border-border/90 bg-background shadow-2xs">
+                        <InputGroupTextarea
+                          id="revision-note"
+                          rows={6}
+                          placeholder={t(
+                            "按时间点逐条写下调整建议，例如：\n00:12 开场语速可以稍微放缓一点\n00:36 字幕颜色换成浅金色更清晰…",
+                            "List changes by timecode, e.g.:\n00:12 Slow down the opening pacing slightly\n00:36 Make the lower-third caption higher contrast…"
+                          )}
+                          value={revision}
+                          onChange={(event) => setRevision(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (
+                              (event.metaKey || event.ctrlKey) &&
+                              event.key === "Enter" &&
+                              revision.trim()
+                            ) {
+                              event.preventDefault()
+                              event.currentTarget.form?.requestSubmit()
+                            }
+                          }}
+                          className="min-h-40 max-h-72 px-3.5 pt-3 pb-2 text-sm leading-relaxed"
+                        />
+                        <InputGroupAddon
+                          align="block-end"
+                          className="justify-between border-t border-border/60 bg-muted/25 px-3 py-2"
+                        >
+                          <InputGroupText className="text-[11px] text-muted-foreground">
+                            {revision.trim().length > 0
+                              ? t(
+                                  `已输入 ${revision.trim().length} 字`,
+                                  `${revision.trim().length} chars`
+                                )
+                              : t("Ctrl + Enter 快速提交", "Ctrl + Enter to send")}
+                          </InputGroupText>
+                          <InputGroupButton
+                            type="submit"
+                            size="sm"
+                            variant={revision.trim() ? "default" : "secondary"}
+                            disabled={!revision.trim()}
+                            className="h-7 px-3 text-xs font-medium"
+                          >
+                            <Send
+                              data-icon="inline-start"
+                              aria-hidden="true"
+                              className="size-3.5"
+                            />
+                            {t("提交修改意见", "Send notes")}
+                          </InputGroupButton>
+                        </InputGroupAddon>
+                      </InputGroup>
                     </form>
                   )}
                 </>
               )}
             </CardContent>
-            <CardFooter className="justify-center">
+
+            <CardFooter className="justify-between gap-2 border-t bg-muted/25 px-5 py-3">
+              <span className="text-xs text-muted-foreground">
+                {t("需要补传素材或实时讨论？", "Need to share files or chat?")}
+              </span>
               <Button
                 type="button"
-                size="sm"
+                size="xs"
                 variant="outline"
-                className="w-full bg-background"
+                className="shrink-0 bg-background"
                 onClick={onOpenChat}
               >
                 <MessageSquare data-icon="inline-start" aria-hidden="true" />
-                {t("切换到沟通与素材", "Switch to chat & materials")}
+                {t("前往沟通", "Open chat")}
               </Button>
             </CardFooter>
           </Card>
