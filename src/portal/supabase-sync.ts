@@ -155,14 +155,26 @@ export async function fetchAuthenticatedSnapshot(
   fallbackEmail: string,
   authMeta?: { fullName?: string; avatarUrl?: string }
 ): Promise<SupabaseSnapshot> {
-  // 1. Load own profile & own team_members row
-  const [{ data: profile }, { data: selfMemberRows }] = await Promise.all([
+  // Round 1 (parallel): profile, own team row, notifications, and direct orders
+  const [
+    { data: profile },
+    { data: selfMemberRows },
+    { data: notificationRows },
+    { data: directOrderRows },
+  ] = await Promise.all([
     sb.from("profiles").select("*").eq("id", userId).maybeSingle(),
     sb
       .from("team_members")
       .select("*")
       .eq("user_id", userId)
       .eq("active", true),
+    sb
+      .from("notifications")
+      .select("*")
+      .eq("recipient_user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(20),
+    sb.from("orders").select("*").order("created_at", { ascending: false }),
   ])
 
   const selfMember = selfMemberRows?.[0] ?? null
@@ -201,22 +213,69 @@ export async function fetchAuthenticatedSnapshot(
     avatarUrl: dbAvatar || metaAvatar || undefined,
   }
 
-  // 2. Load RBAC roles, permissions & team members if team user
+  // Round 2 (parallel): team metadata + quotes + clients (if team) AND child rows for already-loaded orders
+  const directOrderIds = (directOrderRows ?? []).map((o) => o.id)
+
+  const [
+    teamBundle,
+    directChildrenBundle,
+  ] = await Promise.all([
+    isTeam && selfMember
+      ? Promise.all([
+          sb.from("team_roles").select("*"),
+          sb.from("role_permissions").select("*"),
+          sb
+            .from("team_members")
+            .select("*")
+            .order("created_at", { ascending: true }),
+          sb
+            .from("profiles")
+            .select("id, full_name, email, company, avatar_url")
+            .order("created_at", { ascending: false }),
+          sb
+            .from("custom_quotes")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .limit(20),
+        ])
+      : Promise.resolve(null),
+    directOrderIds.length > 0
+      ? Promise.all([
+          sb
+            .from("order_messages")
+            .select("*")
+            .in("order_id", directOrderIds)
+            .order("created_at", { ascending: true }),
+          sb
+            .from("order_attachments")
+            .select("*")
+            .in("order_id", directOrderIds)
+            .eq("status", "ready")
+            .order("created_at", { ascending: true }),
+          sb
+            .from("video_versions")
+            .select("*")
+            .in("order_id", directOrderIds)
+            .order("created_at", { ascending: true }),
+        ])
+      : Promise.resolve(null),
+  ])
+
   let teamRoles: TeamRoleConfig[] = defaultTeamRoles
   let teamMembers: TeamMember[] = []
   let canViewAllOrders = false
-  let canViewClients = false
+  let clients: ClientDirectoryEntry[] = []
+  let customQuotes: CustomQuoteRecord[] = []
+  const clientNameById = new Map<string, string>([[userId, account.name]])
 
-  if (isTeam && selfMember) {
-    const [{ data: rolesRows }, { data: permRows }, { data: memberRows }] =
-      await Promise.all([
-        sb.from("team_roles").select("*"),
-        sb.from("role_permissions").select("*"),
-        sb
-          .from("team_members")
-          .select("*")
-          .order("created_at", { ascending: true }),
-      ])
+  if (isTeam && selfMember && teamBundle) {
+    const [
+      { data: rolesRows },
+      { data: permRows },
+      { data: memberRows },
+      { data: profileRows },
+      { data: quoteRows },
+    ] = teamBundle
 
     if (rolesRows && rolesRows.length > 0) {
       teamRoles = rolesRows.map((role) => ({
@@ -258,24 +317,14 @@ export async function fetchAuthenticatedSnapshot(
     canViewAllOrders = Boolean(
       myRole?.locked || myRole?.permissions.includes("orders:view_all")
     )
-    canViewClients = Boolean(
+    const canViewClients = Boolean(
       myRole?.locked || myRole?.permissions.includes("settings:clients")
     )
-  }
+    const canViewQuotes = Boolean(
+      myRole?.locked || myRole?.permissions.includes("settings:quotes")
+    )
 
-  const memberNameById = new Map<string, string>(
-    teamMembers.map((m) => [m.id, m.name])
-  )
-
-  // 3. Load clients directory if authorized
-  let clients: ClientDirectoryEntry[] = []
-  const clientNameById = new Map<string, string>([[userId, account.name]])
-  if (canViewClients || canViewAllOrders) {
-    const { data: profileRows } = await sb
-      .from("profiles")
-      .select("id, full_name, email, company, avatar_url")
-      .order("created_at", { ascending: false })
-    if (profileRows) {
+    if ((canViewClients || canViewAllOrders) && profileRows) {
       clients = profileRows.map((p) => ({
         id: p.id,
         name: p.full_name || p.email.split("@")[0] || "Client",
@@ -287,10 +336,28 @@ export async function fetchAuthenticatedSnapshot(
         clientNameById.set(c.id, c.name)
       }
     }
+
+    if (canViewQuotes && quoteRows) {
+      customQuotes = quoteRows.map((row) => ({
+        id: row.id,
+        clientEmail: row.client_email ?? undefined,
+        projectName: row.project_name,
+        videoCount: row.video_count,
+        amountDollars: centsToDollars(row.amount_cents),
+        status: row.status,
+        createdAt: row.created_at,
+      }))
+    }
   }
 
-  // 4. Load accessible orders (privacy-preserving view for subcontractors)
+  const memberNameById = new Map<string, string>(
+    teamMembers.map((m) => [m.id, m.name])
+  )
+
+  // Assemble accessible orders (privacy-preserving view for subcontractors)
   const rawOrders: Order[] = []
+  let childrenBundle = directChildrenBundle
+
   if (isTeam && !canViewAllOrders) {
     const { data: viewRows } = await sb
       .from("producer_orders_view")
@@ -303,7 +370,7 @@ export async function fetchAuthenticatedSnapshot(
         en: row.title_en,
         client: row.client_first_name || "Client",
         status: row.status as Status,
-        plan: "pro",
+        plan: "presenter-5",
         count: row.video_credits_total,
         total: 0,
         method: "card",
@@ -317,12 +384,30 @@ export async function fetchAuthenticatedSnapshot(
         revision: row.latest_revision_note ?? undefined,
       })
     }
+    const producerOrderIds = rawOrders.map((o) => o.id)
+    childrenBundle =
+      producerOrderIds.length > 0
+        ? await Promise.all([
+            sb
+              .from("order_messages")
+              .select("*")
+              .in("order_id", producerOrderIds)
+              .order("created_at", { ascending: true }),
+            sb
+              .from("order_attachments")
+              .select("*")
+              .in("order_id", producerOrderIds)
+              .eq("status", "ready")
+              .order("created_at", { ascending: true }),
+            sb
+              .from("video_versions")
+              .select("*")
+              .in("order_id", producerOrderIds)
+              .order("created_at", { ascending: true }),
+          ])
+        : null
   } else {
-    const { data: orderRows } = await sb
-      .from("orders")
-      .select("*")
-      .order("created_at", { ascending: false })
-    for (const row of orderRows ?? []) {
+    for (const row of directOrderRows ?? []) {
       rawOrders.push({
         id: row.id,
         zh: row.title_zh,
@@ -330,7 +415,7 @@ export async function fetchAuthenticatedSnapshot(
         client: clientNameById.get(row.client_id) ?? account.name,
         clientId: row.client_id,
         status: row.status as Status,
-        plan: row.plan_id ?? (row.custom_quote_id ? "quote" : "pro"),
+        plan: row.plan_id ?? (row.custom_quote_id ? "quote" : "presenter-5"),
         count: row.video_credits_total,
         total: centsToDollars(row.amount_cents),
         method: row.payment_method,
@@ -346,28 +431,10 @@ export async function fetchAuthenticatedSnapshot(
     }
   }
 
-  // 5. Load messages, attachments, versions & notifications for accessible orders
-  const orderIds = rawOrders.map((o) => o.id)
-  if (orderIds.length > 0) {
+  // Merge messages, attachments & versions into orders
+  if (rawOrders.length > 0 && childrenBundle) {
     const [{ data: msgRows }, { data: attRows }, { data: verRows }] =
-      await Promise.all([
-        sb
-          .from("order_messages")
-          .select("*")
-          .in("order_id", orderIds)
-          .order("created_at", { ascending: true }),
-        sb
-          .from("order_attachments")
-          .select("*")
-          .in("order_id", orderIds)
-          .eq("status", "ready")
-          .order("created_at", { ascending: true }),
-        sb
-          .from("video_versions")
-          .select("*")
-          .in("order_id", orderIds)
-          .order("created_at", { ascending: true }),
-      ])
+      childrenBundle
 
     const attachmentsByMsg = new Map<string, ChatAttachment[]>()
     for (const a of attRows ?? []) {
@@ -428,13 +495,6 @@ export async function fetchAuthenticatedSnapshot(
     }
   }
 
-  const { data: notificationRows } = await sb
-    .from("notifications")
-    .select("*")
-    .eq("recipient_user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(20)
-
   const notifications: NotificationItem[] = (notificationRows ?? []).map(
     (row) => ({
       id: row.id,
@@ -448,33 +508,6 @@ export async function fetchAuthenticatedSnapshot(
       createdAt: row.created_at,
     })
   )
-
-  const canViewQuotes = Boolean(
-    isTeam &&
-      selfMember &&
-      (() => {
-        const myRole = teamRoles.find((r) => r.id === selfMember.role_id)
-        return myRole?.locked || myRole?.permissions.includes("settings:quotes")
-      })()
-  )
-
-  let customQuotes: CustomQuoteRecord[] = []
-  if (canViewQuotes) {
-    const { data: quoteRows } = await sb
-      .from("custom_quotes")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(20)
-    customQuotes = (quoteRows ?? []).map((row) => ({
-      id: row.id,
-      clientEmail: row.client_email ?? undefined,
-      projectName: row.project_name,
-      videoCount: row.video_count,
-      amountDollars: centsToDollars(row.amount_cents),
-      status: row.status,
-      createdAt: row.created_at,
-    }))
-  }
 
   return {
     account,

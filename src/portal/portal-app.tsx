@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from "react"
+import { MultiStepLoader } from "@/components/ui/multi-step-loader"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { Toaster } from "@/components/ui/sonner"
@@ -24,7 +25,7 @@ import {
 } from "@/components/ui/empty"
 import { DemoProvider, useDemo, usePortal, useTeamAuth } from "./demo"
 import { defaultLocale, isLocale, setDocumentLocale } from "./i18n"
-import { ActionLink, FadeTransition, PageWidth } from "./layout"
+import { ActionLink, BrandMark, FadeTransition, PageWidth } from "./layout"
 
 const AuthPage = lazy(() =>
   import("./purchase").then(({ AuthPage }) => ({ default: AuthPage }))
@@ -270,11 +271,76 @@ function NotFound() {
   )
 }
 
+function AuthTransitionOverlay() {
+  const { authTransition } = useDemo()
+  const { pathname } = useLocation()
+  const zh = pathname === "/zh" || pathname.startsWith("/zh/")
+  const isTeam = authTransition.portal === "team"
+
+  const loadingStates = isTeam
+    ? [
+        {
+          text: zh ? "验证工作人员身份与权限" : "Verifying studio credentials",
+          detail: zh
+            ? "正在安全校验账号与角色矩阵…"
+            : "Checking account & RBAC permissions…",
+        },
+        {
+          text: zh ? "同步订单队列与交付记录" : "Syncing orders & studio queue",
+          detail: zh
+            ? "正在加载实时订单、素材与报价台账…"
+            : "Loading active orders, assets & quotes…",
+        },
+        {
+          text: zh ? "进入 NextGen Studio 工作台" : "Opening NextGen Studio",
+          detail: zh ? "一切就绪" : "All set",
+        },
+      ]
+    : [
+        {
+          text: zh ? "验证账号安全凭证" : "Verifying your account",
+          detail: zh
+            ? "正在连接安全登录会话…"
+            : "Establishing secure session…",
+        },
+        {
+          text: zh ? "同步订单与交付视频" : "Syncing orders & deliverables",
+          detail: zh
+            ? "正在加载制作进度、审片版本与消息…"
+            : "Loading production progress & previews…",
+        },
+        {
+          text: zh ? "进入客户工作台" : "Opening your workspace",
+          detail: zh ? "欢迎回来" : "Welcome back",
+        },
+      ]
+
+  return (
+    <MultiStepLoader
+      loading={authTransition.active}
+      stepIndex={authTransition.step}
+      loadingStates={loadingStates}
+      dark={isTeam}
+      header={<BrandMark studio={isTeam} />}
+      subtitle={
+        isTeam
+          ? zh
+            ? "正在为您准备内部制作与管理后台"
+            : "Preparing your studio console"
+          : zh
+            ? "正在为您准备数字人视频工作台"
+            : "Preparing your avatar video workspace"
+      }
+    />
+  )
+}
+
 export function PortalApp() {
   return (
     <BrowserRouter>
       <TooltipProvider delayDuration={300}>
         <DemoProvider>
+          <AuthTransitionOverlay />
           <Routes>
             <Route index element={<RootRedirect />} />
             {/* Compatibility entry routes for external marketing site links */}

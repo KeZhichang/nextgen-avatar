@@ -670,9 +670,16 @@ function mergeWithSampleOrders(
 
 export type AuthResult = { ok: true } | { ok: false; reason: string }
 
+export type AuthTransitionState = {
+  active: boolean
+  portal: "client" | "team"
+  step: 0 | 1 | 2
+}
+
 type DemoContextValue = {
   isLiveSupabase: boolean
   authLoading: boolean
+  authTransition: AuthTransitionState
   authUser: AuthUser | null
   data: DemoState
   update: (fn: (current: DemoState) => DemoState) => void
@@ -767,9 +774,35 @@ const DemoContext = createContext<DemoContextValue | null>(null)
 export function DemoProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<DemoState>(restore)
   const [authLoading, setAuthLoading] = useState(supabaseConfigured)
+  const [authTransition, setAuthTransition] = useState<AuthTransitionState>({
+    active: false,
+    portal: "client",
+    step: 0,
+  })
   const [authUser, setAuthUser] = useState<AuthUser | null>(null)
   const authUserRef = useRef<AuthUser | null>(null)
   const dataRef = useRef(data)
+  const manualAuthInProgressRef = useRef(false)
+  const inFlightSnapshotRef = useRef<{
+    userId: string
+    promise: Promise<void>
+  } | null>(null)
+  const transitionDismissTimerRef = useRef<number | undefined>(undefined)
+
+  const clearAuthTransition = useCallback(() => {
+    window.clearTimeout(transitionDismissTimerRef.current)
+    setAuthTransition((current) =>
+      current.active ? { ...current, active: false } : current
+    )
+  }, [])
+
+  const finishAuthTransition = useCallback((portal: "client" | "team") => {
+    window.clearTimeout(transitionDismissTimerRef.current)
+    setAuthTransition({ active: true, portal, step: 2 })
+    transitionDismissTimerRef.current = window.setTimeout(() => {
+      setAuthTransition((current) => ({ ...current, active: false }))
+    }, 260)
+  }, [])
 
   function isDemoOrder(orderId: string): boolean {
     return Boolean(
@@ -823,73 +856,88 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       }))
       return
     }
-    try {
-      const [catalog, snapshot] = await Promise.all([
-        fetchPublicCatalog(sb).catch(() => null),
-        fetchAuthenticatedSnapshot(sb, user.id, user.email, {
-          fullName: user.fullName,
-          avatarUrl: user.avatarUrl,
-        }),
-      ])
-      setData((current) => {
-        const mergedOrders = mergeWithSampleOrders(
-          snapshot.orders,
-          current.orders,
-          snapshot.account.name,
-          Boolean(snapshot.teamMemberId)
-        )
-        return {
-          ...current,
-          plans:
-            catalog && catalog.plans.length > 0 ? catalog.plans : current.plans,
-          addons:
-            catalog && catalog.addons.length > 0
-              ? catalog.addons
-              : current.addons,
-          account: {
-            name: snapshot.account.name,
-            email: snapshot.account.email,
-            company: snapshot.account.company,
-            avatarUrl: snapshot.account.avatarUrl,
-          },
-          orders: mergedOrders,
-          teamRoles: snapshot.teamRoles,
-          teamMembers: snapshot.teamMembers,
-          teamSession: snapshot.teamMemberId,
-          role:
-            snapshot.teamMembers.find((m) => m.id === snapshot.teamMemberId)
-              ?.roleId === "admin"
-              ? "admin"
-              : "producer",
-          clients: snapshot.clients,
-          customQuotes:
-            snapshot.customQuotes.length > 0
-              ? snapshot.customQuotes
-              : !hideSampleData
-                ? current.customQuotes.length > 0
-                  ? current.customQuotes
-                  : defaultDemoQuotes
-                : [],
-          notifications:
-            snapshot.notifications.length > 0
-              ? snapshot.notifications
-              : !hideSampleData
-                ? current.notifications.length > 0
-                  ? current.notifications
-                  : defaultDemoNotifications
-                : [],
-          unread:
-            snapshot.notifications.length > 0
-              ? snapshot.unread
-              : !hideSampleData &&
-              (current.notifications.length > 0
-                ? current.notifications.some((item) => !item.isRead)
-                : defaultDemoNotifications.some((item) => !item.isRead)),
-        }
-      })
-    } catch {
-      // Ignore transient sync errors; user can retry or refresh
+    if (inFlightSnapshotRef.current?.userId === user.id) {
+      await inFlightSnapshotRef.current.promise
+      return
     }
+    const task = (async () => {
+      try {
+        const [catalog, snapshot] = await Promise.all([
+          dataRef.current.plans.length > 0
+            ? Promise.resolve(null)
+            : fetchPublicCatalog(sb).catch(() => null),
+          fetchAuthenticatedSnapshot(sb, user.id, user.email, {
+            fullName: user.fullName,
+            avatarUrl: user.avatarUrl,
+          }),
+        ])
+        setData((current) => {
+          const mergedOrders = mergeWithSampleOrders(
+            snapshot.orders,
+            current.orders,
+            snapshot.account.name,
+            Boolean(snapshot.teamMemberId)
+          )
+          return {
+            ...current,
+            plans:
+              catalog && catalog.plans.length > 0 ? catalog.plans : current.plans,
+            addons:
+              catalog && catalog.addons.length > 0
+                ? catalog.addons
+                : current.addons,
+            account: {
+              name: snapshot.account.name,
+              email: snapshot.account.email,
+              company: snapshot.account.company,
+              avatarUrl: snapshot.account.avatarUrl,
+            },
+            orders: mergedOrders,
+            teamRoles: snapshot.teamRoles,
+            teamMembers: snapshot.teamMembers,
+            teamSession: snapshot.teamMemberId,
+            role:
+              snapshot.teamMembers.find((m) => m.id === snapshot.teamMemberId)
+                ?.roleId === "admin"
+                ? "admin"
+                : "producer",
+            clients: snapshot.clients,
+            customQuotes:
+              snapshot.customQuotes.length > 0
+                ? snapshot.customQuotes
+                : !hideSampleData
+                  ? current.customQuotes.length > 0
+                    ? current.customQuotes
+                    : defaultDemoQuotes
+                  : [],
+            notifications:
+              snapshot.notifications.length > 0
+                ? snapshot.notifications
+                : !hideSampleData
+                  ? current.notifications.length > 0
+                    ? current.notifications
+                    : defaultDemoNotifications
+                  : [],
+            unread:
+              snapshot.notifications.length > 0
+                ? snapshot.unread
+                : !hideSampleData &&
+                  (current.notifications.length > 0
+                    ? current.notifications.some((item) => !item.isRead)
+                    : defaultDemoNotifications.some((item) => !item.isRead)),
+          }
+        })
+      } catch {
+        // Ignore transient sync errors; user can retry or refresh
+      } finally {
+        if (inFlightSnapshotRef.current?.userId === user.id) {
+          inFlightSnapshotRef.current = null
+        }
+      }
+    })()
+
+    inFlightSnapshotRef.current = { userId: user.id, promise: task }
+    await task
   }, [])
 
   const refreshFromSupabase = useCallback(async () => {
@@ -921,24 +969,56 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       authUserRef.current = mapped
       setAuthUser(mapped)
       if (mapped) {
+        const isTeamPath = window.location.pathname.includes("/admin")
+        setAuthTransition({
+          active: true,
+          portal: isTeamPath ? "team" : "client",
+          step: 1,
+        })
         await loadSnapshotForUser(mapped)
+        if (active) {
+          finishAuthTransition(isTeamPath ? "team" : "client")
+        }
       }
       if (active) setAuthLoading(false)
     })
 
-    const { data: listener } = sb.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = sb.auth.onAuthStateChange((event, session) => {
+      if (manualAuthInProgressRef.current) return
+      if (event === "INITIAL_SESSION") return
       const user = session?.user
       const mapped = user ? mapSupabaseUser(user) : null
+      const prevId = authUserRef.current?.id
       authUserRef.current = mapped
       setAuthUser(mapped)
-      void loadSnapshotForUser(mapped)
+      if (!mapped) {
+        clearAuthTransition()
+        void loadSnapshotForUser(null)
+        return
+      }
+      if (event === "SIGNED_IN" && prevId !== mapped.id) {
+        const isTeamPath = window.location.pathname.includes("/admin")
+        setAuthTransition({
+          active: true,
+          portal: isTeamPath ? "team" : "client",
+          step: 1,
+        })
+        void loadSnapshotForUser(mapped).then(() => {
+          finishAuthTransition(isTeamPath ? "team" : "client")
+        })
+        return
+      }
+      if (event !== "TOKEN_REFRESHED") {
+        void loadSnapshotForUser(mapped)
+      }
     })
 
     return () => {
       active = false
+      window.clearTimeout(transitionDismissTimerRef.current)
       listener.subscription.unsubscribe()
     }
-  }, [loadSnapshotForUser])
+  }, [loadSnapshotForUser, clearAuthTransition, finishAuthTransition])
 
   useEffect(() => {
     if (!supabaseConfigured || !authUser || authUser.isDemo) return
@@ -1094,18 +1174,27 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   ): Promise<AuthResult> {
     const sb = getSupabaseClient()
     if (!sb) return { ok: true }
-    const { data: res, error } = await sb.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    })
-    if (error || !res.user) {
-      return { ok: false, reason: "invalid_credentials" }
+    manualAuthInProgressRef.current = true
+    setAuthTransition({ active: true, portal: "client", step: 0 })
+    try {
+      const { data: res, error } = await sb.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      })
+      if (error || !res.user) {
+        clearAuthTransition()
+        return { ok: false, reason: "invalid_credentials" }
+      }
+      setAuthTransition({ active: true, portal: "client", step: 1 })
+      const mapped = mapSupabaseUser(res.user, email.trim())
+      await loadSnapshotForUser(mapped)
+      authUserRef.current = mapped
+      setAuthUser(mapped)
+      finishAuthTransition("client")
+      return { ok: true }
+    } finally {
+      manualAuthInProgressRef.current = false
     }
-    const mapped = mapSupabaseUser(res.user, email.trim())
-    authUserRef.current = mapped
-    setAuthUser(mapped)
-    await loadSnapshotForUser(mapped)
-    return { ok: true }
   }
 
   async function signUpClient(
@@ -1115,34 +1204,48 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   ): Promise<AuthResult> {
     const sb = getSupabaseClient()
     if (!sb) return { ok: true }
-    const { data: res, error } = await sb.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: { full_name: name.trim() },
-      },
-    })
-    if (error) {
-      return { ok: false, reason: error.message }
+    manualAuthInProgressRef.current = true
+    setAuthTransition({ active: true, portal: "client", step: 0 })
+    try {
+      const { data: res, error } = await sb.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: { full_name: name.trim() },
+        },
+      })
+      if (error) {
+        clearAuthTransition()
+        return { ok: false, reason: error.message }
+      }
+      if (res.session && res.user) {
+        setAuthTransition({ active: true, portal: "client", step: 1 })
+        const mapped = mapSupabaseUser(res.user, email.trim())
+        await loadSnapshotForUser(mapped)
+        authUserRef.current = mapped
+        setAuthUser(mapped)
+        finishAuthTransition("client")
+        return { ok: true }
+      }
+      clearAuthTransition()
+      return { ok: false, reason: "confirm_email_required" }
+    } finally {
+      manualAuthInProgressRef.current = false
     }
-    if (res.session && res.user) {
-      const mapped = mapSupabaseUser(res.user, email.trim())
-      authUserRef.current = mapped
-      setAuthUser(mapped)
-      await loadSnapshotForUser(mapped)
-      return { ok: true }
-    }
-    return { ok: false, reason: "confirm_email_required" }
   }
 
   async function signInWithGoogle(redirectTo: string): Promise<AuthResult> {
     const sb = getSupabaseClient()
     if (!sb) return { ok: false, reason: "not_configured" }
+    setAuthTransition({ active: true, portal: "client", step: 0 })
     const { error } = await sb.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo },
     })
-    if (error) return { ok: false, reason: "oauth_unavailable" }
+    if (error) {
+      clearAuthTransition()
+      return { ok: false, reason: "oauth_unavailable" }
+    }
     return { ok: true }
   }
 
@@ -1165,34 +1268,45 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   ): Promise<AuthResult> {
     const sb = getSupabaseClient()
     if (!sb) return { ok: false, reason: "not_configured" }
-    const { data: res, error } = await sb.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    })
-    if (error || !res.user) {
-      return { ok: false, reason: "invalid_credentials" }
-    }
+    manualAuthInProgressRef.current = true
+    setAuthTransition({ active: true, portal: "team", step: 0 })
+    try {
+      const { data: res, error } = await sb.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      })
+      if (error || !res.user) {
+        clearAuthTransition()
+        return { ok: false, reason: "invalid_credentials" }
+      }
 
-    const { data: memberRows } = await sb
-      .from("team_members")
-      .select("id, active")
-      .eq("user_id", res.user.id)
+      const { data: memberRows } = await sb
+        .from("team_members")
+        .select("id, active")
+        .eq("user_id", res.user.id)
 
-    const member = memberRows?.[0]
-    if (!member) {
-      await sb.auth.signOut()
-      return { ok: false, reason: "not_team_member" }
-    }
-    if (!member.active) {
-      await sb.auth.signOut()
-      return { ok: false, reason: "account_disabled" }
-    }
+      const member = memberRows?.[0]
+      if (!member) {
+        await sb.auth.signOut()
+        clearAuthTransition()
+        return { ok: false, reason: "not_team_member" }
+      }
+      if (!member.active) {
+        await sb.auth.signOut()
+        clearAuthTransition()
+        return { ok: false, reason: "account_disabled" }
+      }
 
-    const mapped = mapSupabaseUser(res.user, email.trim())
-    authUserRef.current = mapped
-    setAuthUser(mapped)
-    await loadSnapshotForUser(mapped)
-    return { ok: true }
+      setAuthTransition({ active: true, portal: "team", step: 1 })
+      const mapped = mapSupabaseUser(res.user, email.trim())
+      await loadSnapshotForUser(mapped)
+      authUserRef.current = mapped
+      setAuthUser(mapped)
+      finishAuthTransition("team")
+      return { ok: true }
+    } finally {
+      manualAuthInProgressRef.current = false
+    }
   }
 
   function signInDemoClient(email?: string, name?: string) {
@@ -1762,6 +1876,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       value={{
         isLiveSupabase: supabaseConfigured,
         authLoading,
+        authTransition,
         authUser,
         data,
         update: setData,

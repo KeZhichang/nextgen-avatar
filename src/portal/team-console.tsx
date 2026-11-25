@@ -626,7 +626,11 @@ export function AdminLoginPage() {
                   className="w-full"
                   disabled={submitting}
                 >
-                  <LogIn data-icon="inline-start" aria-hidden="true" />
+                  {submitting ? (
+                    <Spinner data-icon="inline-start" />
+                  ) : (
+                    <LogIn data-icon="inline-start" aria-hidden="true" />
+                  )}
                   {submitting
                     ? t("正在验证身份…", "Signing in…")
                     : t("登录管理后台", "Sign in")}

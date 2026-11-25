@@ -493,16 +493,20 @@ export function AuthPage() {
                         className="w-full"
                         disabled={submitting}
                       >
-                        {panel === "forgot" ? (
+                        {submitting ? (
+                          <Spinner data-icon="inline-start" />
+                        ) : panel === "forgot" ? (
                           <Mail data-icon="inline-start" aria-hidden="true" />
                         ) : (
                           <LogIn data-icon="inline-start" aria-hidden="true" />
                         )}
-                        {panel === "login"
-                          ? t("登录工作台", "Sign in to workspace")
-                          : panel === "forgot"
-                            ? t("发送重置链接", "Send reset link")
-                            : labels.register}
+                        {submitting
+                          ? t("正在登录…", "Signing in…")
+                          : panel === "login"
+                            ? t("登录工作台", "Sign in to workspace")
+                            : panel === "forgot"
+                              ? t("发送重置链接", "Send reset link")
+                              : labels.register}
                       </Button>
                       {panel === "login" && isTestEnvironment && (
                         <div className="flex flex-col gap-3 pt-1">
