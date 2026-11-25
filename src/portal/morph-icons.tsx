@@ -4,31 +4,34 @@ import {
   BellRing,
   Check,
   CircleCheck,
-  CircleDollarSign,
   Clapperboard,
   ClipboardCheck,
-  ClipboardList,
+  ContactRound,
   CreditCard,
   Eye,
-  FileCheck,
-  FileSpreadsheet,
-  Headphones,
-  Headset,
-  LayoutDashboard,
+  FileText,
+  House,
+  IdCard,
+  Inbox,
   LayoutGrid,
+  Lock,
   MessageSquare,
-  MessageSquareText,
   PenLine,
   ReceiptText,
-  Shield,
+  Send,
   ShieldCheck,
+  Tag,
   Upload,
-  UserCheck,
   UserRound,
-  UserRoundCheck,
   Users,
+  X,
 } from "lucide"
-import { MorphIcon, type IconInput, type MorphIconProps } from "morphicons/react"
+import {
+  MorphIcon,
+  type IconInput,
+  type MorphIconProps,
+  type MorphOptions,
+} from "morphicons/react"
 import { cn } from "cn"
 
 import type { Status } from "./demo"
@@ -38,31 +41,36 @@ export type MorphIconPair = {
   active: IconInput
 }
 
+/** Expressive spring tuned so 16px geometric morph trajectories read clearly. */
+export const navMorphSpring: MorphOptions = { stiffness: 210, damping: 18 }
+export const statusMorphSpring: MorphOptions = { stiffness: 190, damping: 20 }
+
 export const clientNavMorphIcons: Record<
   "overview" | "hub" | "billing" | "profile",
   MorphIconPair
 > = {
-  overview: { idle: LayoutGrid, active: LayoutDashboard },
-  hub: { idle: MessageSquare, active: MessageSquareText },
+  overview: { idle: House, active: LayoutGrid },
+  hub: { idle: MessageSquare, active: Clapperboard },
   billing: { idle: CreditCard, active: ReceiptText },
-  profile: { idle: UserRound, active: UserRoundCheck },
+  profile: { idle: UserRound, active: IdCard },
 }
 
 export const teamNavMorphIcons: Record<
   "orders" | "production" | "pricing" | "quote" | "clients" | "permissions",
   MorphIconPair
 > = {
-  orders: { idle: ClipboardList, active: ClipboardCheck },
-  production: { idle: Headphones, active: Headset },
-  pricing: { idle: CircleDollarSign, active: BadgeDollarSign },
-  quote: { idle: FileSpreadsheet, active: FileCheck },
-  clients: { idle: Users, active: UserCheck },
-  permissions: { idle: Shield, active: ShieldCheck },
+  orders: { idle: Inbox, active: ClipboardCheck },
+  production: { idle: MessageSquare, active: Clapperboard },
+  pricing: { idle: Tag, active: BadgeDollarSign },
+  quote: { idle: FileText, active: Send },
+  clients: { idle: Users, active: ContactRound },
+  permissions: { idle: Lock, active: ShieldCheck },
 }
 
 export const notificationBellMorphIcons = {
   read: Bell as IconInput,
   unread: BellRing as IconInput,
+  open: X as IconInput,
 }
 
 export const orderStatusMorphIcons: Record<Status, IconInput> = {
@@ -76,7 +84,7 @@ export const orderStatusMorphIcons: Record<Status, IconInput> = {
 
 export function AppMorphIcon({
   className,
-  spring = "snappy",
+  spring = navMorphSpring,
   reducedMotion = "user",
   size = 16,
   strokeWidth = 2,

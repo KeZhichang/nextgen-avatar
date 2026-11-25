@@ -35,7 +35,11 @@ import {
 import { type VariantProps } from "class-variance-authority"
 import { isLocale, localeLabels } from "./i18n"
 import { usePortal, type Status } from "./demo"
-import { AppMorphIcon, orderStatusMorphIcons } from "./morph-icons"
+import {
+  AppMorphIcon,
+  orderStatusMorphIcons,
+  statusMorphSpring,
+} from "./morph-icons"
 
 export function BrandMark({
   studio = false,
@@ -528,7 +532,7 @@ export function StatusBadge({ status }: { status: Status }) {
         icon={orderStatusMorphIcons[status]}
         size={12}
         strokeWidth={2.2}
-        spring="smooth"
+        spring={statusMorphSpring}
         className={cn("size-3 shrink-0 transition-colors duration-200", item.iconClass)}
       />
       {t(item.zh, item.en)}

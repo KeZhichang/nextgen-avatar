@@ -174,6 +174,7 @@ export function ClientConsoleShell() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [query] = useSearchParams()
+  const [notifOpen, setNotifOpen] = useState(false)
 
   const orders = data.orders.filter((value) =>
     authUser && !authUser.isDemo && value.clientId
@@ -291,30 +292,39 @@ export function ClientConsoleShell() {
       heading={heading}
       actions={
         <>
-          <Popover>
+          <Popover open={notifOpen} onOpenChange={setNotifOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 size="icon-sm"
-                className="relative"
-                aria-label={t("通知", "Notifications")}
+                className={
+                  notifOpen
+                    ? "relative border-primary/40 bg-accent/60 text-primary"
+                    : "relative"
+                }
+                aria-label={
+                  notifOpen
+                    ? t("关闭通知", "Close notifications")
+                    : t("通知", "Notifications")
+                }
               >
                 <AppMorphIcon
                   icon={
-                    unreadCount > 0
-                      ? notificationBellMorphIcons.unread
-                      : notificationBellMorphIcons.read
+                    notifOpen
+                      ? notificationBellMorphIcons.open
+                      : unreadCount > 0
+                        ? notificationBellMorphIcons.unread
+                        : notificationBellMorphIcons.read
                   }
                   size={16}
-                  strokeWidth={unreadCount > 0 ? 2.1 : 1.9}
-                  spring="snappy"
+                  strokeWidth={notifOpen || unreadCount > 0 ? 2.1 : 1.9}
                   className={
-                    unreadCount > 0
+                    notifOpen || unreadCount > 0
                       ? "size-4 text-primary transition-colors duration-200"
                       : "size-4 text-foreground transition-colors duration-200"
                   }
                 />
-                {unreadCount > 0 && (
+                {!notifOpen && unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary font-mono text-[10px] font-semibold text-primary-foreground">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
@@ -385,6 +395,7 @@ export function ClientConsoleShell() {
                         to={dest}
                         onClick={() => {
                           if (!item.isRead) void markNotificationRead(item.id)
+                          setNotifOpen(false)
                         }}
                         className={`group flex items-start gap-3 px-4 py-3 text-sm transition-colors hover:bg-muted/55 ${
                           item.isRead ? "bg-card" : "bg-primary/[0.035]"

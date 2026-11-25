@@ -34,7 +34,11 @@ import {
 } from "@/components/ui/sidebar"
 import { marketingSiteUrl, usePortal } from "./demo"
 import { BrandMark, LanguageSwitch } from "./layout"
-import { AppMorphIcon, type MorphIconPair } from "./morph-icons"
+import {
+  AppMorphIcon,
+  navMorphSpring,
+  type MorphIconPair,
+} from "./morph-icons"
 
 export type WorkbenchNavItem = {
   id?: string
@@ -141,7 +145,7 @@ function WorkbenchSidebar({
                             icon={active ? morph.active : morph.idle}
                             size={16}
                             strokeWidth={active ? 2.15 : 1.85}
-                            spring="snappy"
+                            spring={navMorphSpring}
                             className="size-4 shrink-0"
                           />
                         ) : Icon ? (
