@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from "react"
+import { type ReactNode, useId, useLayoutEffect, useRef, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router"
 import { ChevronLeft } from "lucide-react"
 import { LayoutGroup, motion, useReducedMotion } from "motion/react"
@@ -328,6 +328,47 @@ export function FadeTransition({
       className={className}
     >
       {children}
+    </motion.div>
+  )
+}
+
+export function SmoothHeight({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  const innerRef = useRef<HTMLDivElement>(null)
+  const [height, setHeight] = useState<number | "auto">("auto")
+  const prefersReducedMotion = useReducedMotion()
+
+  useLayoutEffect(() => {
+    const el = innerRef.current
+    if (!el) return
+    const update = () => {
+      const next = Math.ceil(el.getBoundingClientRect().height)
+      if (next > 0) setHeight((prev) => (prev === next ? prev : next))
+    }
+    update()
+    if (typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  if (prefersReducedMotion) {
+    return <div className={className}>{children}</div>
+  }
+
+  return (
+    <motion.div
+      initial={false}
+      animate={{ height }}
+      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+      className={cn("overflow-hidden", className)}
+    >
+      <div ref={innerRef}>{children}</div>
     </motion.div>
   )
 }

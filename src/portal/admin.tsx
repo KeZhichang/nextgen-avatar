@@ -19,7 +19,7 @@ import {
   UserCheck,
 } from "lucide-react"
 import { toast } from "sonner"
-import { LayoutGroup, motion } from "motion/react"
+import { AnimatePresence, LayoutGroup, motion } from "motion/react"
 import { cn } from "cn"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -66,6 +66,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
+  TableBody,
   TableCell,
   TableHead,
   TableHeader,
@@ -94,6 +95,7 @@ import {
   ActionLink,
   DataPagination,
   FadeTransition,
+  SmoothHeight,
   StatusBadge,
 } from "./layout"
 import { EditableOrderTitle } from "./production"
@@ -1178,43 +1180,38 @@ export function AdminOrdersPage() {
 
         <Card className="gap-0 overflow-hidden py-0 shadow-xs">
           <CardContent className="p-0">
-            <Table className="table-fixed">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[22%] px-5">
-                    {canViewAll
-                      ? t("订单 / Stripe 付款", "Order / Payment")
-                      : t("订单", "Order")}
-                  </TableHead>
-                  <TableHead className="w-[28%]">
-                    {canViewAll
-                      ? t(
-                          "客户 / 套餐与配额",
-                          "Client / Package & credits"
-                        )
-                      : t("制作项目", "Project")}
-                  </TableHead>
-                  <TableHead className="w-[14%]">
-                    {t("制作状态", "Status")}
-                  </TableHead>
-                  <TableHead className="w-[20%]">
-                    {t("负责人", "Assigned to")}
-                  </TableHead>
-                  <TableHead className="w-[16%] px-5 text-right">
-                    {t("操作", "Action")}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <motion.tbody
-                key={filter}
-                data-slot="table-body"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.16, ease: "easeOut" }}
-                className="[&_tr:last-child]:border-0"
-              >
-                {active.length > 0 ? (
-                  pagedOrders.map((value) => {
+            <SmoothHeight>
+              <Table className="table-fixed">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[22%] px-5">
+                      {canViewAll
+                        ? t("订单 / Stripe 付款", "Order / Payment")
+                        : t("订单", "Order")}
+                    </TableHead>
+                    <TableHead className="w-[28%]">
+                      {canViewAll
+                        ? t(
+                            "客户 / 套餐与配额",
+                            "Client / Package & credits"
+                          )
+                        : t("制作项目", "Project")}
+                    </TableHead>
+                    <TableHead className="w-[14%]">
+                      {t("制作状态", "Status")}
+                    </TableHead>
+                    <TableHead className="w-[20%]">
+                      {t("负责人", "Assigned to")}
+                    </TableHead>
+                    <TableHead className="w-[16%] px-5 text-right">
+                      {t("操作", "Action")}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <AnimatePresence initial={false}>
+                    {active.length > 0 ? (
+                      pagedOrders.map((value) => {
                         const plan = data.plans.find(
                           (item) => item.id === value.plan
                         )
@@ -1242,9 +1239,17 @@ export function AdminOrdersPage() {
                         const firstAssignee =
                           assignableMembers[0]?.name ?? "Leo"
                         return (
-                          <TableRow
+                          <motion.tr
                             key={value.id}
+                            data-slot="table-row"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{
+                              duration: 0.18,
+                              ease: [0.22, 1, 0.36, 1],
+                            }}
                             className={cn(
+                              "border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
                               value.id === contextOrder && "bg-accent/50"
                             )}
                           >
@@ -1424,45 +1429,57 @@ export function AdminOrdersPage() {
                                 )}
                               </div>
                             </TableCell>
-                      </TableRow>
-                    )
-                  })
-                ) : (
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={5} className="p-0">
-                      <Empty className="py-14">
-                        <EmptyHeader>
-                          <EmptyMedia variant="icon">
-                            <Inbox aria-hidden="true" />
-                          </EmptyMedia>
-                          <EmptyTitle>
-                            {t("暂无符合条件的订单", "No matching orders")}
-                          </EmptyTitle>
-                          <EmptyDescription>
-                            {t(
-                              "尝试清除搜索词或切换到「全部」。",
-                              "Clear the search or switch back to All."
-                            )}
-                          </EmptyDescription>
-                        </EmptyHeader>
-                      </Empty>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </motion.tbody>
-            </Table>
-            {active.length > 0 && (
-              <DataPagination
-                page={page}
-                pageSize={pageSize}
-                total={active.length}
-                onPageChange={setPage}
-                onPageSizeChange={(nextSize) => {
-                  setPageSize(nextSize)
-                  setPage(1)
-                }}
-              />
-            )}
+                          </motion.tr>
+                        )
+                      })
+                    ) : (
+                      <motion.tr
+                        key="admin-orders-empty"
+                        data-slot="table-row"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{
+                          duration: 0.18,
+                          ease: [0.22, 1, 0.36, 1],
+                        }}
+                        className="border-b hover:bg-transparent"
+                      >
+                        <TableCell colSpan={5} className="p-0">
+                          <Empty className="py-14">
+                            <EmptyHeader>
+                              <EmptyMedia variant="icon">
+                                <Inbox aria-hidden="true" />
+                              </EmptyMedia>
+                              <EmptyTitle>
+                                {t("暂无符合条件的订单", "No matching orders")}
+                              </EmptyTitle>
+                              <EmptyDescription>
+                                {t(
+                                  "尝试清除搜索词或切换到「全部」。",
+                                  "Clear the search or switch back to All."
+                                )}
+                              </EmptyDescription>
+                            </EmptyHeader>
+                          </Empty>
+                        </TableCell>
+                      </motion.tr>
+                    )}
+                  </AnimatePresence>
+                </TableBody>
+              </Table>
+              {active.length > 0 && (
+                <DataPagination
+                  page={page}
+                  pageSize={pageSize}
+                  total={active.length}
+                  onPageChange={setPage}
+                  onPageSizeChange={(nextSize) => {
+                    setPageSize(nextSize)
+                    setPage(1)
+                  }}
+                />
+              )}
+            </SmoothHeight>
           </CardContent>
         </Card>
       </main>

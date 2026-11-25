@@ -7,7 +7,7 @@ import {
   useNavigate,
   useSearchParams,
 } from "react-router"
-import { motion } from "motion/react"
+import { AnimatePresence, motion } from "motion/react"
 import {
   ArrowRight,
   Bell,
@@ -85,7 +85,7 @@ import {
   type Order,
 } from "./demo"
 import { downloadFile, downloadOrderFile } from "./files"
-import { ActionLink, LanguageSwitch, StatusBadge } from "./layout"
+import { ActionLink, LanguageSwitch, SmoothHeight, StatusBadge } from "./layout"
 import {
   AppMorphIcon,
   clientNavMorphIcons,
@@ -913,141 +913,158 @@ export function WorkspacePage() {
                 </Tabs>
               </CardHeader>
               <CardContent className="p-0">
-                <Table className="table-fixed">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[52%] px-6">
-                        {t("项目与订单", "Project")}
-                      </TableHead>
-                      <TableHead className="w-[26%]">
-                        {t("制作状态", "Status")}
-                      </TableHead>
-                      <TableHead className="w-[22%] px-6 text-right">
-                        {t("操作", "Action")}
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <motion.tbody
-                    key={filter}
-                    data-slot="table-body"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.16, ease: "easeOut" }}
-                    className="[&_tr:last-child]:border-0"
-                  >
-                    {shown.length > 0 ? (
-                      shown.map((value) => {
-                        const matchedPlan = data.plans.find(
-                          (item) => item.id === value.plan
-                        )
-                        const planLabel = matchedPlan
-                          ? zh
-                            ? matchedPlan.zh
-                            : matchedPlan.en
-                          : t("定制报价", "Custom quote")
-                        const latestVersion = value.versions.at(-1)
-                        return (
-                          <TableRow key={value.id}>
-                            <TableCell className="px-6 py-3.5">
-                              <div className="flex min-w-0 flex-col gap-0.5">
-                                <EditableOrderTitle
-                                  key={value.id}
-                                  order={value}
-                                />
-                                <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                                  <span className="font-mono">#{value.id}</span>
-                                  <span>·</span>
-                                  <span className="truncate">{planLabel}</span>
-                                  {value.owner && (
-                                    <>
-                                      <span>·</span>
-                                      <span>
-                                        {t(
-                                          `制作师 ${value.owner}`,
-                                          `Producer ${value.owner}`
-                                        )}
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <StatusBadge status={value.status} />
-                                {latestVersion && (
-                                  <Badge
-                                    variant="outline"
-                                    className="h-5 px-1.5 font-mono text-[10px] font-normal text-muted-foreground uppercase"
-                                  >
-                                    {latestVersion.type === "final"
-                                      ? "FINAL"
-                                      : getVersionCode(latestVersion)}
-                                  </Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="px-6">
-                              <div className="flex justify-end gap-2">
-                                <ActionLink
-                                  size="sm"
-                                  variant="ghost"
-                                  className="text-muted-foreground hover:text-foreground"
-                                  to={href("order-chat", { order: value.id })}
-                                >
-                                  {t("沟通", "Chat")}
-                                </ActionLink>
-                                {value.versions.length > 0 && (
-                                  <ActionLink
-                                    size="sm"
-                                    variant={
-                                      value.status === "waiting_confirm"
-                                        ? "default"
-                                        : "outline"
-                                    }
-                                    className={
-                                      value.status === "waiting_confirm"
-                                        ? "bg-brand-navy text-white hover:bg-brand-navy/90"
-                                        : undefined
-                                    }
-                                    to={href("video-review", {
-                                      order: value.id,
-                                    })}
-                                  >
-                                    {value.status === "waiting_confirm"
-                                      ? t("审核视频", "Review")
-                                      : t("查看视频", "Watch")}
-                                  </ActionLink>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })
-                    ) : (
-                      <TableRow className="hover:bg-transparent">
-                        <TableCell colSpan={3} className="p-0">
-                          <Empty className="py-12">
-                            <EmptyHeader>
-                              <EmptyMedia variant="icon">
-                                <Inbox aria-hidden="true" />
-                              </EmptyMedia>
-                              <EmptyTitle>
-                                {t("暂无符合条件的订单", "No matching orders")}
-                              </EmptyTitle>
-                              <EmptyDescription>
-                                {t(
-                                  "切换筛选条件，或前往购买新套餐。",
-                                  "Switch the filter or purchase a new package."
-                                )}
-                              </EmptyDescription>
-                            </EmptyHeader>
-                          </Empty>
-                        </TableCell>
+                <SmoothHeight>
+                  <Table className="table-fixed">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[52%] px-6">
+                          {t("项目与订单", "Project")}
+                        </TableHead>
+                        <TableHead className="w-[26%]">
+                          {t("制作状态", "Status")}
+                        </TableHead>
+                        <TableHead className="w-[22%] px-6 text-right">
+                          {t("操作", "Action")}
+                        </TableHead>
                       </TableRow>
-                    )}
-                  </motion.tbody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      <AnimatePresence initial={false}>
+                        {shown.length > 0 ? (
+                          shown.map((value) => {
+                            const matchedPlan = data.plans.find(
+                              (item) => item.id === value.plan
+                            )
+                            const planLabel = matchedPlan
+                              ? zh
+                                ? matchedPlan.zh
+                                : matchedPlan.en
+                              : t("定制报价", "Custom quote")
+                            const latestVersion = value.versions.at(-1)
+                            return (
+                              <motion.tr
+                                key={value.id}
+                                data-slot="table-row"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{
+                                  duration: 0.18,
+                                  ease: [0.22, 1, 0.36, 1],
+                                }}
+                                className="border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted"
+                              >
+                                <TableCell className="px-6 py-3.5">
+                                  <div className="flex min-w-0 flex-col gap-0.5">
+                                    <EditableOrderTitle
+                                      key={value.id}
+                                      order={value}
+                                    />
+                                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                                      <span className="font-mono">#{value.id}</span>
+                                      <span>·</span>
+                                      <span className="truncate">{planLabel}</span>
+                                      {value.owner && (
+                                        <>
+                                          <span>·</span>
+                                          <span>
+                                            {t(
+                                              `制作师 ${value.owner}`,
+                                              `Producer ${value.owner}`
+                                            )}
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <StatusBadge status={value.status} />
+                                    {latestVersion && (
+                                      <Badge
+                                        variant="outline"
+                                        className="h-5 px-1.5 font-mono text-[10px] font-normal text-muted-foreground uppercase"
+                                      >
+                                        {latestVersion.type === "final"
+                                          ? "FINAL"
+                                          : getVersionCode(latestVersion)}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="px-6">
+                                  <div className="flex justify-end gap-2">
+                                    <ActionLink
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-muted-foreground hover:text-foreground"
+                                      to={href("order-chat", { order: value.id })}
+                                    >
+                                      {t("沟通", "Chat")}
+                                    </ActionLink>
+                                    {value.versions.length > 0 && (
+                                      <ActionLink
+                                        size="sm"
+                                        variant={
+                                          value.status === "waiting_confirm"
+                                            ? "default"
+                                            : "outline"
+                                        }
+                                        className={
+                                          value.status === "waiting_confirm"
+                                            ? "bg-brand-navy text-white hover:bg-brand-navy/90"
+                                            : undefined
+                                        }
+                                        to={href("video-review", {
+                                          order: value.id,
+                                        })}
+                                      >
+                                        {value.status === "waiting_confirm"
+                                          ? t("审核视频", "Review")
+                                          : t("查看视频", "Watch")}
+                                      </ActionLink>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </motion.tr>
+                            )
+                          })
+                        ) : (
+                          <motion.tr
+                            key="orders-empty"
+                            data-slot="table-row"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{
+                              duration: 0.18,
+                              ease: [0.22, 1, 0.36, 1],
+                            }}
+                            className="border-b hover:bg-transparent"
+                          >
+                            <TableCell colSpan={3} className="p-0">
+                              <Empty className="py-12">
+                                <EmptyHeader>
+                                  <EmptyMedia variant="icon">
+                                    <Inbox aria-hidden="true" />
+                                  </EmptyMedia>
+                                  <EmptyTitle>
+                                    {t("暂无符合条件的订单", "No matching orders")}
+                                  </EmptyTitle>
+                                  <EmptyDescription>
+                                    {t(
+                                      "切换筛选条件，或前往购买新套餐。",
+                                      "Switch the filter or purchase a new package."
+                                    )}
+                                  </EmptyDescription>
+                                </EmptyHeader>
+                              </Empty>
+                            </TableCell>
+                          </motion.tr>
+                        )}
+                      </AnimatePresence>
+                    </TableBody>
+                  </Table>
+                </SmoothHeight>
               </CardContent>
             </Card>
 
