@@ -649,7 +649,7 @@ function ChatPanel({
           </div>
         )}
       <MessageScrollerProvider defaultScrollPosition="end" autoScroll>
-        <MessageScroller className="h-auto flex-1">
+        <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport>
             <MessageScrollerContent className="gap-4 px-4 py-5 sm:px-6">
               {entries.length === 0 && (
@@ -1605,7 +1605,7 @@ function ClientOrderHubPage({
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-[1440px] min-h-0 flex-1 gap-4 px-5 py-5 sm:px-8 xl:h-[calc(100dvh-3.5rem)] xl:grid-cols-[288px_minmax(0,1fr)]">
+    <div className="mx-auto grid w-full max-w-[1440px] min-h-0 flex-1 gap-4 px-5 py-5 sm:px-8 xl:h-[calc(100dvh-3.5rem)] xl:max-h-[calc(100dvh-3.5rem)] xl:flex-none xl:grid-cols-[288px_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)] xl:overflow-hidden">
       {/* Left: Persistent Client Order Queue Card */}
       <aside className="flex max-h-56 min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs xl:max-h-full">
         <div className="flex flex-col gap-2.5 border-b p-3.5">
@@ -2361,7 +2361,7 @@ export function StudioWorkspacePage() {
       activeNav="production"
       heading={<h1>{t("制作协同", "Production")}</h1>}
     >
-      <main className="mx-auto grid w-full max-w-[1440px] min-h-0 flex-1 gap-4 px-5 py-5 sm:px-8 xl:h-[calc(100dvh-3.5rem)] xl:grid-cols-[276px_minmax(0,1fr)_348px]">
+      <main className="mx-auto grid w-full max-w-[1440px] min-h-0 flex-1 gap-4 px-5 py-5 sm:px-8 xl:h-[calc(100dvh-3.5rem)] xl:max-h-[calc(100dvh-3.5rem)] xl:flex-none xl:grid-cols-[276px_minmax(0,1fr)_348px] xl:grid-rows-[minmax(0,1fr)] xl:overflow-hidden">
         {/* Column 1: Multi-order Inbox Queue Card */}
         <aside className="flex max-h-60 min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs xl:max-h-full">
           <div className="flex flex-col gap-2.5 border-b p-3.5">
