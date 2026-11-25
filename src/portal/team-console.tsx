@@ -194,7 +194,7 @@ function TeamConsoleShell() {
 
   const tab = query.get("tab")
   const activeNav = resolveActiveNav(pathname, tab)
-  const transitionKey = `${pathname}:${pathname.includes("/admin-settings") ? (tab ?? "pricing") : ""}`
+  const transitionKey = activeNav
 
   const canViewAll = can("orders:view_all")
   const visibleOrders = canViewAll

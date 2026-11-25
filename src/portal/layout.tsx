@@ -111,11 +111,14 @@ export function LanguageSwitch({ dark = false }: { dark?: boolean }) {
               lang={option.lang}
               onClick={() => {
                 if (isLocale(option.value) && option.value !== locale) {
-                  void navigate({
-                    pathname: `/${option.value}${pathname.slice(locale.length + 1)}`,
-                    search,
-                    hash,
-                  })
+                  void navigate(
+                    {
+                      pathname: `/${option.value}${pathname.slice(locale.length + 1)}`,
+                      search,
+                      hash,
+                    },
+                    { replace: true }
+                  )
                 }
               }}
               className={cn(

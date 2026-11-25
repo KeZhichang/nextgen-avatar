@@ -157,7 +157,7 @@ export function ClientConsoleShell() {
         : "overview"
   const activeNav = isHub ? "hub" : workspaceTab
 
-  const transitionKey = isHub ? "client-hub" : `${pathname}:${workspaceTab}`
+  const transitionKey = isHub ? "client-hub" : `workspace:${workspaceTab}`
 
   const heading: ReactNode = (() => {
     if (isHub) {
