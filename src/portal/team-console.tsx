@@ -533,33 +533,31 @@ export function AdminLoginPage() {
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-8 sm:px-8">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <div className="flex size-13 items-center justify-center rounded-2xl border border-white/10 bg-brand-navy shadow-sm">
+        <div className="flex flex-col items-center gap-2.5 text-center">
+          <div className="inline-flex items-center gap-3 text-left">
             <img
               src="/portal-media/nextgen-avatar-mark-small.png"
               alt="NextGen Studio"
-              width={36}
-              height={32}
+              width={44}
+              height={40}
               decoding="async"
-              className="h-8 w-auto object-contain"
+              className="h-10 w-auto shrink-0 object-contain"
             />
-          </div>
-          <div className="flex flex-col items-center gap-1">
-            <div className="flex items-baseline gap-2">
-              <span className="font-serif text-xl font-bold tracking-tight text-foreground">
+            <div className="flex flex-col leading-none">
+              <span className="font-serif text-2xl font-bold tracking-tight text-foreground">
                 NextGen Studio
               </span>
-              <span className="text-xs font-medium text-muted-foreground">
+              <span className="mt-1 text-xs font-medium text-muted-foreground">
                 by 2301 Pictures
               </span>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {t(
-                "内部数字人制作协同与订单管理平台",
-                "Internal production workflow & order operations"
-              )}
-            </p>
           </div>
+          <p className="text-xs text-muted-foreground">
+            {t(
+              "内部数字人制作协同与订单管理平台",
+              "Internal production workflow & order operations"
+            )}
+          </p>
         </div>
 
         <Card className="w-full max-w-md shadow-xs">

@@ -303,33 +303,31 @@ export function AuthPage() {
         ) : null}
       </TopBar>
       <main className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-8 sm:px-8">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <div className="flex size-13 items-center justify-center rounded-2xl border border-border/80 bg-card shadow-xs">
+        <div className="flex flex-col items-center gap-2.5 text-center">
+          <div className="inline-flex items-center gap-3 text-left">
             <img
               src="/portal-media/nextgen-avatar-mark-small.png"
               alt="NextGen Avatar"
-              width={36}
-              height={32}
+              width={44}
+              height={40}
               decoding="async"
-              className="h-8 w-auto object-contain"
+              className="h-10 w-auto shrink-0 object-contain"
             />
-          </div>
-          <div className="flex flex-col items-center gap-1">
-            <div className="flex items-baseline gap-2">
-              <span className="font-serif text-xl font-bold tracking-tight text-foreground">
+            <div className="flex flex-col leading-none">
+              <span className="font-serif text-2xl font-bold tracking-tight text-foreground">
                 NextGen Avatar
               </span>
-              <span className="text-xs font-medium text-muted-foreground">
+              <span className="mt-1 text-xs font-medium text-muted-foreground">
                 by 2301 Pictures
               </span>
             </div>
-            <p className="max-w-sm text-xs text-muted-foreground">
-              {t(
-                "人工精制 AI 数字人短视频、品牌广告与影视制作",
-                "Human-directed AI films, ads and digital humans."
-              )}
-            </p>
           </div>
+          <p className="max-w-sm text-xs text-muted-foreground">
+            {t(
+              "人工精制 AI 数字人短视频、品牌广告与影视制作",
+              "Human-directed AI films, ads and digital humans."
+            )}
+          </p>
         </div>
 
         <Card className="w-full max-w-md shadow-sm">
