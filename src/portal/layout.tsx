@@ -45,19 +45,33 @@ export function BrandMark({
   dark?: boolean
 }) {
   return (
-    <span className="inline-flex items-center gap-2 font-semibold tracking-tight">
-      <span
-        aria-hidden="true"
-        className={cn(
-          "inline-flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold tracking-tighter",
-          dark
-            ? "bg-primary text-primary-foreground"
-            : "bg-brand-navy text-brand-navy-foreground"
-        )}
-      >
-        NG
+    <span className="inline-flex items-center gap-2.5 tracking-tight">
+      <img
+        src="/portal-media/nextgen-avatar-mark-small.png"
+        alt=""
+        width={30}
+        height={27}
+        decoding="async"
+        className="h-7 w-auto shrink-0 object-contain"
+      />
+      <span className="flex flex-col leading-none">
+        <span
+          className={cn(
+            "font-serif text-[15px] font-bold tracking-tight",
+            dark ? "text-[#ffe8d1]" : "text-foreground"
+          )}
+        >
+          {studio ? "NextGen Studio" : "NextGen Avatar"}
+        </span>
+        <span
+          className={cn(
+            "mt-0.5 text-[10px] font-medium tracking-normal",
+            dark ? "text-white/65" : "text-muted-foreground"
+          )}
+        >
+          by 2301 Pictures
+        </span>
       </span>
-      <span>{studio ? "NextGen Studio" : "NextGen Avatar"}</span>
     </span>
   )
 }

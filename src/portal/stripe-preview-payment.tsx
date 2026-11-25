@@ -42,17 +42,17 @@ export const stripePreviewConfigured = Boolean(
 const appearance: Appearance = {
   theme: "stripe",
   variables: {
-    colorPrimary: "#0066e6",
-    colorBackground: "#ffffff",
-    colorText: "#0f172a",
-    colorTextSecondary: "#5a677c",
+    colorPrimary: "#1f4bc4",
+    colorBackground: "#fbfcfe",
+    colorText: "#111c30",
+    colorTextSecondary: "#45536b",
     colorDanger: "#dc2626",
     fontFamily: "Plus Jakarta Sans, system-ui, sans-serif",
     fontSizeBase: "14px",
     spacingUnit: "4px",
     borderRadius: "8px",
   },
-  rules: { ".Input": { border: "1px solid #d5dfec", boxShadow: "none" } },
+  rules: { ".Input": { border: "1px solid #cbd4e2", boxShadow: "none" } },
 }
 
 type Session = { id: string; clientSecret: string }

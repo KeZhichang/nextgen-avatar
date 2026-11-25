@@ -94,23 +94,23 @@ export function renderTransactionalEmail(input: TransactionalEmailInput): {
   <body style="margin:0;padding:24px;background:#f4f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0f172a;">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;border:1px solid #e2e8f0;overflow:hidden;">
       <tr>
-        <td style="background:#0d1b3e;padding:20px 24px;color:#ffffff;font-weight:700;font-size:16px;letter-spacing:-0.01em;">
-          NextGen Avatar
+        <td style="background:#101b2d;padding:20px 24px;color:#ffe8d1;font-weight:700;font-size:16px;letter-spacing:-0.01em;">
+          NextGen Avatar <span style="font-size:12px;font-weight:500;color:#c4cbd2;">by 2301 Pictures</span>
         </td>
       </tr>
       <tr>
         <td style="padding:28px 24px;">
-          <h1 style="margin:0 0 12px;font-size:20px;line-height:1.35;color:#0f172a;">${copy.heading}</h1>
-          <p style="margin:0 0 16px;font-size:14px;line-height:1.65;color:#475569;">${copy.lead}</p>
+          <h1 style="margin:0 0 12px;font-size:20px;line-height:1.35;color:#111c30;">${copy.heading}</h1>
+          <p style="margin:0 0 16px;font-size:14px;line-height:1.65;color:#45536b;">${copy.lead}</p>
           ${noteBlock}
           <p style="margin:24px 0 8px;">
-            <a href="${actionUrl}" style="display:inline-block;padding:11px 20px;border-radius:8px;background:#1e64f0;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;">${copy.cta}</a>
+            <a href="${actionUrl}" style="display:inline-block;padding:11px 20px;border-radius:8px;background:#1f4bc4;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;">${copy.cta}</a>
           </p>
         </td>
       </tr>
       <tr>
-        <td style="padding:16px 24px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;">
-          NextGen Avatar Studio · ${zh ? "如有疑问请联系 support@nextgenavatar.com" : "Questions? Contact support@nextgenavatar.com"}
+        <td style="padding:16px 24px;background:#f4f6fa;border-top:1px solid #d5dde9;font-size:12px;color:#45536b;">
+          NextGen Avatar · by 2301 Pictures · ${zh ? "如有疑问请联系 support@nextgenavatar.com" : "Questions? Contact support@nextgenavatar.com"}
         </td>
       </tr>
     </table>

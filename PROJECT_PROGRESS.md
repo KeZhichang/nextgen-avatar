@@ -21,6 +21,7 @@
 | **客户 7 档套餐兼容与管理端升级** | 同步客户 7 档标准套餐（`trial` / `presenter-5,10,15` / `cinematic-4,6,8`）与加项（脚本 `$50` / 加时 `$25`）；数据库与管理端「套餐管理」支持**套餐编码 ID、首月价、续费月价、结账链接复制、一键同步 7 档目录**；同步更新工作人员工作台 Mock 数据 | `feat/multi-video-r2-prod` | ✅ 本地已实现 |
 | **Stripe 生产/测试双模闭环 & 邮件** | 结账接口自动适配 `pk_live_ / sk_live_` 与 `pk_test_ / sk_test_`；透传 `clientId / customerEmail / customQuoteId / projectName / videoCount / addonIds`；前端与 Webhook 按 `stripe_checkout_session_id` 幂等防重；对齐生产域名 `nextgenavatar.com` 与 Resend 发件人 `support@nextgenavatar.com` | `feat/multi-video-r2-prod` | ✅ 本地已实现 |
 | **客户官网双站承接兼容** | 新增 `/checkout/:plan`、`/checkout`、`/auth`、`/account/*`、`/portal/*`、`/admin/*` 承接路由与 `lang=zh-CN/en/es` 映射；结账页补齐《Standard Production Terms》同意勾选；新增 `VITE_MARKETING_SITE_URL` 外链回跳（保留原有 React 营销页代码） | `feat/multi-video-r2-prod` | ✅ 本地已实现 |
+| **品牌资产与配色系统对齐** | 引入客户官网真实 Logo（`nextgen-avatar-mark-small.png`）、Favicon（`favicon.png`）与 `by 2301 Pictures` 署名；全站 CSS Token、侧边栏、Stripe 结账主题、报价/个人资料封面及邮件模板统一校准至客户色系（`#101b2d` 深海蓝、`#1f4bc4` 皇室蓝、`#f4f6fa` 浅灰底、`#f8cfaa` 暖杏金） | `feat/multi-video-r2-prod` | ✅ 本地已实现 |
 
 ---
 

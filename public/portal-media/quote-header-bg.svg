@@ -1,19 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 280" fill="none" preserveAspectRatio="xMidYMid slice">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="960" y2="280" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#09132B"/>
-      <stop offset="55%" stop-color="#0D1D42"/>
-      <stop offset="100%" stop-color="#132B63"/>
+      <stop offset="0%" stop-color="#0b1424"/>
+      <stop offset="55%" stop-color="#101b2d"/>
+      <stop offset="100%" stop-color="#182b52"/>
     </linearGradient>
     <radialGradient id="glowBlue" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(760 40) rotate(135) scale(460 320)">
-      <stop offset="0%" stop-color="#2E74FF" stop-opacity="0.48"/>
-      <stop offset="55%" stop-color="#1E64F0" stop-opacity="0.16"/>
-      <stop offset="100%" stop-color="#1E64F0" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#1f4bc4" stop-opacity="0.52"/>
+      <stop offset="55%" stop-color="#1f4bc4" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#1f4bc4" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="glowGold" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(880 250) rotate(160) scale(340 210)">
-      <stop offset="0%" stop-color="#D9B878" stop-opacity="0.24"/>
-      <stop offset="60%" stop-color="#C8A96E" stop-opacity="0.06"/>
-      <stop offset="100%" stop-color="#C8A96E" stop-opacity="0"/>
+      <stop offset="0%" stop-color="#f8cfaa" stop-opacity="0.28"/>
+      <stop offset="60%" stop-color="#e5b77b" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#e5b77b" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="ribbon1" x1="420" y1="0" x2="960" y2="280" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#60A5FA" stop-opacity="0"/>
