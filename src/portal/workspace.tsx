@@ -877,28 +877,31 @@ export function WorkspacePage() {
                   </TabsList>
                 </Tabs>
               </CardHeader>
-              <CardContent className="p-0">
-                <motion.div
-                  key={filter}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                >
-                {shown.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="px-6">
-                          {t("项目与订单", "Project")}
-                        </TableHead>
-                        <TableHead>{t("制作状态", "Status")}</TableHead>
-                        <TableHead className="px-6 text-right">
-                          {t("操作", "Action")}
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {shown.map((value) => {
+              <CardContent className="min-h-[304px] p-0">
+                <Table className="table-fixed">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[52%] px-6">
+                        {t("项目与订单", "Project")}
+                      </TableHead>
+                      <TableHead className="w-[26%]">
+                        {t("制作状态", "Status")}
+                      </TableHead>
+                      <TableHead className="w-[22%] px-6 text-right">
+                        {t("操作", "Action")}
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <motion.tbody
+                    key={filter}
+                    data-slot="table-body"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.16, ease: "easeOut" }}
+                    className="[&_tr:last-child]:border-0"
+                  >
+                    {shown.length > 0 ? (
+                      shown.map((value) => {
                         const matchedPlan = data.plans.find(
                           (item) => item.id === value.plan
                         )
@@ -985,28 +988,31 @@ export function WorkspacePage() {
                             </TableCell>
                           </TableRow>
                         )
-                      })}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <Empty className="py-12">
-                    <EmptyHeader>
-                      <EmptyMedia variant="icon">
-                        <Inbox aria-hidden="true" />
-                      </EmptyMedia>
-                      <EmptyTitle>
-                        {t("暂无符合条件的订单", "No matching orders")}
-                      </EmptyTitle>
-                      <EmptyDescription>
-                        {t(
-                          "切换筛选条件，或前往购买新套餐。",
-                          "Switch the filter or purchase a new package."
-                        )}
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
-                )}
-                </motion.div>
+                      })
+                    ) : (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={3} className="p-0">
+                          <Empty className="py-12">
+                            <EmptyHeader>
+                              <EmptyMedia variant="icon">
+                                <Inbox aria-hidden="true" />
+                              </EmptyMedia>
+                              <EmptyTitle>
+                                {t("暂无符合条件的订单", "No matching orders")}
+                              </EmptyTitle>
+                              <EmptyDescription>
+                                {t(
+                                  "切换筛选条件，或前往购买新套餐。",
+                                  "Switch the filter or purchase a new package."
+                                )}
+                              </EmptyDescription>
+                            </EmptyHeader>
+                          </Empty>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </motion.tbody>
+                </Table>
               </CardContent>
             </Card>
 
