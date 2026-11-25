@@ -4,6 +4,7 @@ import { LayoutGroup, motion } from "motion/react"
 import {
   Check,
   CheckCircle2,
+  Clapperboard,
   Copy,
   Eye,
   EyeOff,
@@ -11,7 +12,9 @@ import {
   LogIn,
   Mail,
   ShieldCheck,
+  Sparkles,
   UserRound,
+  Video,
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "cn"
@@ -29,13 +32,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from "@/components/ui/field"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import {
   InputGroup,
   InputGroupAddon,
@@ -43,7 +40,6 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group"
 import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -754,6 +750,106 @@ export function CheckoutPage() {
     }
   }
 
+  const trialPlan = plans.find((item) => item.id === "trial")
+  const presenterPlans = plans
+    .filter((item) => item.id.startsWith("presenter-"))
+    .sort((a, b) => a.count - b.count)
+  const cinematicPlans = plans
+    .filter((item) => item.id.startsWith("cinematic-"))
+    .sort((a, b) => a.count - b.count)
+  const otherStandardPlans = plans
+    .filter(
+      (item) =>
+        item.id !== "trial" &&
+        item.id !== "quote" &&
+        !item.id.startsWith("presenter-") &&
+        !item.id.startsWith("cinematic-")
+    )
+    .sort((a, b) => a.count - b.count)
+
+  type PlanFamily = "presenter" | "cinematic" | "other"
+  const families: {
+    id: PlanFamily
+    title: string
+    summary: string
+    icon: typeof Video
+    items: Plan[]
+  }[] = [
+    ...(presenterPlans.length > 0
+      ? [
+          {
+            id: "presenter" as const,
+            title: t("AI 标准版口播", "AI Standard Presenter"),
+            summary: t(
+              "固定机位自然口播 · 适合科普、教学与品牌日常更新",
+              "Fixed-camera natural delivery · Ideal for explainers & FAQs"
+            ),
+            icon: Video,
+            items: presenterPlans,
+          },
+        ]
+      : []),
+    ...(cinematicPlans.length > 0
+      ? [
+          {
+            id: "cinematic" as const,
+            title: t("AI 电影版口播", "AI Cinematic Presenter"),
+            summary: t(
+              "多场景多机位运镜 · 适合新品发布、商业广告与品牌片",
+              "Multi-scene angles & transitions · Built for launches & brand films"
+            ),
+            icon: Clapperboard,
+            items: cinematicPlans,
+          },
+        ]
+      : []),
+    ...(otherStandardPlans.length > 0
+      ? [
+          {
+            id: "other" as const,
+            title: t("更多标准套餐", "More Packages"),
+            summary: t(
+              "更多定制化制作配额方案",
+              "Additional production packages"
+            ),
+            icon: Sparkles,
+            items: otherStandardPlans,
+          },
+        ]
+      : []),
+  ]
+
+  const derivedFamily: PlanFamily = plan.id.startsWith("cinematic-")
+    ? "cinematic"
+    : plan.id.startsWith("presenter-")
+      ? "presenter"
+      : otherStandardPlans.some((item) => item.id === plan.id)
+        ? "other"
+        : (families[0]?.id ?? "presenter")
+  const [preferredFamily, setPreferredFamily] = useState<PlanFamily | null>(null)
+  const activeFamilyId =
+    plan.id === "trial" || plan.id === "quote"
+      ? (preferredFamily ?? families[0]?.id ?? "presenter")
+      : derivedFamily
+  const activeFamily =
+    families.find((f) => f.id === activeFamilyId) ?? families[0]
+  const isQuoteSelected = Boolean(quotedPlan && plan.id === "quote")
+  const springTransition = {
+    type: "spring" as const,
+    stiffness: 420,
+    damping: 34,
+    mass: 0.88,
+  }
+
+  function selectFamily(familyId: PlanFamily) {
+    if (locked) return
+    setPreferredFamily(familyId)
+    const target = families.find((f) => f.id === familyId)
+    if (target && target.items.length > 0) {
+      setChoice(target.items[0].id)
+    }
+  }
+
   return (
     <>
       <TopBar title={t("套餐确认与支付 (USD)", "Package & payment (USD)")}>
@@ -764,267 +860,432 @@ export function CheckoutPage() {
           {data.account.email}
         </span>
       </TopBar>
-      <PageWidth className="grid items-start gap-6 lg:grid-cols-12 lg:gap-8">
+      <PageWidth className="grid max-w-6xl items-start gap-6 lg:grid-cols-12 lg:gap-8">
+        {/* Left: Two-step Clean SaaS Package Configurator */}
         <div className="flex flex-col gap-5 lg:col-span-7">
-          <Card className="shadow-xs">
-            <CardHeader className="flex-row items-baseline justify-between">
-              <CardTitle>
-                <h1>
-                  {t("确认或调整制作套餐", "Confirm your production package")}
-                </h1>
-              </CardTitle>
-              <span className="text-xs text-muted-foreground">
-                {t("按需单次购买", "One-time purchase")}
-              </span>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              {quoteBlocked && (
-                <Alert variant="destructive">
-                  <AlertTitle>
-                    {t("该定制报价链接已失效", "This custom quote is no longer open")}
-                  </AlertTitle>
-                  <AlertDescription>
-                    {activeDbQuote?.status === "paid"
-                      ? t(
-                          "该报价单已完成支付，无需重复付款。您可以直接前往工作台查看订单，或选择下方标准套餐。",
-                          "This quote has already been paid. Open your workspace to view the order, or pick a standard package below."
-                        )
-                      : t(
-                          "该报价单已过期或取消，请联系制作团队重新生成链接。",
-                          "This quote has expired or been cancelled. Contact the studio for an updated link."
-                        )}
-                  </AlertDescription>
-                </Alert>
-              )}
-              {requestedTrialWhileRepeat && (
-                <Alert className="border-amber-300/70 bg-amber-50/70 text-amber-950">
-                  <AlertTitle>
-                    {t(
-                      "新客体验单仅限首单购买",
-                      "Trial video is for first-time customers only"
-                    )}
-                  </AlertTitle>
-                  <AlertDescription className="text-amber-900/90">
-                    {t(
-                      "检测到您的账号已有历史订单，已为您自动切换至月度套餐并开启老客续费优惠价（立省 $100）。",
-                      "Your account already has a previous order. We switched to a monthly package with your automatic renewal rate (save $100)."
-                    )}
-                  </AlertDescription>
-                </Alert>
-              )}
-              {isRepeatCustomer && !requestedTrialWhileRepeat && !quotedPlan && (
-                <Alert className="border-emerald-200 bg-emerald-50/60 text-emerald-950">
-                  <CheckCircle2 aria-hidden="true" className="text-emerald-600" />
-                  <AlertTitle>
-                    {t(
-                      "已自动启用老客续费优惠价",
-                      "Renewal pricing automatically applied"
-                    )}
-                  </AlertTitle>
-                  <AlertDescription className="text-emerald-900/85">
-                    {t(
-                      "感谢回访！选购下方任意月度套餐将直接按续费月价结算（首单尝鲜体验价仅限新客）。",
-                      "Welcome back! Eligible monthly packages below are automatically discounted to your renewal rate (Starter Trial is for new customers only)."
-                    )}
-                  </AlertDescription>
-                </Alert>
-              )}
-              {query.get("profile") && (
-                <Alert className="border-primary/20 bg-accent/60">
-                  <UserRound aria-hidden="true" className="text-primary" />
-                  <AlertTitle>
-                    {t("复用人物档案", "Reusing presenter profile")}
-                  </AlertTitle>
-                  <AlertDescription>{query.get("profile")}</AlertDescription>
-                </Alert>
-              )}
-              <FieldSet>
-                <FieldLegend className="sr-only">
-                  {t("制作套餐", "Production package")}
-                </FieldLegend>
-                <LayoutGroup id="checkout-plan-cards-group">
-                  <RadioGroup
-                    value={plan.id}
-                    onValueChange={setChoice}
-                    disabled={locked}
-                    aria-label={t("制作套餐", "Production package")}
-                    className="gap-3"
-                  >
-                    {plans.map((item) => {
-                      const itemLocked = isTrialLocked(item)
-                      const isSelected = !itemLocked && item.id === plan.id
-                      const renewalActive = isRenewalApplied(item)
-                      const displayPrice = getEffectivePlanPrice(item)
-                      const original = renewalActive
-                        ? item.price
-                        : item.regular && item.regular > item.price
-                          ? item.regular
-                          : undefined
-                      const savings = original ? original - displayPrice : 0
-                      const tag = zh
-                        ? item.tagZh || item.tagEn
-                        : item.tagEn || item.tagZh
-                      return (
-                        <Label
-                          key={item.id}
-                          htmlFor={`plan-${item.id}`}
-                          className={cn(
-                            "relative flex items-center justify-between gap-3 rounded-xl border p-4 transition-colors duration-200",
-                            itemLocked
-                              ? "cursor-not-allowed border-border/70 bg-muted/35 opacity-60"
-                              : isSelected
-                                ? "cursor-pointer border-transparent bg-card"
-                                : "cursor-pointer border-border bg-card hover:border-primary/40 hover:bg-accent/40",
-                            locked && "cursor-not-allowed opacity-70"
-                          )}
-                        >
-                          {isSelected && (
-                            <motion.span
-                              layoutId="checkout-plan-active-card"
-                              aria-hidden="true"
-                              transition={{
-                                type: "spring",
-                                stiffness: 420,
-                                damping: 34,
-                                mass: 0.88,
-                              }}
-                              className="pointer-events-none absolute inset-0 z-0 rounded-xl border border-primary bg-accent/60 ring-1 ring-primary"
-                            />
-                          )}
-                          <span className="relative z-10 flex min-w-0 items-start gap-3">
-                          <RadioGroupItem
-                            id={`plan-${item.id}`}
-                            value={item.id}
-                            disabled={locked || itemLocked}
-                            className="mt-0.5"
-                          />
-                          <span className="flex min-w-0 flex-col gap-1">
-                            <span className="flex flex-wrap items-center gap-2 font-medium text-foreground">
-                              <span>{zh ? item.zh : item.en}</span>
-                              {itemLocked ? (
-                                <Badge variant="secondary">
-                                  {t("仅限新客首单", "New customers only")}
-                                </Badge>
-                              ) : renewalActive ? (
-                                <Badge
-                                  variant="outline"
-                                  className="border-emerald-300 bg-emerald-50 text-emerald-800"
-                                >
-                                  {t(
-                                    `老客续费价 · 立省 ${formatDollars(savings)}`,
-                                    `Renewal rate · Save ${formatDollars(savings)}`
-                                  )}
-                                </Badge>
-                              ) : (
-                                <>
-                                  {tag && (
-                                    <Badge
-                                      variant="outline"
-                                      className="border-brand-gold/40 bg-brand-gold/15 text-amber-900"
-                                    >
-                                      {tag}
-                                    </Badge>
-                                  )}
-                                  {savings > 0 && (
-                                    <Badge variant="secondary">
-                                      {t(
-                                        `立省 ${formatDollars(savings)}`,
-                                        `Save ${formatDollars(savings)}`
-                                      )}
-                                    </Badge>
-                                  )}
-                                </>
-                              )}
-                            </span>
-                            <span className="text-xs font-normal text-muted-foreground">
-                              {t(
-                                `${item.count} 条 1080P 成片配额`,
-                                `${item.count} 1080P video ${item.count === 1 ? "credit" : "credits"}`
-                              )}
-                              {itemLocked
-                                ? t(
-                                    " · 您已完成首单，请选择月度套餐享续费价",
-                                    " · Already ordered; pick a monthly tier for renewal pricing"
-                                  )
-                                : renewalActive
-                                  ? t(
-                                      " · 已自动应用老客续费优惠价（无自动扣费）",
-                                      " · Automatic returning-customer renewal rate (no auto-charge)"
-                                    )
-                                  : item.renewal
-                                    ? t(
-                                        ` · 次月起续费 ${formatDollars(item.renewal)}/月（无自动扣费）`,
-                                        ` · Renew ${formatDollars(item.renewal)}/mo next order (no auto-charge)`
-                                      )
-                                    : ""}
-                            </span>
-                          </span>
-                        </span>
-                        <span className="relative z-10 shrink-0 text-right tabular-nums">
-                          <span className="block text-base font-semibold text-foreground">
-                            {formatDollars(displayPrice)}
-                          </span>
-                          {original && (
-                            <span className="block text-xs font-normal text-muted-foreground line-through">
-                              {formatDollars(original)}
-                            </span>
-                          )}
-                        </span>
-                      </Label>
+          {quoteBlocked && (
+            <Alert variant="destructive">
+              <AlertTitle>
+                {t("该定制报价链接已失效", "This custom quote is no longer open")}
+              </AlertTitle>
+              <AlertDescription>
+                {activeDbQuote?.status === "paid"
+                  ? t(
+                      "该报价单已完成支付，无需重复付款。您可以直接前往工作台查看订单，或选择下方标准套餐。",
+                      "This quote has already been paid. Open your workspace to view the order, or pick a standard package below."
                     )
-                  })}
-                  </RadioGroup>
-                </LayoutGroup>
-              </FieldSet>
-            </CardContent>
-          </Card>
+                  : t(
+                      "该报价单已过期或取消，请联系制作团队重新生成链接。",
+                      "This quote has expired or been cancelled. Contact the studio for an updated link."
+                    )}
+              </AlertDescription>
+            </Alert>
+          )}
+          {requestedTrialWhileRepeat && (
+            <Alert className="border-amber-300/70 bg-amber-50/70 text-amber-950">
+              <AlertTitle>
+                {t(
+                  "体验单仅限新客首单购买",
+                  "Trial video is for first-time customers only"
+                )}
+              </AlertTitle>
+              <AlertDescription className="text-amber-900/90">
+                {t(
+                  "您的账号已有历史订单，已为您自动切换至月度套餐并开启老客续费优惠价。",
+                  "Your account already has a previous order. We switched to a monthly package with your automatic renewal rate."
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+          {query.get("profile") && (
+            <Alert className="border-primary/20 bg-accent/60">
+              <UserRound aria-hidden="true" className="text-primary" />
+              <AlertTitle>
+                {t("复用人物档案", "Reusing presenter profile")}
+              </AlertTitle>
+              <AlertDescription>{query.get("profile")}</AlertDescription>
+            </Alert>
+          )}
 
-          {activeAddons.length > 0 && (
+          {isQuoteSelected && quotedPlan ? (
+            <Card className="gap-0 overflow-hidden py-0 shadow-xs">
+              <div className="relative overflow-hidden px-6 py-5 text-white">
+                <img
+                  src="/portal-media/quote-header-bg.svg"
+                  alt=""
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 size-full object-cover"
+                />
+                <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] font-medium tracking-wider text-white/75 uppercase">
+                      {t("专属定制报价单", "Cinematic Custom Quote")} · #{quote}
+                    </span>
+                    <h1 className="text-xl font-bold tracking-tight text-white">
+                      {resolvedQuoteName}
+                    </h1>
+                  </div>
+                  <div className="text-right tabular-nums">
+                    <div className="font-mono text-2xl font-bold text-[#ffe8d1]">
+                      {formatDollars(quotedPlan.price)}
+                    </div>
+                    <div className="text-xs text-white/75">
+                      {t(
+                        `${quotedPlan.count} 条 1080P 成片 · 约 ${formatDollars(Math.round((quotedPlan.price / quotedPlan.count) * 100) / 100)}/条`,
+                        `${quotedPlan.count} × 1080P videos · ~${formatDollars(Math.round((quotedPlan.price / quotedPlan.count) * 100) / 100)}/vid`
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <CardFooter className="justify-between bg-card px-6 py-3 text-xs text-muted-foreground">
+                <span>
+                  {t(
+                    "专属定制报价已锁定金额与交付配额。",
+                    "Custom quote pricing and video credits are locked."
+                  )}
+                </span>
+                {families.length > 0 && !locked && (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="xs"
+                    className="h-auto px-0"
+                    onClick={() => setChoice(families[0].items[0].id)}
+                  >
+                    {t("改选标准套餐", "Switch to standard plans")}
+                  </Button>
+                )}
+              </CardFooter>
+            </Card>
+          ) : (
             <Card className="shadow-xs">
-              <CardHeader>
-                <CardTitle>
-                  <h2>{t("可选加项服务", "Optional add-ons")}</h2>
-                </CardTitle>
+              <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 border-b pb-4">
+                <div className="flex flex-col gap-0.5">
+                  <CardTitle className="text-base font-semibold">
+                    <h1>
+                      {t("配置您的制作套餐", "Configure your package")}
+                    </h1>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    {t(
+                      "按需单次结算，无强制自动续费 · 成片均为 1080P 高清交付",
+                      "One-time purchase, no auto-renewal · All videos delivered in 1080P"
+                    )}
+                  </CardDescription>
+                </div>
+                {isRepeatCustomer ? (
+                  <Badge
+                    variant="outline"
+                    className="gap-1.5 border-emerald-200 bg-emerald-50/80 text-emerald-800"
+                  >
+                    <span
+                      className="size-1.5 rounded-full bg-emerald-500"
+                      aria-hidden="true"
+                    />
+                    {t("老客续费价已生效", "Renewal pricing active")}
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary">
+                    {t("新客首单", "First-time order")}
+                  </Badge>
+                )}
               </CardHeader>
-              <CardContent className="flex flex-col gap-2.5">
-                {activeAddons.map((addon) => (
-                  <Label
-                    key={addon.id}
+
+              <CardContent className="flex flex-col gap-6 pt-5">
+                {/* Step 1: Production Style (Family Switcher) */}
+                {families.length > 0 && (
+                  <div className="flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold tracking-wide text-muted-foreground uppercase">
+                        {t("1. 选择制作风格", "1. Production style")}
+                      </span>
+                      {quotedPlan && !locked && (
+                        <Button
+                          type="button"
+                          variant="link"
+                          size="xs"
+                          className="h-auto px-0"
+                          onClick={() => setChoice("quote")}
+                        >
+                          {t(`返回定制报价 #${quote}`, `Back to quote #${quote}`)}
+                        </Button>
+                      )}
+                    </div>
+                    <LayoutGroup id="checkout-family-cards-group">
+                      <div
+                        className={cn(
+                          "grid gap-3",
+                          families.length === 1
+                            ? "grid-cols-1"
+                            : "grid-cols-1 sm:grid-cols-2"
+                        )}
+                      >
+                        {families.map((family) => {
+                          const Icon = family.icon
+                          const isFamilyActive =
+                            plan.id !== "trial" &&
+                            plan.id !== "quote" &&
+                            activeFamily?.id === family.id
+                          const lowestPerVideo = Math.min(
+                            ...family.items.map(
+                              (item) => getEffectivePlanPrice(item) / item.count
+                            )
+                          )
+                          return (
+                            <button
+                              key={family.id}
+                              type="button"
+                              disabled={locked}
+                              onClick={() => selectFamily(family.id)}
+                              className={cn(
+                                "relative flex flex-col gap-2 rounded-xl border p-4 text-left transition-colors duration-200",
+                                isFamilyActive
+                                  ? "border-transparent bg-card"
+                                  : "border-border bg-card hover:border-primary/40 hover:bg-accent/35",
+                                locked && "cursor-not-allowed opacity-70"
+                              )}
+                            >
+                              {isFamilyActive && (
+                                <motion.span
+                                  layoutId="checkout-family-active-card"
+                                  aria-hidden="true"
+                                  transition={springTransition}
+                                  className="pointer-events-none absolute inset-0 z-0 rounded-xl border border-primary bg-accent/55 ring-1 ring-primary"
+                                />
+                              )}
+                              <div className="relative z-10 flex items-center justify-between gap-2">
+                                <span className="inline-flex items-center gap-2 font-semibold text-foreground">
+                                  <span
+                                    className={cn(
+                                      "flex size-7 items-center justify-center rounded-lg border transition-colors",
+                                      isFamilyActive
+                                        ? "border-primary/25 bg-primary text-primary-foreground"
+                                        : "border-border bg-muted/60 text-muted-foreground"
+                                    )}
+                                  >
+                                    <Icon
+                                      aria-hidden="true"
+                                      className="size-3.5"
+                                    />
+                                  </span>
+                                  <span className="text-sm">{family.title}</span>
+                                </span>
+                                <span className="font-mono text-xs font-medium text-primary tabular-nums">
+                                  {formatDollars(
+                                    Math.round(lowestPerVideo * 10) / 10
+                                  )}
+                                  {t("/条起", "/vid+")}
+                                </span>
+                              </div>
+                              <p className="relative z-10 text-xs leading-relaxed text-muted-foreground">
+                                {family.summary}
+                              </p>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </LayoutGroup>
+                  </div>
+                )}
+
+                {/* Step 2: Video Quantity Tier Grid */}
+                {activeFamily && activeFamily.items.length > 0 && (
+                  <div className="flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold tracking-wide text-muted-foreground uppercase">
+                        {t("2. 选择视频条数", "2. Video quantity")}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {isRepeatCustomer
+                          ? t("以下均为老客续费实付价", "Returning-customer renewal rates shown")
+                          : t("次月续购自动直降 $100", "Save $100 automatically on renewals")}
+                      </span>
+                    </div>
+                    <LayoutGroup id={`checkout-tier-grid-${activeFamily.id}`}>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        {activeFamily.items.map((item) => {
+                          const isSelected = plan.id === item.id
+                          const renewalActive = isRenewalApplied(item)
+                          const displayPrice = getEffectivePlanPrice(item)
+                          const strikePrice = renewalActive
+                            ? item.price
+                            : item.regular && item.regular > item.price
+                              ? item.regular
+                              : undefined
+                          const perVideo = displayPrice / item.count
+                          const showPopularBadge =
+                            item.id === "presenter-5" ||
+                            item.id === "cinematic-6"
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              disabled={locked}
+                              onClick={() => setChoice(item.id)}
+                              className={cn(
+                                "relative flex flex-col justify-between gap-3 rounded-xl border p-4 text-left transition-colors duration-200",
+                                isSelected
+                                  ? "border-transparent bg-card"
+                                  : "border-border bg-card hover:border-primary/40 hover:bg-accent/35",
+                                locked && "cursor-not-allowed opacity-70"
+                              )}
+                            >
+                              {isSelected && (
+                                <motion.span
+                                  layoutId={`checkout-tier-active-${activeFamily.id}`}
+                                  aria-hidden="true"
+                                  transition={springTransition}
+                                  className="pointer-events-none absolute inset-0 z-0 rounded-xl border border-primary bg-accent/60 ring-1 ring-primary"
+                                />
+                              )}
+                              <div className="relative z-10 flex items-center justify-between gap-2">
+                                <span className="text-sm font-semibold text-foreground">
+                                  {t(
+                                    `${item.count} 条视频`,
+                                    `${item.count} videos`
+                                  )}
+                                </span>
+                                {showPopularBadge && (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-brand-gold/50 bg-brand-gold/15 px-1.5 py-0 text-[10px] text-amber-900"
+                                  >
+                                    {t("推荐", "Popular")}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="relative z-10 flex items-baseline gap-1.5 tabular-nums">
+                                <span className="text-2xl font-bold tracking-tight text-foreground">
+                                  {formatDollars(displayPrice)}
+                                </span>
+                                {strikePrice && (
+                                  <span className="text-xs text-muted-foreground line-through">
+                                    {formatDollars(strikePrice)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="relative z-10 flex items-center justify-between border-t border-border/60 pt-2 text-[11px] text-muted-foreground tabular-nums">
+                                <span>
+                                  {t("折合单条", "Per video")}
+                                </span>
+                                <span className="font-mono font-medium text-foreground">
+                                  {formatDollars(
+                                    Math.round(perVideo * 10) / 10
+                                  )}
+                                </span>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </LayoutGroup>
+                  </div>
+                )}
+
+                {/* First-time Customer Trial Banner (hidden for returning customers to eliminate clutter) */}
+                {trialPlan && !isRepeatCustomer && (
+                  <button
+                    type="button"
+                    disabled={locked}
+                    onClick={() => setChoice(trialPlan.id)}
                     className={cn(
-                      "flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-border p-3.5 transition-colors hover:bg-accent/40 has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-accent/50",
+                      "flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-200",
+                      plan.id === trialPlan.id
+                        ? "border-primary bg-accent/60 ring-1 ring-primary"
+                        : "border-dashed border-border bg-muted/25 hover:border-primary/40 hover:bg-accent/30",
                       locked && "cursor-not-allowed opacity-70"
                     )}
                   >
-                    <span className="flex items-center gap-3 font-medium">
-                      <Checkbox
-                        disabled={locked}
-                        checked={Boolean(selectedAddons[addon.id])}
-                        onCheckedChange={(checked) =>
-                          setSelectedAddons((value) => ({
-                            ...value,
-                            [addon.id]: checked === true,
-                          }))
-                        }
-                      />
-                      <span>{zh ? addon.zh : addon.en}</span>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span
+                        className={cn(
+                          "flex size-8 shrink-0 items-center justify-center rounded-lg border",
+                          plan.id === trialPlan.id
+                            ? "border-primary/30 bg-primary text-primary-foreground"
+                            : "border-border bg-card text-primary"
+                        )}
+                      >
+                        <Sparkles aria-hidden="true" className="size-4" />
+                      </span>
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
+                          <span>{zh ? trialPlan.zh : trialPlan.en}</span>
+                          <Badge
+                            variant="outline"
+                            className="border-brand-gold/50 bg-brand-gold/15 px-1.5 py-0 text-[10px] text-amber-900"
+                          >
+                            {t("新客首单专享", "New customers")}
+                          </Badge>
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {t(
+                            "先用 1 条成片验证数字人形象与配音效果，后续首购月度套餐直享续费价",
+                            "Test your digital presenter with 1 video first, then unlock renewal pricing on your first monthly pack"
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="font-mono text-lg font-bold text-foreground tabular-nums">
+                      {formatDollars(trialPlan.price)}
                     </span>
-                    <span className="font-mono text-sm font-medium text-muted-foreground tabular-nums">
-                      +{formatDollars(addon.price)}
-                    </span>
-                  </Label>
-                ))}
+                  </button>
+                )}
+
+                {/* Step 3: Optional Add-ons (Compact 2-col Grid inside same visual flow) */}
+                {activeAddons.length > 0 && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col gap-2.5">
+                      <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                        {t("3. 可选加项服务", "3. Optional add-ons")}
+                      </span>
+                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                        {activeAddons.map((addon) => (
+                          <Label
+                            key={addon.id}
+                            className={cn(
+                              "flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-border bg-card px-3.5 py-3 transition-colors hover:border-primary/40 hover:bg-accent/35 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-accent/55",
+                              locked && "cursor-not-allowed opacity-70"
+                            )}
+                          >
+                            <span className="flex min-w-0 items-center gap-2.5 text-sm font-medium">
+                              <Checkbox
+                                disabled={locked}
+                                checked={Boolean(selectedAddons[addon.id])}
+                                onCheckedChange={(checked) =>
+                                  setSelectedAddons((value) => ({
+                                    ...value,
+                                    [addon.id]: checked === true,
+                                  }))
+                                }
+                              />
+                              <span className="truncate">
+                                {zh ? addon.zh : addon.en}
+                              </span>
+                            </span>
+                            <span className="shrink-0 font-mono text-xs font-semibold text-foreground tabular-nums">
+                              +{formatDollars(addon.price)}
+                            </span>
+                          </Label>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           )}
         </div>
 
+        {/* Right: Sticky Stripe Checkout Summary Card */}
         <Card className="shadow-xs lg:sticky lg:top-20 lg:col-span-5">
-          <CardHeader className="border-b">
-            <CardTitle>
+          <CardHeader className="border-b pb-4">
+            <CardTitle className="text-base font-semibold">
               <h2>{t("订单结算", "Order summary")}</h2>
             </CardTitle>
-            <CardDescription>
-              {t("结算币种为美元 (USD)", "Billed in US Dollars (USD)")}
+            <CardDescription className="text-xs">
+              {t("美元 (USD) · 安全加密支付", "US Dollars (USD) · Encrypted checkout")}
             </CardDescription>
             <CardAction>
               <Badge variant="secondary" className="gap-1">
@@ -1033,13 +1294,21 @@ export function CheckoutPage() {
               </Badge>
             </CardAction>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-muted-foreground">
-                  {zh ? plan.zh : plan.en}
-                </span>
-                <span className="font-medium tabular-nums">
+          <CardContent className="flex flex-col gap-4 pt-5">
+            <div className="flex flex-col gap-2.5 rounded-xl border border-border/80 bg-muted/25 p-3.5 text-sm">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="font-semibold text-foreground">
+                    {zh ? plan.zh : plan.en}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {t(
+                      `${plan.count} 条 1080P 成片配额`,
+                      `${plan.count} × 1080P video ${plan.count === 1 ? "credit" : "credits"}`
+                    )}
+                  </span>
+                </div>
+                <span className="shrink-0 font-mono font-semibold text-foreground tabular-nums">
                   {formatDollars(
                     renewalDiscount > 0
                       ? plan.price
@@ -1052,7 +1321,7 @@ export function CheckoutPage() {
               {renewalDiscount > 0 ? (
                 <div className="flex items-center justify-between text-xs text-emerald-700">
                   <span>{t("老客续费优惠", "Returning-customer renewal")}</span>
-                  <span className="font-medium tabular-nums">
+                  <span className="font-mono font-medium tabular-nums">
                     −{formatDollars(renewalDiscount)}
                   </span>
                 </div>
@@ -1061,29 +1330,32 @@ export function CheckoutPage() {
                 plan.regular > plan.price && (
                   <div className="flex items-center justify-between text-xs text-emerald-700">
                     <span>{t("套餐立减", "Package discount")}</span>
-                    <span className="font-medium tabular-nums">
+                    <span className="font-mono font-medium tabular-nums">
                       −{formatDollars(plan.regular - plan.price)}
                     </span>
                   </div>
                 )
               )}
-              {addonsTotal > 0 && (
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{t("加项费用", "Add-ons")}</span>
-                  <span className="tabular-nums">
-                    +{formatDollars(addonsTotal)}
+              {selectedAddonList.map((addon) => (
+                <div
+                  key={addon.id}
+                  className="flex items-center justify-between text-xs text-muted-foreground"
+                >
+                  <span>{zh ? addon.zh : addon.en}</span>
+                  <span className="font-mono tabular-nums">
+                    +{formatDollars(addon.price)}
                   </span>
                 </div>
-              )}
-            </div>
-            <Separator />
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm font-medium">
-                {t("应付总额", "Total due")}
-              </span>
-              <strong className="text-2xl font-bold tracking-tight tabular-nums">
-                {formatDollars(total)}
-              </strong>
+              ))}
+              <Separator className="my-0.5" />
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm font-medium text-foreground">
+                  {t("应付总额", "Total due")}
+                </span>
+                <strong className="font-mono text-2xl font-bold tracking-tight text-foreground tabular-nums">
+                  {formatDollars(total)}
+                </strong>
+              </div>
             </div>
 
             {!created && !stripeSession && (
