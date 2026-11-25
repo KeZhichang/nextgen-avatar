@@ -1,6 +1,7 @@
 import { type ReactNode } from "react"
 import { Link } from "react-router"
 import { ChevronsUpDown, Home, LogOut, type LucideIcon } from "lucide-react"
+import { LayoutGroup, motion, useReducedMotion } from "motion/react"
 import { cn } from "cn"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -31,7 +32,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { usePortal } from "./demo"
+import { marketingSiteUrl, usePortal } from "./demo"
 import { BrandMark, LanguageSwitch } from "./layout"
 
 export type WorkbenchNavItem = {
@@ -85,12 +86,16 @@ function WorkbenchSidebar({
 >) {
   const { href, t } = usePortal()
   const { setOpenMobile } = useSidebar()
+  const prefersReducedMotion = useReducedMotion()
   const closeMenu = () => setOpenMobile(false)
   const navGroups: WorkbenchNavGroup[] = groups?.length
     ? groups.filter((group) => group.items.length > 0)
     : items?.length
       ? [{ items }]
       : []
+  const indicatorLayoutId = team
+    ? "team-sidebar-active-indicator"
+    : "client-sidebar-active-indicator"
 
   return (
     <Sidebar
@@ -104,74 +109,111 @@ function WorkbenchSidebar({
         </Link>
       </SidebarHeader>
       <SidebarContent>
-        <nav aria-label={navigationLabel} className="flex flex-col gap-1 py-2">
-          {navGroups.map((group, index) => (
-            <SidebarGroup key={group.label ?? index} className="px-2.5 py-1.5">
-              {group.label && (
-                <SidebarGroupLabel
-                  className={cn(
-                    "px-2.5 text-xs font-semibold tracking-wider uppercase",
-                    team ? "text-white/50" : "text-muted-foreground"
-                  )}
-                >
-                  {group.label}
-                </SidebarGroupLabel>
-              )}
-              <SidebarGroupContent>
-                <SidebarMenu className="gap-1">
-                  {group.items.map(
-                    ({ icon: Icon, label, active, badge, ...action }) => (
-                      <SidebarMenuItem key={label}>
-                        <SidebarMenuButton
-                          asChild
-                          isActive={active}
-                          className="h-9 gap-2.5 px-2.5 font-medium"
-                        >
-                          {"to" in action ? (
-                            <Link
-                              to={action.to}
-                              onClick={closeMenu}
-                              aria-current={active ? "page" : undefined}
-                            >
-                              <Icon aria-hidden="true" />
-                              <span>{label}</span>
-                            </Link>
-                          ) : (
-                            <button
-                              type="button"
-                              aria-current={active ? "page" : undefined}
-                              onClick={() => {
-                                action.onSelect()
-                                closeMenu()
-                              }}
-                            >
-                              <Icon aria-hidden="true" />
-                              <span>{label}</span>
-                            </button>
+        <LayoutGroup id={indicatorLayoutId}>
+          <nav
+            aria-label={navigationLabel}
+            className="flex flex-col gap-1 py-2"
+          >
+            {navGroups.map((group, index) => (
+              <SidebarGroup
+                key={group.label ?? index}
+                className="px-2.5 py-1.5"
+              >
+                {group.label && (
+                  <SidebarGroupLabel
+                    className={cn(
+                      "px-2.5 text-xs font-semibold tracking-wider uppercase",
+                      team ? "text-white/50" : "text-muted-foreground"
+                    )}
+                  >
+                    {group.label}
+                  </SidebarGroupLabel>
+                )}
+                <SidebarGroupContent>
+                  <SidebarMenu className="gap-1">
+                    {group.items.map(
+                      ({ icon: Icon, label, active, badge, ...action }) => (
+                        <SidebarMenuItem key={label}>
+                          {active && (
+                            <motion.span
+                              layoutId={indicatorLayoutId}
+                              aria-hidden="true"
+                              transition={
+                                prefersReducedMotion
+                                  ? { duration: 0 }
+                                  : {
+                                      type: "spring",
+                                      stiffness: 420,
+                                      damping: 34,
+                                      mass: 0.88,
+                                    }
+                              }
+                              className={cn(
+                                "pointer-events-none absolute inset-0 z-0 rounded-md",
+                                team
+                                  ? "bg-sidebar-accent shadow-xs"
+                                  : "bg-sidebar-accent shadow-2xs"
+                              )}
+                            />
                           )}
-                        </SidebarMenuButton>
-                        {badge !== undefined && badge !== 0 && badge !== "" && (
-                          <SidebarMenuBadge
+                          <SidebarMenuButton
+                            asChild
+                            isActive={active}
                             className={cn(
-                              "rounded-full px-1.5 font-mono text-[11px]",
+                              "relative z-10 h-9 gap-2.5 px-2.5 font-medium transition-colors duration-200 data-active:bg-transparent data-active:hover:bg-transparent active:bg-transparent",
                               team
-                                ? active
-                                  ? "bg-white/25 text-white"
-                                  : "bg-white/15 text-white/85"
-                                : "bg-primary/15 text-primary"
+                                ? "hover:bg-white/10 hover:text-white"
+                                : "hover:bg-sidebar-accent/55"
                             )}
                           >
-                            {badge}
-                          </SidebarMenuBadge>
-                        )}
-                      </SidebarMenuItem>
-                    )
-                  )}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ))}
-        </nav>
+                            {"to" in action ? (
+                              <Link
+                                to={action.to}
+                                onClick={closeMenu}
+                                aria-current={active ? "page" : undefined}
+                              >
+                                <Icon aria-hidden="true" />
+                                <span>{label}</span>
+                              </Link>
+                            ) : (
+                              <button
+                                type="button"
+                                aria-current={active ? "page" : undefined}
+                                onClick={() => {
+                                  action.onSelect()
+                                  closeMenu()
+                                }}
+                              >
+                                <Icon aria-hidden="true" />
+                                <span>{label}</span>
+                              </button>
+                            )}
+                          </SidebarMenuButton>
+                          {badge !== undefined &&
+                            badge !== 0 &&
+                            badge !== "" && (
+                              <SidebarMenuBadge
+                                className={cn(
+                                  "z-10 rounded-full px-1.5 font-mono text-[11px] transition-colors duration-200",
+                                  team
+                                    ? active
+                                      ? "bg-white/25 text-white"
+                                      : "bg-white/15 text-white/85"
+                                    : "bg-primary/15 text-primary"
+                                )}
+                              >
+                                {badge}
+                              </SidebarMenuBadge>
+                            )}
+                        </SidebarMenuItem>
+                      )
+                    )}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            ))}
+          </nav>
+        </LayoutGroup>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-2.5">
         <SidebarMenu>
@@ -212,17 +254,17 @@ function WorkbenchSidebar({
                     </span>
                   </div>
                 </DropdownMenuLabel>
-                {(accountActions || showHomeLink) && (
+                {(accountActions || (showHomeLink && marketingSiteUrl)) && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuGroup>
                       {accountActions}
-                      {showHomeLink && (
+                      {showHomeLink && marketingSiteUrl && (
                         <DropdownMenuItem asChild>
-                          <Link to={href()} onClick={closeMenu}>
+                          <a href={marketingSiteUrl} onClick={closeMenu}>
                             <Home aria-hidden="true" />
                             {t("返回官网首页", "Back to website")}
-                          </Link>
+                          </a>
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuGroup>

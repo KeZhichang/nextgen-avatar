@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Bell,
   Building2,
+  CheckCircle2,
   CreditCard,
   Download,
   ExternalLink,
@@ -74,9 +75,10 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   clientImage,
+  countDeliveredVideos,
   coverImage,
   formatDollars,
-  sampleOrder,
+  getVersionCode,
   sampleVideo,
   useDemo,
   usePortal,
@@ -86,6 +88,45 @@ import { downloadFile, downloadOrderFile } from "./files"
 import { ActionLink, LanguageSwitch, StatusBadge } from "./layout"
 import { EditableOrderTitle } from "./production"
 import { WorkbenchLayout } from "./workbench-layout"
+
+function formatNotificationTime(iso: string, zh: boolean) {
+  const ts = Date.parse(iso)
+  if (!Number.isFinite(ts)) return ""
+  const diffMin = Math.max(0, Math.floor((Date.now() - ts) / 60000))
+  if (diffMin < 1) return zh ? "刚刚" : "Just now"
+  if (diffMin < 60) return zh ? `${diffMin} 分钟前` : `${diffMin}m ago`
+  const diffHour = Math.floor(diffMin / 60)
+  if (diffHour < 24) return zh ? `${diffHour} 小时前` : `${diffHour}h ago`
+  const diffDay = Math.floor(diffHour / 24)
+  if (diffDay < 7) return zh ? `${diffDay} 天前` : `${diffDay}d ago`
+  const d = new Date(ts)
+  return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+function getNotificationVisual(eventType: string) {
+  if (eventType === "draft_ready") {
+    return {
+      icon: Film,
+      tone: "border-amber-200/80 bg-amber-50 text-amber-700",
+    }
+  }
+  if (eventType === "final_delivered" || eventType === "order_completed") {
+    return {
+      icon: CheckCircle2,
+      tone: "border-emerald-200/80 bg-emerald-50 text-emerald-700",
+    }
+  }
+  if (eventType === "order_created") {
+    return {
+      icon: Upload,
+      tone: "border-primary/20 bg-primary/8 text-primary",
+    }
+  }
+  return {
+    icon: MessageSquare,
+    tone: "border-border bg-muted/60 text-muted-foreground",
+  }
+}
 
 export function RequireClientAuth() {
   const { isLiveSupabase, authLoading, authUser } = useDemo()
@@ -119,6 +160,7 @@ export function ClientConsoleShell() {
   const { t, href, zh } = usePortal()
   const {
     data,
+    authUser,
     isLiveSupabase,
     signOutAll,
     markNotificationRead,
@@ -128,8 +170,10 @@ export function ClientConsoleShell() {
   const { pathname } = useLocation()
   const [query] = useSearchParams()
 
-  const orders = data.orders.filter(
-    (value) => value.client === data.account.name
+  const orders = data.orders.filter((value) =>
+    authUser && !authUser.isDemo && value.clientId
+      ? value.clientId === authUser.id
+      : value.client === data.account.name
   )
   const unreadNotifications = data.notifications.filter((item) => !item.isRead)
   const unreadCount = unreadNotifications.length
@@ -141,7 +185,7 @@ export function ClientConsoleShell() {
     orders.find((value) => value.id === contextOrderId) ??
     orders.find((value) => value.status === "waiting_confirm") ??
     orders[0]
-  const orderParams = { order: contextOrder?.id ?? sampleOrder }
+  const orderParams = contextOrder ? { order: contextOrder.id } : undefined
 
   const isHub =
     pathname.includes("/order-chat") || pathname.includes("/video-review")
@@ -153,7 +197,7 @@ export function ClientConsoleShell() {
         : "overview"
   const activeNav = isHub ? "hub" : workspaceTab
 
-  const transitionKey = isHub ? "client-hub" : `${pathname}:${workspaceTab}`
+  const transitionKey = isHub ? "client-hub" : `workspace:${workspaceTab}`
 
   const heading: ReactNode = (() => {
     if (isHub) {
@@ -254,17 +298,30 @@ export function ClientConsoleShell() {
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-80 p-0">
-              <div className="flex items-center justify-between gap-2 px-3.5 py-2.5">
-                <PopoverHeader>
-                  <PopoverTitle className="text-sm font-semibold">
+            <PopoverContent
+              align="end"
+              sideOffset={8}
+              className="w-[360px] gap-0 overflow-hidden rounded-xl p-0 shadow-lg"
+            >
+              <div className="flex items-center justify-between gap-2 border-b bg-card px-4 py-3">
+                <PopoverHeader className="flex-row items-center gap-2">
+                  <PopoverTitle className="text-sm font-semibold text-foreground">
                     {t("消息通知", "Notifications")}
                   </PopoverTitle>
+                  {unreadCount > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="h-5 rounded-full px-1.5 font-mono text-[11px] tabular-nums"
+                    >
+                      {unreadCount}
+                    </Badge>
+                  )}
                 </PopoverHeader>
                 {unreadCount > 0 && (
                   <Button
                     variant="ghost"
                     size="xs"
+                    className="h-7 text-xs text-muted-foreground hover:text-foreground"
                     onClick={() => {
                       void markAllNotificationsRead()
                       toast.success(
@@ -279,8 +336,7 @@ export function ClientConsoleShell() {
                   </Button>
                 )}
               </div>
-              <Separator />
-              <div className="flex max-h-80 flex-col divide-y overflow-y-auto">
+              <div className="flex max-h-88 flex-col divide-y divide-border/70 overflow-y-auto">
                 {data.notifications.length > 0 ? (
                   data.notifications.slice(0, 8).map((item) => {
                     const targetOrder = item.orderId
@@ -295,6 +351,10 @@ export function ClientConsoleShell() {
                           { order: item.orderId }
                         )
                       : href("workspace")
+                    const { icon: Icon, tone } = getNotificationVisual(
+                      item.eventType
+                    )
+                    const timeText = formatNotificationTime(item.createdAt, zh)
                     return (
                       <Link
                         key={item.id}
@@ -302,27 +362,44 @@ export function ClientConsoleShell() {
                         onClick={() => {
                           if (!item.isRead) void markNotificationRead(item.id)
                         }}
-                        className="flex items-start gap-2.5 px-3.5 py-2.5 text-sm transition-colors hover:bg-muted/60"
+                        className={`group flex items-start gap-3 px-4 py-3 text-sm transition-colors hover:bg-muted/55 ${
+                          item.isRead ? "bg-card" : "bg-primary/[0.035]"
+                        }`}
                       >
                         <span
-                          className={
-                            item.isRead
-                              ? "mt-1.5 size-1.5 shrink-0 rounded-full bg-transparent"
-                              : "mt-1.5 size-1.5 shrink-0 rounded-full bg-primary"
-                          }
-                        />
-                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <span
-                            className={
-                              item.isRead
-                                ? "truncate text-xs font-medium text-muted-foreground"
-                                : "truncate text-xs font-semibold text-foreground"
-                            }
-                          >
-                            {zh ? item.titleZh : item.titleEn}
-                          </span>
+                          className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border transition-opacity ${tone} ${
+                            item.isRead ? "opacity-70" : "opacity-100"
+                          }`}
+                        >
+                          <Icon className="size-4" aria-hidden="true" />
+                        </span>
+                        <div className="flex min-w-0 flex-1 flex-col gap-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <span
+                              className={
+                                item.isRead
+                                  ? "line-clamp-1 text-xs font-medium text-foreground/80"
+                                  : "line-clamp-1 text-xs font-semibold text-foreground"
+                              }
+                            >
+                              {zh ? item.titleZh : item.titleEn}
+                            </span>
+                            <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
+                              {timeText && (
+                                <span className="font-mono text-[10px] text-muted-foreground/80 tabular-nums">
+                                  {timeText}
+                                </span>
+                              )}
+                              {!item.isRead && (
+                                <span
+                                  aria-label={t("未读", "Unread")}
+                                  className="size-1.5 rounded-full bg-primary"
+                                />
+                              )}
+                            </div>
+                          </div>
                           {(zh ? item.bodyZh : item.bodyEn) && (
-                            <span className="line-clamp-2 text-xs text-muted-foreground">
+                            <span className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                               {zh ? item.bodyZh : item.bodyEn}
                             </span>
                           )}
@@ -331,9 +408,14 @@ export function ClientConsoleShell() {
                     )
                   })
                 ) : (
-                  <p className="px-4 py-6 text-center text-xs text-muted-foreground">
-                    {t("暂无消息通知", "No notifications yet")}
-                  </p>
+                  <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+                    <span className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                      <Bell className="size-4" aria-hidden="true" />
+                    </span>
+                    <p className="text-xs text-muted-foreground">
+                      {t("暂无消息通知", "No notifications yet")}
+                    </p>
+                  </div>
                 )}
               </div>
             </PopoverContent>
@@ -349,9 +431,9 @@ export function ClientConsoleShell() {
     >
       <motion.div
         key={transitionKey}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.16, ease: "easeOut" }}
+        initial={{ opacity: 0, y: 5 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         className="flex min-h-0 flex-1 flex-col"
       >
         <Outlet />
@@ -605,16 +687,17 @@ export function WorkspacePage() {
         ? "profile"
         : "overview"
   const [filter, setFilter] = useState("all")
-  const orders = data.orders.filter(
-    (value) => value.client === data.account.name
+  const orders = data.orders.filter((value) =>
+    authUser && !authUser.isDemo && value.clientId
+      ? value.clientId === authUser.id
+      : value.client === data.account.name
   )
   const active = orders.filter((value) => value.status !== "completed").length
-  const delivered = orders.filter(
-    (value) =>
-      value.status === "completed" ||
-      value.versions.some((item) => item.type === "final")
+  const delivered = orders.filter((value) => countDeliveredVideos(value) > 0)
+  const deliveredVideoTotal = orders.reduce(
+    (sum, value) => sum + countDeliveredVideos(value),
+    0
   )
-  const deliveredVideoTotal = delivered.length
   const reviewOrder = orders.find(
     (value) => value.status === "waiting_confirm"
   )
@@ -768,7 +851,7 @@ export function WorkspacePage() {
 
             {/* 3. Refined Orders Table */}
             <Card className="gap-0 overflow-hidden py-0 shadow-xs">
-              <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
                 <div className="flex items-center gap-2">
                   <CardTitle className="text-base font-semibold">
                     <h3>{t("我的订单", "My orders")}</h3>
@@ -782,17 +865,25 @@ export function WorkspacePage() {
                 </div>
                 <Tabs value={filter} onValueChange={setFilter}>
                   <TabsList>
-                    <TabsTrigger value="all">{t("全部", "All")}</TabsTrigger>
-                    <TabsTrigger value="open">
+                    <TabsTrigger value="all" className="text-xs">
+                      {t("全部", "All")}
+                    </TabsTrigger>
+                    <TabsTrigger value="open" className="text-xs">
                       {t("进行中", "In progress")}
                     </TabsTrigger>
-                    <TabsTrigger value="done">
+                    <TabsTrigger value="done" className="text-xs">
                       {t("已完成", "Completed")}
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
               </CardHeader>
               <CardContent className="p-0">
+                <motion.div
+                  key={filter}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                >
                 {shown.length > 0 ? (
                   <Table>
                     <TableHeader>
@@ -853,7 +944,7 @@ export function WorkspacePage() {
                                   >
                                     {latestVersion.type === "final"
                                       ? "FINAL"
-                                      : latestVersion.id}
+                                      : getVersionCode(latestVersion)}
                                   </Badge>
                                 )}
                               </div>
@@ -915,6 +1006,7 @@ export function WorkspacePage() {
                     </EmptyHeader>
                   </Empty>
                 )}
+                </motion.div>
               </CardContent>
             </Card>
 
@@ -1006,7 +1098,7 @@ export function WorkspacePage() {
         {tab === "billing" && (
           <div className="flex flex-col gap-4">
             <Card className="gap-0 overflow-hidden py-0 shadow-xs">
-              <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
                 <div className="flex flex-col gap-0.5">
                   <CardTitle className="text-base font-semibold">
                     <h2>{t("付款与收据记录", "Payment history")}</h2>

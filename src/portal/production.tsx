@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react"
-import { useNavigate, useSearchParams } from "react-router"
+import { useLocation, useNavigate, useSearchParams } from "react-router"
+import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/react"
 import {
   AlertTriangle,
   ArrowDown,
@@ -9,6 +10,7 @@ import {
   Film,
   MessageSquare,
   Play,
+  Plus,
   Search,
   Send,
   Upload,
@@ -79,7 +81,16 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
+import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -92,9 +103,14 @@ import {
 import { ChatAttachmentCard } from "./chat-attachment"
 import { ChatComposer } from "./chat-composer"
 import {
+  buildNextVersionForItem,
   clientImage,
   coverImage,
   entryAttachments,
+  getOrderDeliverableSlots,
+  getVersionCode,
+  getVersionItemIndex,
+  getVersionsForItem,
   sampleMaterials,
   sampleOrder,
   sampleVideo,
@@ -180,7 +196,8 @@ export function EditableOrderTitle({ order }: { order: Order }) {
 function useOrder() {
   const [query] = useSearchParams()
   const { data } = useDemo()
-  const id = query.get("order") ?? sampleOrder
+  const id = query.get("order")
+  if (!id) return data.orders[0]
   return data.orders.find((value) => value.id === id)
 }
 
@@ -218,11 +235,21 @@ function MissingOrder({ team = false }: { team?: boolean }) {
 function formatVersionLabel(
   id: string,
   type: "preview" | "final",
-  t: (zh: string, en: string) => string
+  t: (zh: string, en: string) => string,
+  itemIndex?: number,
+  showItemPrefix = false
 ) {
-  if (type === "final") return t("正式交付版", "Final delivery")
-  if (id === "v1") return t("初稿 v1", "Initial draft v1")
-  return t(`修订稿 ${id}`, `Revision ${id}`)
+  const code = id.replace(/^#\d+-/, "")
+  const base =
+    type === "final"
+      ? t("正式交付版", "Final delivery")
+      : code === "v1"
+        ? t("初稿 v1", "Initial draft v1")
+        : t(`修订稿 ${code}`, `Revision ${code}`)
+  if (showItemPrefix && itemIndex && itemIndex >= 1) {
+    return t(`第 ${itemIndex} 条 · ${base}`, `Video #${itemIndex} · ${base}`)
+  }
+  return base
 }
 
 function ChatPanel({
@@ -238,12 +265,13 @@ function ChatPanel({
 }) {
   const { t, zh } = usePortal()
   const { data, sendChatMessage } = useDemo()
+  const hasMultipleDeliverables = getOrderDeliverableSlots(order).length > 1
   const clientAvatar =
     order.client === data.account.name && data.account.avatarUrl
       ? data.account.avatarUrl
       : clientImage
   const sample: Entry[] =
-    order.id === sampleOrder
+    order.demo && order.id === sampleOrder
       ? [
         {
           id: "sample-client",
@@ -336,8 +364,8 @@ function ChatPanel({
               />
               <span className="truncate">
                 {t(
-                  `${latestVersion ? formatVersionLabel(latestVersion.id, latestVersion.type, t) : "最新预览版"}已上传，等待您审片确认或提交修改意见。`,
-                  `${latestVersion ? formatVersionLabel(latestVersion.id, latestVersion.type, t) : "Latest draft"} is ready for your approval or revision notes.`
+                  `${latestVersion ? formatVersionLabel(latestVersion.id, latestVersion.type, t, getVersionItemIndex(latestVersion), hasMultipleDeliverables) : "最新预览版"}已上传，等待您审片确认或提交修改意见。`,
+                  `${latestVersion ? formatVersionLabel(latestVersion.id, latestVersion.type, t, getVersionItemIndex(latestVersion), hasMultipleDeliverables) : "Latest draft"} is ready for your approval or revision notes.`
                 )}
               </span>
             </div>
@@ -373,16 +401,27 @@ function ChatPanel({
                   </EmptyHeader>
                 </Empty>
               )}
-              {entries.map((entry) => {
-                const own = entry.side === side
-                const client = entry.side === "client"
-                const sender = client
-                  ? order.client
-                  : t("制作团队", "Production team")
-                const attachments = entryAttachments(entry)
-                return (
-                  <MessageScrollerItem key={entry.id} messageId={entry.id}>
-                    <Message align={own ? "end" : "start"}>
+              <AnimatePresence initial={false}>
+                {entries.map((entry) => {
+                  const own = entry.side === side
+                  const client = entry.side === "client"
+                  const sender = client
+                    ? order.client
+                    : t("制作团队", "Production team")
+                  const attachments = entryAttachments(entry)
+                  return (
+                    <MessageScrollerItem key={entry.id} messageId={entry.id}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.985 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 460,
+                          damping: 34,
+                          mass: 0.82,
+                        }}
+                      >
+                        <Message align={own ? "end" : "start"}>
                       <MessageAvatar className="self-start">
                         <Avatar className="size-8">
                           <AvatarImage
@@ -432,7 +471,9 @@ function ChatPanel({
                                   {formatVersionLabel(
                                     entry.versionRef.id,
                                     entry.versionRef.type,
-                                    t
+                                    t,
+                                    entry.versionRef.itemIndex,
+                                    hasMultipleDeliverables
                                   )}
                                 </span>
                                 <Badge
@@ -441,7 +482,9 @@ function ChatPanel({
                                 >
                                   {entry.versionRef.type === "final"
                                     ? "FINAL"
-                                    : entry.versionRef.id.toUpperCase()}
+                                    : entry.versionRef.id
+                                        .replace(/^#\d+-/, "")
+                                        .toUpperCase()}
                                 </Badge>
                               </div>
                               {entry.versionRef.note && (
@@ -497,9 +540,11 @@ function ChatPanel({
                         )}
                       </MessageContent>
                     </Message>
+                    </motion.div>
                   </MessageScrollerItem>
                 )
               })}
+              </AnimatePresence>
             </MessageScrollerContent>
           </MessageScrollerViewport>
           <MessageScrollerButton
@@ -588,25 +633,60 @@ function ReviewPanel({
   const { t } = usePortal()
   const { submitOrderReview } = useDemo()
   const [revision, setRevision] = useState("")
+  const [manualSlot, setManualSlot] = useState<number | null>(null)
 
-  const latest = order.versions.at(-1)
+  const slots = getOrderDeliverableSlots(order)
+  const isMultiVideo = slots.length > 1
+
+  const requestedVersion = selectedVersionId
+    ? order.versions.find((item) => item.id === selectedVersionId)
+    : undefined
+  const latestOverall = order.versions.at(-1)
+  const defaultItemIndex = requestedVersion
+    ? getVersionItemIndex(requestedVersion)
+    : latestOverall
+      ? getVersionItemIndex(latestOverall)
+      : 1
+  const activeItemIndex = manualSlot ?? defaultItemIndex
+
+  const itemVersions = getVersionsForItem(order, activeItemIndex)
+  const latestInItem = itemVersions.at(-1)
+  const itemHasFinal = itemVersions.some((item) => item.type === "final")
   const selected =
-    order.versions.find((item) => item.id === selectedVersionId) ?? latest
-  const canReview = Boolean(
+    itemVersions.find((item) => item.id === selectedVersionId) ?? latestInItem
+  const activeSlotMeta = slots.find((slot) => slot.index === activeItemIndex)
+
+  const isLatestPreviewInItem = Boolean(
     selected &&
-    latest?.id === selected.id &&
+    latestInItem?.id === selected.id &&
     selected.type === "preview" &&
-    order.status === "waiting_confirm"
+    !itemHasFinal
+  )
+  const canApprove = Boolean(
+    isLatestPreviewInItem &&
+    (order.status === "waiting_confirm" || order.status === "revision")
+  )
+  const canRequestRevision = Boolean(
+    isLatestPreviewInItem && order.status !== "completed"
   )
 
+  function selectSlot(slotIndex: number) {
+    setManualSlot(slotIndex)
+    const versionsInSlot = getVersionsForItem(order, slotIndex)
+    const target = versionsInSlot.at(-1)
+    onSelectVersion(target?.id ?? "")
+  }
+
   function approve() {
-    if (!canReview) return
+    if (!canApprove) return
+    const prefixZh = isMultiVideo ? `第 ${activeItemIndex} 条视频：` : ""
+    const prefixEn = isMultiVideo ? `Video #${activeItemIndex}: ` : ""
     void submitOrderReview(
       order.id,
       "approve",
       t(
-        "已确认当前版本，请交付正式成片。",
-        "I approved the current version. Please deliver the final video."
+        `${prefixZh}已确认当前版本，请交付正式成片。`,
+        `${prefixEn}I approved the current version. Please deliver the final video.`
       )
     ).then((ok) => {
       if (ok) {
@@ -627,9 +707,12 @@ function ReviewPanel({
   function requestRevision(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const clean = revision.trim()
-    if (!clean || !canReview) return
+    if (!clean || !canRequestRevision) return
+    const tagged = isMultiVideo
+      ? t(`[第 ${activeItemIndex} 条] ${clean}`, `[Video #${activeItemIndex}] ${clean}`)
+      : clean
     setRevision("")
-    void submitOrderReview(order.id, "revision", clean, clean).then((ok) => {
+    void submitOrderReview(order.id, "revision", tagged, tagged).then((ok) => {
       if (ok) {
         toast.success(
           t("修改意见已发送至制作团队。", "Revision notes sent to the team.")
@@ -649,7 +732,10 @@ function ReviewPanel({
       await downloadOrderFile(
         selected.fileId,
         sampleVideo,
-        selected.file ?? `${order.id}-final.mp4`
+        selected.file ??
+          (isMultiVideo
+            ? `${order.id}-video-${activeItemIndex}-final.mp4`
+            : `${order.id}-final.mp4`)
       )
       toast.success(t("开始下载无水印成片", "Downloading final video"))
     } catch {
@@ -662,7 +748,7 @@ function ReviewPanel({
     }
   }
 
-  if (!selected) {
+  if (order.versions.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center p-6">
         <Empty className="max-w-md border bg-card">
@@ -696,220 +782,365 @@ function ReviewPanel({
 
   return (
     <ScrollArea className="min-h-0 flex-1">
-      <div className="grid items-start gap-6 p-5 sm:p-6 lg:grid-cols-12">
-        <Tabs
-          value={selected.id}
-          onValueChange={onSelectVersion}
-          className="min-w-0 gap-4 lg:col-span-8"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <TabsList aria-label={t("视频版本", "Video versions")}>
-              {order.versions.map((item) => (
-                <TabsTrigger key={item.id} value={item.id}>
-                  {formatVersionLabel(item.id, item.type, t)}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            <Badge variant="secondary" className="font-mono text-xs">
-              1080P · 60fps
-            </Badge>
-          </div>
-          {order.versions.map((version) => (
-            <TabsContent
-              key={order.id + version.id}
-              value={version.id}
-              className="flex min-w-0 flex-col gap-4"
-            >
-              <VideoPlayer
-                version={version}
-                active={version.id === selected.id}
-                label={
-                  version.type === "final" ? "FINAL" : `PREVIEW ${version.id}`
-                }
-              />
-              <Card className="shadow-xs">
-                <CardHeader>
-                  <CardTitle className="text-sm">
-                    <h2>{t("制作备注", "Production notes")}</h2>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    {version.note ||
-                      t(
-                        "此版本暂无备注。",
-                        "There are no notes for this version."
+      <div className="flex flex-col gap-5 p-5 sm:p-6">
+        {isMultiVideo && (
+          <LayoutGroup id={`review-video-slots-${order.id}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-border/80 bg-card px-4 py-2.5 shadow-2xs">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {slots.map((slot) => {
+                  const isActive = slot.index === activeItemIndex
+                  return (
+                    <button
+                      key={slot.index}
+                      type="button"
+                      onClick={() => selectSlot(slot.index)}
+                      className={cn(
+                        "relative inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors duration-200",
+                        isActive
+                          ? "z-10 border-transparent font-semibold text-foreground"
+                          : "z-0 border-border/80 bg-muted/25 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                       )}
-                  </p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          ))}
-        </Tabs>
-
-        <Card className="shadow-xs lg:sticky lg:top-6 lg:col-span-4">
-          <CardHeader className="border-b">
-            <CardTitle>
-              <h2>{t("审核与交付", "Review & delivery")}</h2>
-            </CardTitle>
-            <CardDescription>
-              {t(
-                "确认无误后将通知团队交付正式无水印成片。",
-                "Approve the draft to trigger final watermark-free delivery."
+                    >
+                      {isActive && (
+                        <motion.span
+                          layoutId={`review-video-slot-pill-${order.id}`}
+                          aria-hidden="true"
+                          transition={{
+                            type: "spring",
+                            stiffness: 420,
+                            damping: 34,
+                            mass: 0.88,
+                          }}
+                          className="pointer-events-none absolute inset-0 z-0 rounded-lg border border-primary bg-primary/8 shadow-2xs"
+                        />
+                      )}
+                      <span
+                        className={cn(
+                          "relative z-10 size-1.5 shrink-0 rounded-full",
+                          slot.hasFinal ? "bg-emerald-500" : "bg-primary"
+                        )}
+                        aria-hidden="true"
+                      />
+                      <span className="relative z-10 font-mono">
+                        #{slot.index}
+                      </span>
+                      {slot.title && (
+                        <span className="relative z-10 max-w-32 truncate">
+                          {slot.title}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+              {activeSlotMeta?.title && (
+                <span className="text-xs text-muted-foreground">
+                  {activeSlotMeta.title}
+                </span>
               )}
-            </CardDescription>
-            <CardAction>
-              <StatusBadge status={order.status} />
-            </CardAction>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {selected.type === "final" ? (
-              <div className="flex flex-col gap-3">
-                <Alert className="border-emerald-200 bg-emerald-50/70 text-emerald-950">
-                  <CheckCircle2
-                    aria-hidden="true"
-                    className="text-emerald-600"
-                  />
-                  <AlertTitle>
-                    {t("正式成片已交付", "Final video delivered")}
-                  </AlertTitle>
-                  <AlertDescription className="text-emerald-900/80">
+            </div>
+          </LayoutGroup>
+        )}
+
+        <div className="grid items-start gap-6 lg:grid-cols-12">
+          {selected ? (
+            <Tabs
+              value={selected.id}
+              onValueChange={(nextId) => {
+                setManualSlot(activeItemIndex)
+                onSelectVersion(nextId)
+              }}
+              className="min-w-0 gap-4 lg:col-span-8"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <TabsList aria-label={t("视频版本", "Video versions")}>
+                  {itemVersions.map((item) => (
+                    <TabsTrigger key={item.id} value={item.id}>
+                      {formatVersionLabel(item.id, item.type, t)}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                <Badge variant="secondary" className="font-mono text-xs">
+                  {isMultiVideo ? `#${activeItemIndex} · ` : ""}1080P · 60fps
+                </Badge>
+              </div>
+              {itemVersions.map((version) => {
+                const code = getVersionCode(version).toUpperCase()
+                return (
+                  <TabsContent
+                    key={order.id + version.id}
+                    value={version.id}
+                    className="flex min-w-0 flex-col gap-4"
+                  >
+                    <VideoPlayer
+                      version={version}
+                      active={version.id === selected.id}
+                      label={
+                        version.type === "final"
+                          ? isMultiVideo
+                            ? `#${activeItemIndex} FINAL`
+                            : "FINAL"
+                          : isMultiVideo
+                            ? `#${activeItemIndex} PREVIEW ${code}`
+                            : `PREVIEW ${code}`
+                      }
+                    />
+                    <Card className="shadow-xs">
+                      <CardHeader>
+                        <CardTitle className="text-sm">
+                          <h2>{t("制作备注", "Production notes")}</h2>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground">
+                          {version.note ||
+                            t(
+                              "此版本暂无备注。",
+                              "There are no notes for this version."
+                            )}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                )
+              })}
+            </Tabs>
+          ) : (
+            <div className="lg:col-span-8">
+              <Empty className="border bg-card py-14">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <Film aria-hidden="true" />
+                  </EmptyMedia>
+                  <EmptyTitle>
                     {t(
-                      "当前为无水印正式交付版本，可随时在线播放或下载保存。",
-                      "This is your watermark-free final video. Download it anytime."
+                      `第 ${activeItemIndex} 条视频尚未上传初稿`,
+                      `Video #${activeItemIndex} draft not uploaded yet`
+                    )}
+                  </EmptyTitle>
+                  <EmptyDescription>
+                    {t(
+                      "制作团队上传该条视频的预览版后，即可在这里在线审片与提出修改意见。",
+                      "Once the studio uploads a draft for this video slot, you can review and approve it here."
+                    )}
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button variant="outline" onClick={onOpenChat}>
+                    <MessageSquare data-icon="inline-start" aria-hidden="true" />
+                    {t("在聊天中沟通该条需求", "Discuss this video in chat")}
+                  </Button>
+                </EmptyContent>
+              </Empty>
+            </div>
+          )}
+
+          <Card className="shadow-xs lg:sticky lg:top-6 lg:col-span-4">
+            <CardHeader className="border-b">
+              <CardTitle>
+                <h2>
+                  {isMultiVideo
+                    ? t(
+                        `第 ${activeItemIndex} 条 · 审核与交付`,
+                        `Video #${activeItemIndex} · Review`
+                      )
+                    : t("审核与交付", "Review & delivery")}
+                </h2>
+              </CardTitle>
+              <CardDescription>
+                {t(
+                  "支持多轮沟通修订，确认无误后将交付正式无水印成片。",
+                  "Submit revision notes as needed; approve to trigger final watermark-free delivery."
+                )}
+              </CardDescription>
+              <CardAction>
+                <StatusBadge status={order.status} />
+              </CardAction>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              {!selected ? (
+                <Alert>
+                  <AlertDescription>
+                    {t(
+                      `第 ${activeItemIndex} 条暂未上传初稿，可切换至其他已上传条数审片，或前往沟通页补充脚本要求。`,
+                      `Video #${activeItemIndex} has no draft yet. Switch to another video slot or share your script in chat.`
                     )}
                   </AlertDescription>
                 </Alert>
-                <Button
-                  size="lg"
-                  className="w-full"
-                  onClick={() => void download()}
-                >
-                  <Download data-icon="inline-start" aria-hidden="true" />
-                  {t("下载无水印成片", "Download final video")}
-                </Button>
-              </div>
-            ) : order.status === "approved" ? (
-              <Alert className="border-sky-200 bg-sky-50/70 text-sky-950">
-                <CheckCircle2 aria-hidden="true" className="text-sky-600" />
-                <AlertTitle>{t("您已确认定稿", "Version approved")}</AlertTitle>
-                <AlertDescription className="text-sky-900/85">
-                  {t(
-                    "制作团队正在导出无水印正式成片，完成后将自动推送至工作台。如有紧急调整，请在「沟通与素材」中联系制作师。",
-                    "Your team is rendering the watermark-free final video. For urgent changes, message your producer in Chat."
-                  )}
-                </AlertDescription>
-              </Alert>
-            ) : order.status === "revision" ? (
-              <Alert className="border-brand-gold/40 bg-brand-gold/10 text-amber-950">
-                <AlertTriangle aria-hidden="true" className="text-amber-700" />
-                <AlertTitle>
-                  {t("制作团队正在根据意见修改", "Revisions in progress")}
-                </AlertTitle>
-                <AlertDescription className="text-amber-900/85">
-                  {t(
-                    "已收到您的修改要求，新版初稿上传后会通知您再次审核。补充说明可直接发送至「沟通与素材」。",
-                    "Your revision notes have been sent. Add extra context in Chat while the new draft is prepared."
-                  )}
-                </AlertDescription>
-              </Alert>
-            ) : !canReview ? (
-              <Alert>
-                <AlertDescription>
-                  {t(
-                    "当前正在查看历史版本，请切换至最新版本进行审核或提出修改。",
-                    "You are viewing an older draft. Switch to the latest version to approve or request changes."
-                  )}
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <>
-                <div className="flex flex-col gap-2">
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button size="lg" className="w-full">
-                        <CheckCircle2
-                          data-icon="inline-start"
-                          aria-hidden="true"
-                        />
-                        {t("确认通过", "Approve version")}
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogMedia className="bg-primary/10 text-primary">
-                          <CheckCircle2 aria-hidden="true" />
-                        </AlertDialogMedia>
-                        <AlertDialogTitle>
-                          {t(
-                            "确认通过当前初稿？",
-                            "Approve this draft version?"
-                          )}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                          {t(
-                            "确认后将锁定定稿并通知制作团队导出正式无水印成片；如有紧急调整可随时在订单聊天沟通。",
-                            "Approving locks this draft so the team can render the watermark-free final video."
-                          )}
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>
-                          {t("取消", "Cancel")}
-                        </AlertDialogCancel>
-                        <AlertDialogAction onClick={approve}>
-                          {t("确认通过", "Approve")}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+              ) : selected.type === "final" ? (
+                <div className="flex flex-col gap-3">
+                  <Alert className="border-emerald-200 bg-emerald-50/70 text-emerald-950">
+                    <CheckCircle2
+                      aria-hidden="true"
+                      className="text-emerald-600"
+                    />
+                    <AlertTitle>
+                      {isMultiVideo
+                        ? t(
+                            `第 ${activeItemIndex} 条正式成片已交付`,
+                            `Video #${activeItemIndex} final delivered`
+                          )
+                        : t("正式成片已交付", "Final video delivered")}
+                    </AlertTitle>
+                    <AlertDescription className="text-emerald-900/80">
+                      {t(
+                        "当前为无水印正式交付版本，可随时在线播放或下载保存。",
+                        "This is your watermark-free final video. Download it anytime."
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                  <Button
+                    size="lg"
+                    className="w-full"
+                    onClick={() => void download()}
+                  >
+                    <Download data-icon="inline-start" aria-hidden="true" />
+                    {t("下载无水印成片", "Download final video")}
+                  </Button>
                 </div>
-
-                <Separator />
-
-                <form onSubmit={requestRevision}>
-                  <FieldGroup className="gap-3">
-                    <Field>
-                      <FieldLabel htmlFor="revision-note">
-                        {t("申请修改意见", "Revision notes")}
-                      </FieldLabel>
-                      <Textarea
-                        id="revision-note"
-                        rows={4}
-                        placeholder={t(
-                          "可注明时间点和调整要求，例如：00:24 处语速稍快…",
-                          "Include the timecode and the change you need, e.g. 00:24 pacing…"
+              ) : !isLatestPreviewInItem ? (
+                <Alert>
+                  <AlertDescription>
+                    {itemHasFinal
+                      ? t(
+                          "该条视频已有正式交付版本，请切换到「正式交付版」下载。",
+                          "This video already has a final delivery. Switch to the Final tab to download."
+                        )
+                      : t(
+                          "当前正在查看历史版本，请切换至最新版本进行审核或提出修改。",
+                          "You are viewing an older draft. Switch to the latest version to approve or request changes."
                         )}
-                        value={revision}
-                        onChange={(event) => setRevision(event.target.value)}
-                      />
-                    </Field>
-                    <Button
-                      variant="outline"
-                      type="submit"
-                      className="w-full"
-                      disabled={!revision.trim()}
-                    >
-                      {t("提交修改意见", "Request changes")}
-                    </Button>
-                  </FieldGroup>
-                </form>
-              </>
-            )}
-          </CardContent>
-          <CardFooter className="justify-center">
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="w-full"
-              onClick={onOpenChat}
-            >
-              <MessageSquare data-icon="inline-start" aria-hidden="true" />
-              {t("切换到沟通与素材", "Switch to chat & materials")}
-            </Button>
-          </CardFooter>
-        </Card>
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <>
+                  {order.status === "approved" && (
+                    <Alert className="border-sky-200 bg-sky-50/70 text-sky-950">
+                      <CheckCircle2 aria-hidden="true" className="text-sky-600" />
+                      <AlertTitle>{t("您已确认定稿", "Version approved")}</AlertTitle>
+                      <AlertDescription className="text-sky-900/85">
+                        {t(
+                          "制作团队正在导出无水印正式成片。如仍有临时修改，可在下方直接补充意见。",
+                          "Your team is rendering the watermark-free final video. You can still submit additional changes below if needed."
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {order.status === "revision" && (
+                    <Alert className="border-brand-gold/40 bg-brand-gold/10 text-amber-950">
+                      <AlertTriangle aria-hidden="true" className="text-amber-700" />
+                      <AlertTitle>
+                        {t("制作团队正在根据意见修改", "Revisions in progress")}
+                      </AlertTitle>
+                      <AlertDescription className="text-amber-900/85">
+                        {t(
+                          "已收到上一轮修改要求，您仍可继续补充新的调整意见，或直接确认当前版本。",
+                          "Your previous notes were sent. You can still add further revisions below or approve this draft."
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {canApprove && (
+                    <div className="flex flex-col gap-2">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="lg" className="w-full">
+                            <CheckCircle2
+                              data-icon="inline-start"
+                              aria-hidden="true"
+                            />
+                            {t("确认通过", "Approve version")}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogMedia className="bg-primary/10 text-primary">
+                              <CheckCircle2 aria-hidden="true" />
+                            </AlertDialogMedia>
+                            <AlertDialogTitle>
+                              {isMultiVideo
+                                ? t(
+                                    `确认通过第 ${activeItemIndex} 条初稿？`,
+                                    `Approve Video #${activeItemIndex} draft?`
+                                  )
+                                : t(
+                                    "确认通过当前初稿？",
+                                    "Approve this draft version?"
+                                  )}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {t(
+                                "确认后将通知制作团队导出无水印正式成片；如有紧急调整可随时补充修改意见。",
+                                "Approving notifies the team to render the watermark-free final video."
+                              )}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>
+                              {t("取消", "Cancel")}
+                            </AlertDialogCancel>
+                            <AlertDialogAction onClick={approve}>
+                              {t("确认通过", "Approve")}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
+
+                  {canApprove && <Separator />}
+
+                  {canRequestRevision && (
+                    <form onSubmit={requestRevision}>
+                      <FieldGroup className="gap-3">
+                        <Field>
+                          <FieldLabel htmlFor="revision-note">
+                            {order.status === "revision" ||
+                            order.status === "approved"
+                              ? t("补充修改意见", "Add another revision note")
+                              : t("申请修改意见", "Revision notes")}
+                          </FieldLabel>
+                          <Textarea
+                            id="revision-note"
+                            rows={4}
+                            placeholder={t(
+                              "可注明时间点和调整要求，例如：00:24 处语速稍快…",
+                              "Include the timecode and the change you need, e.g. 00:24 pacing…"
+                            )}
+                            value={revision}
+                            onChange={(event) => setRevision(event.target.value)}
+                          />
+                        </Field>
+                        <Button
+                          variant="outline"
+                          type="submit"
+                          className="w-full"
+                          disabled={!revision.trim()}
+                        >
+                          {t("提交修改意见", "Request changes")}
+                        </Button>
+                      </FieldGroup>
+                    </form>
+                  )}
+                </>
+              )}
+            </CardContent>
+            <CardFooter className="justify-center">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="w-full"
+                onClick={onOpenChat}
+              >
+                <MessageSquare data-icon="inline-start" aria-hidden="true" />
+                {t("切换到沟通与素材", "Switch to chat & materials")}
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
       </div>
     </ScrollArea>
   )
@@ -921,18 +1152,23 @@ function ClientOrderHubPage({
   initialView: "chat" | "review"
 }) {
   const current = useOrder()
-  const { data } = useDemo()
+  const { data, authUser } = useDemo()
   const { t, href, zh } = usePortal()
   const navigate = useNavigate()
+  const prefersReducedMotion = useReducedMotion()
   const [listFilter, setListFilter] = useState<"all" | "review">("all")
   const [search, setSearch] = useState("")
   const [selectedVersionId, setSelectedVersionId] = useState("")
+  const springTransition = prefersReducedMotion
+    ? { duration: 0 }
+    : { type: "spring" as const, stiffness: 420, damping: 34, mass: 0.88 }
 
-  const threads = data.orders.filter(
-    (value) => value.client === data.account.name
-  )
-  const order =
-    current && current.client === data.account.name ? current : threads[0]
+  const isOwnOrder = (value: Order) =>
+    authUser && !authUser.isDemo && value.clientId
+      ? value.clientId === authUser.id
+      : value.client === data.account.name
+  const threads = data.orders.filter(isOwnOrder)
+  const order = current && isOwnOrder(current) ? current : threads[0]
 
   if (!order) return <MissingOrder />
 
@@ -981,33 +1217,47 @@ function ClientOrderHubPage({
             <span className="text-xs font-semibold text-foreground">
               {t("我的订单", "My orders")}
             </span>
-            <div className="inline-flex rounded-md border border-border bg-muted/50 p-0.5 text-xs">
-              <button
-                type="button"
-                onClick={() => setListFilter("all")}
-                className={cn(
-                  "rounded px-2 py-0.5 font-medium transition-colors",
-                  listFilter === "all"
-                    ? "bg-card text-foreground shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {t("全部", "All")} ({threads.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setListFilter("review")}
-                className={cn(
-                  "rounded px-2 py-0.5 font-medium transition-colors",
-                  listFilter === "review"
-                    ? "bg-card text-foreground shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {t("待确认", "To review")}
-                {pendingReviewCount > 0 ? ` (${pendingReviewCount})` : ""}
-              </button>
-            </div>
+            <LayoutGroup id="client-queue-filter-group">
+              <div className="inline-flex rounded-md border border-border bg-muted/50 p-0.5 text-xs">
+                {(
+                  [
+                    {
+                      id: "all" as const,
+                      label: `${t("全部", "All")} (${threads.length})`,
+                    },
+                    {
+                      id: "review" as const,
+                      label: `${t("待确认", "To review")}${pendingReviewCount > 0 ? ` (${pendingReviewCount})` : ""}`,
+                    },
+                  ] as const
+                ).map((item) => {
+                  const active = listFilter === item.id
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setListFilter(item.id)}
+                      className={cn(
+                        "relative rounded px-2 py-0.5 font-medium transition-colors duration-200",
+                        active
+                          ? "text-foreground"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {active && (
+                        <motion.span
+                          layoutId="client-queue-filter-pill"
+                          aria-hidden="true"
+                          transition={springTransition}
+                          className="pointer-events-none absolute inset-0 z-0 rounded bg-card shadow-2xs"
+                        />
+                      )}
+                      <span className="relative z-10">{item.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </LayoutGroup>
           </div>
           <InputGroup className="h-8 bg-muted/40">
             <InputGroupAddon>
@@ -1024,52 +1274,62 @@ function ClientOrderHubPage({
         </div>
 
         <ScrollArea className="min-h-0 flex-1">
-          <div className="flex flex-col divide-y">
-            {filteredThreads.map((item) => {
-              const isSelected = item.id === order.id
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  aria-current={isSelected ? "page" : undefined}
-                  onClick={() => switchOrder(item.id)}
-                  className={cn(
-                    "flex w-full flex-col gap-1.5 border-l-2 px-3.5 py-3 text-left transition-colors hover:bg-muted/50",
-                    isSelected
-                      ? "border-l-primary bg-accent/60"
-                      : "border-l-transparent"
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate font-mono text-xs text-muted-foreground">
-                      #{item.id}
-                    </span>
-                    <StatusBadge status={item.status} />
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                      {zh ? item.zh : item.en}
-                    </span>
-                    {item.versions.length > 0 && (
-                      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                        {t(
-                          `${item.versions.length} 版`,
-                          `v${item.versions.length}`
-                        )}
-                      </span>
+          <LayoutGroup id="client-order-threads-group">
+            <div className="flex flex-col divide-y">
+              {filteredThreads.map((item) => {
+                const isSelected = item.id === order.id
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-current={isSelected ? "page" : undefined}
+                    onClick={() => switchOrder(item.id)}
+                    className={cn(
+                      "relative flex w-full flex-col gap-1.5 px-3.5 py-3 text-left transition-colors duration-200",
+                      !isSelected && "hover:bg-muted/50"
                     )}
-                  </div>
-                </button>
-              )
-            })}
-            {filteredThreads.length === 0 && (
-              <p className="p-6 text-center text-xs text-muted-foreground">
-                {listFilter === "review"
-                  ? t("当前没有待确认的视频", "No videos awaiting review")
-                  : t("没有匹配的订单", "No matching orders")}
-              </p>
-            )}
-          </div>
+                  >
+                    {isSelected && (
+                      <motion.span
+                        layoutId="client-order-thread-active"
+                        aria-hidden="true"
+                        transition={springTransition}
+                        className="pointer-events-none absolute inset-0 z-0 bg-accent/65"
+                      >
+                        <span className="absolute inset-y-0 left-0 w-0.5 bg-primary" />
+                      </motion.span>
+                    )}
+                    <div className="relative z-10 flex items-center justify-between gap-2">
+                      <span className="truncate font-mono text-xs text-muted-foreground">
+                        #{item.id}
+                      </span>
+                      <StatusBadge status={item.status} />
+                    </div>
+                    <div className="relative z-10 flex items-center justify-between gap-2">
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                        {zh ? item.zh : item.en}
+                      </span>
+                      {item.versions.length > 0 && (
+                        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                          {t(
+                            `${item.versions.length} 版`,
+                            `v${item.versions.length}`
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                )
+              })}
+              {filteredThreads.length === 0 && (
+                <p className="p-6 text-center text-xs text-muted-foreground">
+                  {listFilter === "review"
+                    ? t("当前没有待确认的视频", "No videos awaiting review")
+                    : t("没有匹配的订单", "No matching orders")}
+                </p>
+              )}
+            </div>
+          </LayoutGroup>
         </ScrollArea>
       </aside>
 
@@ -1095,56 +1355,91 @@ function ClientOrderHubPage({
             </div>
           </div>
 
-          <div
-            role="tablist"
-            aria-label={t("订单工作区视图", "Order workspace view")}
-            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border bg-muted/50 p-1"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={initialView === "chat"}
-              onClick={() => switchView("chat")}
-              className={cn(
-                "inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors",
-                initialView === "chat"
-                  ? "bg-card text-foreground shadow-2xs"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
+          <LayoutGroup id="client-hub-view-group">
+            <div
+              role="tablist"
+              aria-label={t("订单工作区视图", "Order workspace view")}
+              className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border bg-muted/50 p-1"
             >
-              <MessageSquare aria-hidden="true" className="size-3.5" />
-              <span>{t("沟通与素材", "Chat & materials")}</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={initialView === "review"}
-              onClick={() => switchView("review")}
-              className={cn(
-                "inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors",
-                initialView === "review"
-                  ? "bg-card text-foreground shadow-2xs"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Film aria-hidden="true" className="size-3.5" />
-              <span>{t("视频审片", "Video review")}</span>
-              {order.status === "waiting_confirm" ? (
-                <span className="rounded-full bg-brand-gold px-1.5 py-0 text-[10px] font-semibold text-amber-950">
-                  {t("待确认", "Review")}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={initialView === "chat"}
+                onClick={() => switchView("chat")}
+                className={cn(
+                  "relative inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors duration-200",
+                  initialView === "chat"
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {initialView === "chat" && (
+                  <motion.span
+                    layoutId="client-hub-view-pill"
+                    aria-hidden="true"
+                    transition={springTransition}
+                    className="pointer-events-none absolute inset-0 z-0 rounded-md bg-card shadow-2xs"
+                  />
+                )}
+                <MessageSquare
+                  aria-hidden="true"
+                  className="relative z-10 size-3.5"
+                />
+                <span className="relative z-10">
+                  {t("沟通与素材", "Chat & materials")}
                 </span>
-              ) : (
-                order.versions.length > 0 && (
-                  <span className="font-mono text-[11px] text-muted-foreground">
-                    {order.versions.length}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={initialView === "review"}
+                onClick={() => switchView("review")}
+                className={cn(
+                  "relative inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors duration-200",
+                  initialView === "review"
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {initialView === "review" && (
+                  <motion.span
+                    layoutId="client-hub-view-pill"
+                    aria-hidden="true"
+                    transition={springTransition}
+                    className="pointer-events-none absolute inset-0 z-0 rounded-md bg-card shadow-2xs"
+                  />
+                )}
+                <Film aria-hidden="true" className="relative z-10 size-3.5" />
+                <span className="relative z-10">
+                  {t("视频审片", "Video review")}
+                </span>
+                {order.status === "waiting_confirm" ? (
+                  <span className="relative z-10 rounded-full bg-brand-gold px-1.5 py-0 text-[10px] font-semibold text-amber-950">
+                    {t("待确认", "Review")}
                   </span>
-                )
-              )}
-            </button>
-          </div>
+                ) : (
+                  order.versions.length > 0 && (
+                    <span className="relative z-10 font-mono text-[11px] text-muted-foreground">
+                      {order.versions.length}
+                    </span>
+                  )
+                )}
+              </button>
+            </div>
+          </LayoutGroup>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col">
+        <motion.div
+          key={`${order.id}:${initialView}`}
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={
+            prefersReducedMotion
+              ? { duration: 0 }
+              : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }
+          }
+          className="flex min-h-0 flex-1 flex-col"
+        >
           {initialView === "chat" ? (
             <ChatPanel
               key={order.id}
@@ -1162,10 +1457,18 @@ function ClientOrderHubPage({
               onOpenChat={() => switchView("chat")}
             />
           )}
-        </div>
+        </motion.div>
       </main>
     </div>
   )
+}
+
+export function ClientOrderHubRoute() {
+  const { pathname } = useLocation()
+  const view: "chat" | "review" = pathname.includes("/video-review")
+    ? "review"
+    : "chat"
+  return <ClientOrderHubPage initialView={view} />
 }
 
 export function OrderChatPage() {
@@ -1181,10 +1484,18 @@ export function StudioWorkspacePage() {
   const { t, zh } = usePortal()
   const { data, startOrderProduction, publishOrderVersion } = useDemo()
   const { member, can } = useTeamAuth()
+  const prefersReducedMotion = useReducedMotion()
+  const studioSpring = prefersReducedMotion
+    ? { duration: 0 }
+    : { type: "spring" as const, stiffness: 420, damping: 34, mass: 0.88 }
   const [kind, setKind] = useState<"preview" | "final">("preview")
   const [note, setNote] = useState("")
   const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
+  const [uploadPercent, setUploadPercent] = useState(0)
+  const [selectedSlot, setSelectedSlot] = useState<number | null>(null)
+  const [itemTitle, setItemTitle] = useState("")
+  const [extraSlots, setExtraSlots] = useState(0)
   const [confirmFinalOpen, setConfirmFinalOpen] = useState(false)
   const [queueFilter, setQueueFilter] = useState<"open" | "all">("open")
   const [queueSearch, setQueueSearch] = useState("")
@@ -1231,17 +1542,46 @@ export function StudioWorkspacePage() {
     setQuery(params, { replace: true })
     setNote("")
     setFiles([])
+    setSelectedSlot(null)
+    setItemTitle("")
+    setExtraSlots(0)
+    setUploadPercent(0)
   }
 
   const order = current
+  const existingSlots = getOrderDeliverableSlots(order)
+  const maxExistingIndex = existingSlots.reduce(
+    (max, slot) => Math.max(max, slot.index),
+    1
+  )
+  const totalSlots = maxExistingIndex + extraSlots
+  const slots = Array.from({ length: totalSlots }, (_, idx) => {
+    const index = idx + 1
+    const existing = existingSlots.find((s) => s.index === index)
+    return (
+      existing ?? {
+        index,
+        title: "",
+        versions: [],
+        hasFinal: false,
+      }
+    )
+  })
+  const isMultiVideo = slots.length > 1
+  const defaultSlotIndex =
+    slots.find((slot) => !slot.hasFinal)?.index ?? slots.at(-1)?.index ?? 1
+  const activeSlotIndex =
+    selectedSlot && selectedSlot <= totalSlots ? selectedSlot : defaultSlotIndex
+  const activeSlotMeta = slots.find((slot) => slot.index === activeSlotIndex)
   const effectiveKind: "preview" | "final" =
     kind === "final" && hasFinalPerm ? "final" : "preview"
   const attachments = order.entries
     .filter((entry) => entry.side === "client")
     .flatMap(entryAttachments)
   const totalMaterialCount =
-    attachments.length + (order.id === sampleOrder ? sampleMaterials.length : 0)
-  const canDeliver = hasFinalPerm && order.status === "approved"
+    attachments.length +
+    (order.demo && order.id === sampleOrder ? sampleMaterials.length : 0)
+  const canDeliver = hasFinalPerm
   const file = files[0]
 
   function startProduction() {
@@ -1266,47 +1606,59 @@ export function StudioWorkspacePage() {
   }
 
   async function publishVersion() {
-    if (
-      busy ||
-      (effectiveKind === "final" && !canDeliver) ||
-      order.status === "completed"
-    )
-      return
+    if (busy || (effectiveKind === "final" && !canDeliver)) return
     setBusy(true)
+    setUploadPercent(file ? 5 : 0)
     try {
       const uploaded = file
         ? (
           await uploadOrderFiles(order.id, "videos", [file], {
             localOnly: Boolean(order.demo),
+            onProgress: (percent) => setUploadPercent(percent),
           })
         )[0]
         : undefined
       const fileId = uploaded?.fileId
-      const version: Version = {
-        id:
-          effectiveKind === "final"
-            ? "final"
-            : `v${order.versions.filter((item) => item.type === "preview").length + 1}`,
-        type: effectiveKind,
-        note: note.trim(),
-        file: uploaded?.name ?? file?.name,
-        fileId,
-      }
+      const resolvedTitle = itemTitle.trim() || activeSlotMeta?.title || undefined
+      const version: Version = buildNextVersionForItem(
+        order,
+        activeSlotIndex,
+        effectiveKind,
+        {
+          note: note.trim(),
+          file: uploaded?.name ?? file?.name,
+          fileId,
+          itemTitle: resolvedTitle,
+        }
+      )
+      const prefixZh = isMultiVideo ? `第 ${activeSlotIndex} 条` : ""
+      const prefixEn = isMultiVideo ? `Video #${activeSlotIndex} ` : ""
       const messageText =
         effectiveKind === "final"
-          ? t("正式成片已交付。", "The final video has been delivered.")
-          : t("新的预览已上传，请审片。", "A new draft is ready for review.")
+          ? t(
+              `${prefixZh}正式成片已交付。`,
+              `${prefixEn}final video has been delivered.`
+            )
+          : t(
+              `${prefixZh}新的预览已上传，请审片。`,
+              `${prefixEn}new draft is ready for review.`
+            )
       const ok = await publishOrderVersion(order.id, version, messageText)
       if (!ok) throw new Error("Publish failed")
       setNote("")
       setFiles([])
+      setItemTitle("")
+      setUploadPercent(0)
       toast.success(
         effectiveKind === "final"
-          ? t("正式成片已交付至客户工作台。", "Final delivery published.")
+          ? t(
+              `${prefixZh}正式成片已交付至客户工作台。`,
+              `${prefixEn}final delivery published.`
+            )
           : t(
-            "初稿已推送至客户审片页。",
-            "The draft is ready in the client review page."
-          )
+              `${prefixZh}初稿已推送至客户审片页。`,
+              `${prefixEn}draft is ready in the client review page.`
+            )
       )
     } catch {
       toast.error(
@@ -1317,6 +1669,7 @@ export function StudioWorkspacePage() {
       )
     } finally {
       setBusy(false)
+      setUploadPercent(0)
     }
   }
 
@@ -1332,7 +1685,7 @@ export function StudioWorkspacePage() {
   async function packageMaterials() {
     try {
       const content: Record<string, Uint8Array> = {}
-      if (order.id === sampleOrder) {
+      if (order.demo && order.id === sampleOrder) {
         const samples = await Promise.all(
           sampleMaterials.map(async (item) => {
             const response = await fetch(item.src)
@@ -1390,32 +1743,41 @@ export function StudioWorkspacePage() {
               <span className="text-xs font-semibold text-foreground">
                 {t("订单会话队列", "Order queue")}
               </span>
-              <div className="inline-flex rounded-md border border-border bg-muted/50 p-0.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setQueueFilter("open")}
-                  className={cn(
-                    "rounded px-2 py-0.5 font-medium transition-colors",
-                    queueFilter === "open"
-                      ? "bg-card text-foreground shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {t("待处理", "Open")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setQueueFilter("all")}
-                  className={cn(
-                    "rounded px-2 py-0.5 font-medium transition-colors",
-                    queueFilter === "all"
-                      ? "bg-card text-foreground shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {t("全部", "All")}
-                </button>
-              </div>
+              <LayoutGroup id="studio-queue-filter-group">
+                <div className="inline-flex rounded-md border border-border bg-muted/50 p-0.5 text-xs">
+                  {(
+                    [
+                      { id: "open" as const, label: t("待处理", "Open") },
+                      { id: "all" as const, label: t("全部", "All") },
+                    ] as const
+                  ).map((item) => {
+                    const active = queueFilter === item.id
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setQueueFilter(item.id)}
+                        className={cn(
+                          "relative rounded px-2 py-0.5 font-medium transition-colors duration-200",
+                          active
+                            ? "text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {active && (
+                          <motion.span
+                            layoutId="studio-queue-filter-pill"
+                            aria-hidden="true"
+                            transition={studioSpring}
+                            className="pointer-events-none absolute inset-0 z-0 rounded bg-card shadow-2xs"
+                          />
+                        )}
+                        <span className="relative z-10">{item.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </LayoutGroup>
             </div>
             <InputGroup className="h-8 bg-muted/40">
               <InputGroupAddon>
@@ -1431,52 +1793,62 @@ export function StudioWorkspacePage() {
             </InputGroup>
           </div>
           <ScrollArea className="min-h-0 flex-1">
-            <div className="flex flex-col divide-y">
-              {queueOrders.map((item) => {
-                const isSelected = item.id === order.id
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => selectOrder(item.id)}
-                    className={cn(
-                      "flex w-full flex-col gap-1.5 border-l-2 px-3.5 py-3 text-left transition-colors hover:bg-muted/50",
-                      isSelected
-                        ? "border-l-primary bg-accent/60"
-                        : "border-l-transparent"
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate font-mono text-xs text-muted-foreground">
-                        #{item.id}
-                      </span>
-                      <StatusBadge status={item.status} />
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                        {canViewAll ? item.client : zh ? item.zh : item.en}
-                      </span>
-                    </div>
-                    {canViewAll && (
-                      <span className="truncate text-xs text-muted-foreground">
-                        {zh ? item.zh : item.en}
-                      </span>
-                    )}
-                    {item.revision && (
-                      <div className="truncate rounded bg-brand-gold/15 px-2 py-0.5 text-xs text-amber-900">
-                        {t("有修改意见：", "Revision: ")}
-                        {item.revision}
+            <LayoutGroup id="studio-order-threads-group">
+              <div className="flex flex-col divide-y">
+                {queueOrders.map((item) => {
+                  const isSelected = item.id === order.id
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => selectOrder(item.id)}
+                      className={cn(
+                        "relative flex w-full flex-col gap-1.5 px-3.5 py-3 text-left transition-colors duration-200",
+                        !isSelected && "hover:bg-muted/50"
+                      )}
+                    >
+                      {isSelected && (
+                        <motion.span
+                          layoutId="studio-order-thread-active"
+                          aria-hidden="true"
+                          transition={studioSpring}
+                          className="pointer-events-none absolute inset-0 z-0 bg-accent/65"
+                        >
+                          <span className="absolute inset-y-0 left-0 w-0.5 bg-primary" />
+                        </motion.span>
+                      )}
+                      <div className="relative z-10 flex items-center justify-between gap-2">
+                        <span className="truncate font-mono text-xs text-muted-foreground">
+                          #{item.id}
+                        </span>
+                        <StatusBadge status={item.status} />
                       </div>
-                    )}
-                  </button>
-                )
-              })}
-              {queueOrders.length === 0 && (
-                <p className="p-6 text-center text-xs text-muted-foreground">
-                  {t("暂无匹配会话", "No matching threads")}
-                </p>
-              )}
-            </div>
+                      <div className="relative z-10 flex items-center justify-between gap-2">
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                          {canViewAll ? item.client : zh ? item.zh : item.en}
+                        </span>
+                      </div>
+                      {canViewAll && (
+                        <span className="relative z-10 truncate text-xs text-muted-foreground">
+                          {zh ? item.zh : item.en}
+                        </span>
+                      )}
+                      {item.revision && (
+                        <div className="relative z-10 truncate rounded bg-brand-gold/15 px-2 py-0.5 text-xs text-amber-900">
+                          {t("有修改意见：", "Revision: ")}
+                          {item.revision}
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+                {queueOrders.length === 0 && (
+                  <p className="p-6 text-center text-xs text-muted-foreground">
+                    {t("暂无匹配会话", "No matching threads")}
+                  </p>
+                )}
+              </div>
+            </LayoutGroup>
           </ScrollArea>
         </aside>
 
@@ -1563,7 +1935,8 @@ export function StudioWorkspacePage() {
                     {t("打包下载", "Download ZIP")}
                   </Button>
                 </div>
-                {order.id === sampleOrder &&
+                {order.demo &&
+                  order.id === sampleOrder &&
                   sampleMaterials.map((item) => (
                     <Button
                       key={item.src}
@@ -1599,17 +1972,92 @@ export function StudioWorkspacePage() {
                 onSubmit={handlePublishSubmit}
                 className="flex flex-col gap-3"
               >
-                <div className="flex flex-col gap-0.5">
-                  <h2 className="text-sm font-semibold">
-                    {t("正式版本推送", "Publish review / final version")}
-                  </h2>
-                  <span className="text-[11px] text-muted-foreground">
-                    {t(
-                      "推送至客户审片页并自动更新订单状态",
-                      "Publishes to client review & updates order status"
-                    )}
-                  </span>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-col gap-0.5">
+                    <h2 className="text-sm font-semibold">
+                      {t("正式版本推送", "Publish review / final version")}
+                    </h2>
+                    <span className="text-[11px] text-muted-foreground">
+                      {t(
+                        "推送至客户审片页并自动更新订单状态",
+                        "Publishes to client review & updates order status"
+                      )}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    className="text-muted-foreground hover:text-foreground"
+                    disabled={busy}
+                    onClick={() => {
+                      const nextIndex = totalSlots + 1
+                      setExtraSlots((prev) => prev + 1)
+                      setSelectedSlot(nextIndex)
+                      setItemTitle("")
+                    }}
+                  >
+                    <Plus data-icon="inline-start" aria-hidden="true" />
+                    {t("新增一条", "Add video")}
+                  </Button>
                 </div>
+                {isMultiVideo && (
+                  <div className="flex flex-col gap-2">
+                    <Select
+                      value={String(activeSlotIndex)}
+                      onValueChange={(value) => {
+                        const nextIdx = Number(value)
+                        setSelectedSlot(nextIdx)
+                        const meta = slots.find((s) => s.index === nextIdx)
+                        setItemTitle(meta?.title ?? "")
+                      }}
+                    >
+                      <SelectTrigger
+                        size="sm"
+                        aria-label={t("选择交付条数", "Select video slot")}
+                        className="w-full bg-background"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {slots.map((slot) => {
+                            const statusText = slot.hasFinal
+                              ? t("已交付", "Delivered")
+                              : slot.versions.length > 0
+                                ? t(
+                                    `${getVersionCode(slot.versions.at(-1)!)} 审片中`,
+                                    `${getVersionCode(slot.versions.at(-1)!)} in review`
+                                  )
+                                : t("待上传", "Pending")
+                            return (
+                              <SelectItem
+                                key={slot.index}
+                                value={String(slot.index)}
+                              >
+                                {t(`第 ${slot.index} 条`, `Video #${slot.index}`)}
+                                {slot.title ? ` · ${slot.title}` : ""} ({statusText})
+                              </SelectItem>
+                            )
+                          })}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      value={itemTitle}
+                      onChange={(event) => setItemTitle(event.target.value)}
+                      placeholder={
+                        activeSlotMeta?.title ||
+                        t(
+                          `第 ${activeSlotIndex} 条片名（选填，如：产品开场）`,
+                          `Video #${activeSlotIndex} title (optional, e.g. Intro Cut)`
+                        )
+                      }
+                      aria-label={t("视频条目标题", "Video item title")}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                )}
                 <Tabs
                   value={effectiveKind}
                   onValueChange={(value) =>
@@ -1657,7 +2105,7 @@ export function StudioWorkspacePage() {
                   }}
                   accept="video/*"
                   maxFiles={1}
-                  disabled={busy || order.status === "completed"}
+                  disabled={busy}
                 >
                   {file ? (
                     <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-accent/50 px-3 py-2 text-sm">
@@ -1708,13 +2156,19 @@ export function StudioWorkspacePage() {
                   aria-label={t("版本备注", "Version note")}
                 />
 
+                {busy && uploadPercent > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground tabular-nums">
+                      <span>{t("正在上传视频…", "Uploading video…")}</span>
+                      <span className="font-mono">{uploadPercent}%</span>
+                    </div>
+                    <Progress value={uploadPercent} className="h-1.5" />
+                  </div>
+                )}
+
                 <Button
                   type="submit"
-                  disabled={
-                    busy ||
-                    order.status === "completed" ||
-                    (effectiveKind === "final" && !canDeliver)
-                  }
+                  disabled={busy || (effectiveKind === "final" && !canDeliver)}
                 >
                   {busy ? (
                     <Spinner data-icon="inline-start" />
@@ -1722,20 +2176,19 @@ export function StudioWorkspacePage() {
                     <Send data-icon="inline-start" aria-hidden="true" />
                   )}
                   {effectiveKind === "final"
-                    ? t("交付正式成片", "Deliver final video")
-                    : t("推送初稿至客户", "Send draft to client")}
+                    ? isMultiVideo
+                      ? t(
+                          `交付第 ${activeSlotIndex} 条正式成片`,
+                          `Deliver Video #${activeSlotIndex} final`
+                        )
+                      : t("交付正式成片", "Deliver final video")
+                    : isMultiVideo
+                      ? t(
+                          `推送第 ${activeSlotIndex} 条初稿`,
+                          `Send Video #${activeSlotIndex} draft`
+                        )
+                      : t("推送初稿至客户", "Send draft to client")}
                 </Button>
-
-                {effectiveKind === "final" &&
-                  !canDeliver &&
-                  order.status !== "completed" && (
-                    <p className="text-xs text-muted-foreground">
-                      {t(
-                        "客户确认最新初稿后即可交付。",
-                        "Delivery is available after the client approves the latest draft."
-                      )}
-                    </p>
-                  )}
               </form>
 
               <AlertDialog
@@ -1748,12 +2201,17 @@ export function StudioWorkspacePage() {
                       <Upload aria-hidden="true" />
                     </AlertDialogMedia>
                     <AlertDialogTitle>
-                      {t("确认交付正式成片？", "Deliver final video now?")}
+                      {isMultiVideo
+                        ? t(
+                            `确认交付第 ${activeSlotIndex} 条正式成片？`,
+                            `Deliver Video #${activeSlotIndex} final now?`
+                          )
+                        : t("确认交付正式成片？", "Deliver final video now?")}
                     </AlertDialogTitle>
                     <AlertDialogDescription>
                       {t(
-                        "交付后订单状态将变更为「已交付」，并向客户开放无水印成片下载。",
-                        "This marks the order as delivered and makes the watermark-free video downloadable in the client workspace."
+                        "交付后将向客户开放无水印成片下载；如后续仍需修改或补传新视频，可随时继续推送。",
+                        "This unlocks watermark-free final video download for the client. You can still publish additional revisions or videos later if needed."
                       )}
                     </AlertDialogDescription>
                   </AlertDialogHeader>

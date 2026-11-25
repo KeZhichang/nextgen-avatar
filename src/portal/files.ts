@@ -2,6 +2,7 @@ import { getSupabaseClient } from "@/lib/supabase"
 
 export const STORAGE_BUCKET = "order-media"
 export const CLOUD_FILE_PREFIX = "sb:"
+export const R2_FILE_PREFIX = "r2:"
 export const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024 // 100 MB per material file
 export const MAX_VIDEO_BYTES = 500 * 1024 * 1024 // 500 MB per preview/final video
 
@@ -41,6 +42,93 @@ export type ResolvedFileSource = {
 
 let database: Promise<IDBDatabase> | undefined
 const signedUrlCache = new Map<string, { url: string; expiresAt: number }>()
+let r2AvailabilityPromise: Promise<boolean> | null = null
+
+export function isCloudFileId(id?: string): id is string {
+  return Boolean(id && id.startsWith(CLOUD_FILE_PREFIX))
+}
+
+export function extractCloudPath(id: string): string {
+  return id.slice(CLOUD_FILE_PREFIX.length)
+}
+
+export function isR2FileId(id?: string): id is string {
+  return Boolean(id && id.startsWith(R2_FILE_PREFIX))
+}
+
+export function extractR2Path(id: string): string {
+  return id.slice(R2_FILE_PREFIX.length)
+}
+
+async function checkR2Available(): Promise<boolean> {
+  if (!r2AvailabilityPromise) {
+    r2AvailabilityPromise = fetch("/api/storage/r2", {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    })
+      .then(async (res) => {
+        if (!res.ok) return false
+        const data = (await res.json()) as { configured?: boolean }
+        return Boolean(data.configured)
+      })
+      .catch(() => false)
+  }
+  return r2AvailabilityPromise
+}
+
+async function requestR2Presign<T>(
+  payload: Record<string, unknown>
+): Promise<T | null> {
+  const sb = getSupabaseClient()
+  if (!sb) return null
+  const {
+    data: { session },
+  } = await sb.auth.getSession()
+  const token = session?.access_token
+  if (!token) return null
+
+  const response = await fetch("/api/storage/r2", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) return null
+  return (await response.json()) as T
+}
+
+function uploadFileToPresignedUrl(
+  uploadUrl: string,
+  file: File,
+  onFileProgress?: (fraction: number) => void
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open("PUT", uploadUrl, true)
+    xhr.setRequestHeader(
+      "Content-Type",
+      file.type || "application/octet-stream"
+    )
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        onFileProgress?.(Math.min(1, event.loaded / event.total))
+      }
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onFileProgress?.(1)
+        resolve()
+      } else {
+        reject(new Error(`R2 upload failed with status ${xhr.status}`))
+      }
+    }
+    xhr.onerror = () => reject(new Error("R2 upload network error"))
+    xhr.onabort = () => reject(new Error("R2 upload aborted"))
+    xhr.send(file)
+  })
+}
 
 function openFiles() {
   database ??= new Promise((resolve, reject) => {
@@ -53,14 +141,6 @@ function openFiles() {
     }
   })
   return database
-}
-
-export function isCloudFileId(id?: string): id is string {
-  return Boolean(id && id.startsWith(CLOUD_FILE_PREFIX))
-}
-
-export function extractCloudPath(id: string): string {
-  return id.slice(CLOUD_FILE_PREFIX.length)
 }
 
 function sanitizeStorageFileName(name: string): string {
@@ -103,7 +183,7 @@ export async function saveFiles(files: File[]) {
 }
 
 export async function getFile(id: string) {
-  if (isCloudFileId(id)) return undefined
+  if (isCloudFileId(id) || isR2FileId(id)) return undefined
   const db = await openFiles()
   return new Promise<File | undefined>((resolve, reject) => {
     const request = db.transaction("files").objectStore("files").get(id)
@@ -147,9 +227,45 @@ export async function uploadOrderFiles(
     }))
   }
 
+  const useR2 = await checkR2Available()
   const results: UploadedFileRecord[] = []
   for (let idx = 0; idx < files.length; idx += 1) {
     const file = files[idx]
+    if (useR2) {
+      const signed = await requestR2Presign<{
+        uploadUrl: string
+        objectKey: string
+        fileId: string
+      }>({
+        action: "presign_upload",
+        orderId,
+        folder,
+        fileName: file.name,
+        contentType: file.type || "application/octet-stream",
+        sizeBytes: file.size,
+      })
+      if (signed?.uploadUrl && signed.fileId) {
+        await uploadFileToPresignedUrl(signed.uploadUrl, file, (fraction) => {
+          const overall = Math.round(((idx + fraction) / files.length) * 100)
+          options?.onProgress?.(
+            Math.max(5, Math.min(99, overall)),
+            idx,
+            files.length
+          )
+        })
+        results.push({
+          fileId: signed.fileId,
+          storageKey: signed.fileId,
+          name: file.name,
+          type: file.type,
+          size: file.size,
+        })
+        const percent = Math.round(((idx + 1) / files.length) * 100)
+        options?.onProgress?.(percent, idx + 1, files.length)
+        continue
+      }
+    }
+
     const safeName = sanitizeStorageFileName(file.name)
     const objectPath = `orders/${orderId}/${folder}/${crypto.randomUUID()}-${safeName}`
     const { error } = await sb.storage
@@ -177,6 +293,25 @@ export async function uploadOrderFiles(
 export async function resolveFileSource(
   fileId: string
 ): Promise<ResolvedFileSource | null> {
+  if (isR2FileId(fileId)) {
+    const objectKey = extractR2Path(fileId)
+    const cacheKey = `r2:${objectKey}`
+    const cached = signedUrlCache.get(cacheKey)
+    if (cached && cached.expiresAt > Date.now() + 60_000) {
+      return { url: cached.url }
+    }
+    const signed = await requestR2Presign<{ url: string }>({
+      action: "presign_download",
+      objectKey,
+    })
+    if (!signed?.url) return null
+    signedUrlCache.set(cacheKey, {
+      url: signed.url,
+      expiresAt: Date.now() + 30 * 60_000,
+    })
+    return { url: signed.url }
+  }
+
   if (isCloudFileId(fileId)) {
     const sb = getSupabaseClient()
     if (!sb) return null
@@ -209,6 +344,14 @@ export async function resolveFileSource(
 export async function fetchFileBytes(
   fileId: string
 ): Promise<Uint8Array | null> {
+  if (isR2FileId(fileId)) {
+    const resolved = await resolveFileSource(fileId)
+    if (!resolved?.url) return null
+    const response = await fetch(resolved.url)
+    if (!response.ok) return null
+    return new Uint8Array(await response.arrayBuffer())
+  }
+
   if (isCloudFileId(fileId)) {
     const sb = getSupabaseClient()
     if (!sb) return null
@@ -243,6 +386,17 @@ export async function downloadOrderFile(
 ) {
   if (!fileId) {
     downloadFile(fallbackUrl, name)
+    return
+  }
+  if (isR2FileId(fileId)) {
+    const objectKey = extractR2Path(fileId)
+    const signed = await requestR2Presign<{ url: string }>({
+      action: "presign_download",
+      objectKey,
+      downloadName: name,
+    })
+    if (!signed?.url) throw new Error("Download link unavailable")
+    downloadFile(signed.url, name)
     return
   }
   if (isCloudFileId(fileId)) {

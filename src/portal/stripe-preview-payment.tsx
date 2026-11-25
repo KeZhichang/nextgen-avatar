@@ -21,32 +21,39 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
+import { getSupabaseClient } from "@/lib/supabase"
 import {
   type CheckoutExtras,
   type StripePreviewReceipt,
 } from "./checkout-catalog"
 import { formatDollars, usePortal } from "./demo"
 
-const publishableKey = import.meta.env.VITE_STRIPE_PREVIEW_PUBLISHABLE_KEY as
-  string | undefined
+const publishableKey = (
+  (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined) ||
+  (import.meta.env.VITE_STRIPE_PREVIEW_PUBLISHABLE_KEY as string | undefined)
+)?.trim()
+
+export const stripeIsLiveMode = Boolean(publishableKey?.startsWith("pk_live_"))
 export const stripePreviewConfigured = Boolean(
-  publishableKey?.startsWith("pk_test_")
+  publishableKey &&
+    (publishableKey.startsWith("pk_test_") ||
+      publishableKey.startsWith("pk_live_"))
 )
 
 const appearance: Appearance = {
   theme: "stripe",
   variables: {
-    colorPrimary: "#0066e6",
-    colorBackground: "#ffffff",
-    colorText: "#0f172a",
-    colorTextSecondary: "#5a677c",
+    colorPrimary: "#1f4bc4",
+    colorBackground: "#fbfcfe",
+    colorText: "#111c30",
+    colorTextSecondary: "#45536b",
     colorDanger: "#dc2626",
     fontFamily: "Plus Jakarta Sans, system-ui, sans-serif",
     fontSizeBase: "14px",
     spacingUnit: "4px",
     borderRadius: "8px",
   },
-  rules: { ".Input": { border: "1px solid #d5dfec", boxShadow: "none" } },
+  rules: { ".Input": { border: "1px solid #cbd4e2", boxShadow: "none" } },
 }
 
 type Session = { id: string; clientSecret: string }
@@ -63,11 +70,13 @@ function PaymentLoading() {
 function StripeForm({
   session,
   total,
+  canSubmit = true,
   setBusy,
   retry,
 }: {
   session: Session
   total: number
+  canSubmit?: boolean
   setBusy: (busy: boolean) => void
   retry: () => void
 }) {
@@ -82,7 +91,7 @@ function StripeForm({
   const submitting = useRef(false)
 
   async function confirm(wallet?: StripeExpressCheckoutElementConfirmEvent) {
-    if (result.type !== "success" || submitting.current) return
+    if (result.type !== "success" || submitting.current || !canSubmit) return
     submitting.current = true
     setSubmitting(true)
     setBusy(true)
@@ -196,17 +205,19 @@ function StripeForm({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      <p className="text-xs text-muted-foreground">
-        {t(
-          "测试支付模式，请使用测试卡完成验证。",
-          "Test payment mode. Use a test card to complete checkout."
-        )}
-      </p>
+      {!stripeIsLiveMode && (
+        <p className="text-xs text-muted-foreground">
+          {t(
+            "测试支付模式，请使用测试卡完成验证。",
+            "Test payment mode. Use a test card to complete checkout."
+          )}
+        </p>
+      )}
       <Button
         type="submit"
         size="lg"
         className="min-h-11"
-        disabled={!ready || busy}
+        disabled={!ready || busy || !canSubmit}
       >
         {busy
           ? t("正在确认付款…", "Confirming payment…")
@@ -220,49 +231,90 @@ export function StripePreviewPayment({
   planId,
   planName,
   planPrice,
+  videoCount,
   extras,
   addons,
+  addonIds,
+  clientId,
+  customerEmail,
+  customQuoteId,
+  projectName,
+  canSubmit = true,
   total,
   setBusy,
 }: {
   planId: string
   planName?: string
   planPrice?: number
+  videoCount?: number
   extras: CheckoutExtras
   addons?: { name: string; price: number }[]
+  addonIds?: string[]
+  clientId?: string
+  customerEmail?: string
+  customQuoteId?: string
+  projectName?: string
+  canSubmit?: boolean
   total: number
   setBusy: (busy: boolean) => void
 }) {
   const { t, locale } = usePortal()
   const [session, setSession] = useState<Session>()
-  const [failed, setFailed] = useState(false)
+  const [failedCode, setFailedCode] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const { script, duration } = extras
   const addonsKey = JSON.stringify(addons ?? [])
+  const addonIdsKey = JSON.stringify(addonIds ?? [])
   const [stripe] = useState(() => loadStripe(publishableKey!, { locale }))
 
   useEffect(() => {
     const abort = new AbortController()
     const start = window.setTimeout(async () => {
       try {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        }
+        const sb = getSupabaseClient()
+        if (sb) {
+          const {
+            data: { session: sbSession },
+          } = await sb.auth.getSession()
+          if (sbSession?.access_token) {
+            headers.Authorization = `Bearer ${sbSession.access_token}`
+          }
+        }
         const response = await fetch("/api/stripe-preview/session", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             planId,
             planName,
             planPrice,
+            videoCount,
             extras: { script, duration },
             addons: addons?.length ? addons : undefined,
+            addonIds: addonIds?.length ? addonIds : undefined,
+            clientId: clientId || undefined,
+            customerEmail: customerEmail || undefined,
+            customQuoteId: customQuoteId || undefined,
+            projectName: projectName || undefined,
             locale,
           }),
           signal: abort.signal,
         })
-        if (!response.ok) throw new Error("Session request failed")
+        if (!response.ok) {
+          const payload = (await response
+            .json()
+            .catch(() => null)) as { error?: string } | null
+          if (!abort.signal.aborted) {
+            setFailedCode(payload?.error ?? "session_failed")
+          }
+          return
+        }
         const result = (await response.json()) as Session
         if (!abort.signal.aborted) setSession(result)
       } catch {
-        if (!abort.signal.aborted) setFailed(true)
+        if (!abort.signal.aborted) setFailedCode("session_failed")
       }
     }, 180)
     return () => {
@@ -273,35 +325,54 @@ export function StripePreviewPayment({
     planId,
     planName,
     planPrice,
+    videoCount,
     script,
     duration,
     addonsKey,
     addons,
+    addonIdsKey,
+    addonIds,
+    clientId,
+    customerEmail,
+    customQuoteId,
+    projectName,
     locale,
     attempt,
   ])
 
   function retry() {
-    setFailed(false)
+    setFailedCode(null)
     setSession(undefined)
     setAttempt((value) => value + 1)
   }
 
-  if (failed) {
+  if (failedCode) {
     return (
       <Alert variant="destructive">
         <AlertDescription className="grid gap-3">
-          {t(
-            "暂时无法连接 Stripe 测试环境。",
-            "Couldn't connect to the Stripe sandbox."
+          {failedCode === "trial_new_customers_only"
+            ? t(
+                "体验视频（$59）仅限新客户首单购买，请选择其他月度套餐（已为您自动启用老客续费优惠价）。",
+                "The $59 Trial Video is only available for first-time customers. Please pick a monthly package with your automatic renewal rate."
+              )
+            : stripeIsLiveMode
+              ? t(
+                  "暂时无法连接 Stripe 支付服务，请稍后重试。",
+                  "Couldn't connect to Stripe checkout. Please try again."
+                )
+              : t(
+                  "暂时无法连接 Stripe 测试环境。",
+                  "Couldn't connect to the Stripe sandbox."
+                )}
+          {failedCode !== "trial_new_customers_only" && (
+            <Button
+              variant="outline"
+              className="justify-self-start"
+              onClick={retry}
+            >
+              {t("重试", "Retry")}
+            </Button>
           )}
-          <Button
-            variant="outline"
-            className="justify-self-start"
-            onClick={retry}
-          >
-            {t("重试", "Retry")}
-          </Button>
         </AlertDescription>
       </Alert>
     )
@@ -319,6 +390,7 @@ export function StripePreviewPayment({
       <StripeForm
         session={session}
         total={total}
+        canSubmit={canSubmit}
         setBusy={setBusy}
         retry={retry}
       />

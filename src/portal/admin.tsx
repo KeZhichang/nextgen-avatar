@@ -19,7 +19,7 @@ import {
   UserCheck,
 } from "lucide-react"
 import { toast } from "sonner"
-import { motion } from "motion/react"
+import { LayoutGroup, motion } from "motion/react"
 import { cn } from "cn"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -74,8 +74,11 @@ import {
 import { CustomQuotesView, PricingCatalogView } from "./admin-operations"
 import {
   clientImage,
+  countDeliveredVideos,
   entryAttachments,
   formatDollars,
+  getVersionCode,
+  getVersionItemIndex,
   sampleOrder,
   sampleVideo,
   studioImage,
@@ -259,7 +262,7 @@ function OrderDetailInspector({
     (order.client === data.account.name ? data.account.avatarUrl : undefined) ||
     clientImage
 
-  const usedCredits = order.status === "completed" ? 1 : 0
+  const usedCredits = countDeliveredVideos(order)
   const remainingCredits = Math.max(0, order.count - usedCredits)
   const creditPercent = order.count
     ? Math.round((remainingCredits / order.count) * 100)
@@ -273,7 +276,7 @@ function OrderDetailInspector({
   )
 
   const recentEntries = [
-    ...(order.id === sampleOrder && order.entries.length === 0
+    ...(order.demo && order.id === sampleOrder && order.entries.length === 0
       ? [
           {
             id: "inspector-sample-1",
@@ -592,7 +595,7 @@ function OrderDetailInspector({
               <UserCheck className="size-3.5" aria-hidden="true" />
               <span>{t("负责制作师", "Assigned producer")}</span>
             </div>
-            {canAssign ? (
+            {canAssign && order.status !== "completed" ? (
               <Select
                 value={order.owner || "unassigned"}
                 onValueChange={(value) => onAssign(order.id, value)}
@@ -605,6 +608,14 @@ function OrderDetailInspector({
                     <SelectItem value="unassigned">
                       {t("待分配", "Unassigned")}
                     </SelectItem>
+                    {order.owner &&
+                      !assignableMembers.some(
+                        (item) => item.name === order.owner
+                      ) && (
+                        <SelectItem value={order.owner}>
+                          {order.owner}
+                        </SelectItem>
+                      )}
                     {assignableMembers.map((item) => (
                       <SelectItem key={item.id} value={item.name}>
                         {item.name}
@@ -614,8 +625,20 @@ function OrderDetailInspector({
                 </SelectContent>
               </Select>
             ) : (
-              <Badge variant="secondary" className="font-medium">
-                {order.owner || t("待分配", "Unassigned")}
+              <Badge
+                variant="secondary"
+                title={
+                  order.status === "completed"
+                    ? t("订单已交付，已锁定负责人", "Delivered orders cannot be reassigned")
+                    : undefined
+                }
+                className={cn(
+                  "font-medium",
+                  order.status === "completed" &&
+                    "bg-muted/70 text-muted-foreground"
+                )}
+              >
+                {order.owner || t("未指派", "Unassigned")}
               </Badge>
             )}
           </div>
@@ -725,13 +748,24 @@ function OrderDetailInspector({
             <TabsContent value="deliverables" className="m-0">
               {orderedVersions.length > 0 ? (
                 <div className="flex flex-col gap-2">
-                  {orderedVersions.map((ver) => (
+                  {orderedVersions.map((ver) => {
+                    const itemIdx = getVersionItemIndex(ver)
+                    const code = getVersionCode(ver)
+                    return (
                     <div
                       key={ver.id}
                       className="flex items-start justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 p-2.5"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {itemIdx > 1 && (
+                            <Badge
+                              variant="outline"
+                              className="h-5 px-1.5 font-mono text-[10px]"
+                            >
+                              #{itemIdx}
+                            </Badge>
+                          )}
                           <Badge
                             variant={
                               ver.type === "final" ? "default" : "secondary"
@@ -740,13 +774,14 @@ function OrderDetailInspector({
                           >
                             {ver.type === "final"
                               ? t("正式版", "Final")
-                              : ver.id}
+                              : code}
                           </Badge>
                           <span className="truncate text-xs font-medium text-foreground">
-                            {ver.file ||
+                            {ver.itemTitle ||
+                              ver.file ||
                               (ver.type === "final"
                                 ? `${order.id}-final.mp4`
-                                : `${order.id}-${ver.id}.mp4`)}
+                                : `${order.id}-${code}.mp4`)}
                           </span>
                         </div>
                         {ver.note && (
@@ -772,7 +807,7 @@ function OrderDetailInspector({
                         <Download className="size-3.5" aria-hidden="true" />
                       </Button>
                     </div>
-                  ))}
+                  )})}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-6 text-center">
@@ -1101,7 +1136,8 @@ export function AdminOrdersPage() {
                       transition={{
                         type: "spring",
                         stiffness: 420,
-                        damping: 32,
+                        damping: 34,
+                        mass: 0.88,
                       }}
                       className="absolute inset-0 rounded-lg bg-brand-navy shadow-xs"
                     />
@@ -1166,9 +1202,23 @@ export function AdminOrdersPage() {
                         const plan = data.plans.find(
                           (item) => item.id === value.plan
                         )
+                        const dbClient = data.clients.find(
+                          (c) =>
+                            (value.clientId && c.id === value.clientId) ||
+                            c.name === value.client
+                        )
                         const meta = clientDirectoryMeta[value.client]
-                        const remaining =
-                          value.count - (value.status === "completed" ? 1 : 0)
+                        const clientCompany = (
+                          dbClient?.company ||
+                          meta?.company ||
+                          ""
+                        ).replace(" (US)", "")
+                        const isCompleted = value.status === "completed"
+                        const deliveredCount = countDeliveredVideos(value)
+                        const remaining = Math.max(
+                          0,
+                          value.count - deliveredCount
+                        )
                         const isUrgent =
                           value.status === "revision" ||
                           value.status === "waiting_assets"
@@ -1190,7 +1240,7 @@ export function AdminOrdersPage() {
                                 <div
                                   className={cn(
                                     "mt-1 text-xs font-medium tabular-nums",
-                                    value.status === "completed"
+                                    isCompleted
                                       ? "text-muted-foreground"
                                       : "text-emerald-700"
                                   )}
@@ -1212,9 +1262,9 @@ export function AdminOrdersPage() {
                                       ? value.zh
                                       : value.en}
                                 </span>
-                                {canViewAll && meta && (
+                                {canViewAll && clientCompany && (
                                   <span className="text-xs font-normal text-muted-foreground">
-                                    · {meta.company.replace(" (US)", "")}
+                                    · {clientCompany}
                                   </span>
                                 )}
                               </div>
@@ -1226,10 +1276,10 @@ export function AdminOrdersPage() {
                                       : plan.en
                                     : t("定制报价", "Custom quote")}{" "}
                                   ·{" "}
-                                  {value.status === "completed"
+                                  {isCompleted
                                     ? t(
-                                        "已交付 · 扣减 1 条",
-                                        "Delivered · -1 credit"
+                                        `已交付 · ${deliveredCount} 条`,
+                                        `Delivered · ${deliveredCount} video${deliveredCount > 1 ? "s" : ""}`
                                       )
                                     : t(
                                         `剩余 ${remaining}/${value.count} 条`,
@@ -1243,54 +1293,77 @@ export function AdminOrdersPage() {
                             </TableCell>
                             <TableCell>
                               {canAssign ? (
-                                <div className="flex items-center gap-2">
-                                  <Select
-                                    value={value.owner || "unassigned"}
-                                    onValueChange={(owner) =>
-                                      assign(value.id, owner)
-                                    }
+                                isCompleted ? (
+                                  <div
+                                    title={t(
+                                      "已交付订单不可重新指派",
+                                      "Delivered orders cannot be reassigned"
+                                    )}
+                                    className="inline-flex h-8 w-36 cursor-not-allowed items-center rounded-md border border-border/60 bg-muted/50 px-2.5 text-xs text-muted-foreground select-none"
                                   >
-                                    <SelectTrigger
-                                      size="sm"
-                                      aria-label={t(
-                                        "订单负责人",
-                                        "Order assignee"
-                                      )}
-                                      className="h-8 w-28 bg-card"
-                                    >
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectGroup>
-                                        <SelectItem value="unassigned">
-                                          {t("待分配", "Unassigned")}
-                                        </SelectItem>
-                                        {assignableMembers.map((person) => (
-                                          <SelectItem
-                                            key={person.id}
-                                            value={person.name}
-                                          >
-                                            {person.name}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectGroup>
-                                    </SelectContent>
-                                  </Select>
-                                  {!value.owner && (
-                                    <Button
-                                      variant="secondary"
-                                      size="xs"
-                                      onClick={() =>
-                                        assign(value.id, firstAssignee)
+                                    <span className="truncate">
+                                      {value.owner || t("已归档", "Archived")}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <Select
+                                      value={value.owner || "unassigned"}
+                                      onValueChange={(owner) =>
+                                        assign(value.id, owner)
                                       }
                                     >
-                                      {t(
-                                        `派给 ${firstAssignee}`,
-                                        `Assign ${firstAssignee}`
-                                      )}
-                                    </Button>
-                                  )}
-                                </div>
+                                      <SelectTrigger
+                                        size="sm"
+                                        aria-label={t(
+                                          "订单负责人",
+                                          "Order assignee"
+                                        )}
+                                        className="h-8 w-36 bg-card"
+                                      >
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectGroup>
+                                          <SelectItem value="unassigned">
+                                            {t("待分配", "Unassigned")}
+                                          </SelectItem>
+                                          {value.owner &&
+                                            !assignableMembers.some(
+                                              (person) =>
+                                                person.name === value.owner
+                                            ) && (
+                                              <SelectItem value={value.owner}>
+                                                {value.owner}
+                                              </SelectItem>
+                                            )}
+                                          {assignableMembers.map((person) => (
+                                            <SelectItem
+                                              key={person.id}
+                                              value={person.name}
+                                            >
+                                              {person.name}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectGroup>
+                                      </SelectContent>
+                                    </Select>
+                                    {!value.owner && (
+                                      <Button
+                                        variant="secondary"
+                                        size="xs"
+                                        onClick={() =>
+                                          assign(value.id, firstAssignee)
+                                        }
+                                      >
+                                        {t(
+                                          `派给 ${firstAssignee}`,
+                                          `Assign ${firstAssignee}`
+                                        )}
+                                      </Button>
+                                    )}
+                                  </div>
+                                )
                               ) : (
                                 <span className="text-sm text-muted-foreground">
                                   {value.owner || t("待分配", "Unassigned")}
@@ -1529,7 +1602,7 @@ export function AdminSettingsPage() {
     0
   )
   const activeClientRemaining = activeClientOrders.reduce(
-    (sum, item) => sum + item.count - (item.status === "completed" ? 1 : 0),
+    (sum, item) => sum + Math.max(0, item.count - countDeliveredVideos(item)),
     0
   )
 
@@ -1551,7 +1624,7 @@ export function AdminSettingsPage() {
         {activeTab === "clients" && can("settings:clients") && (
           <div className="grid items-start gap-5 lg:grid-cols-12">
             <Card className="gap-0 overflow-hidden py-0 shadow-xs lg:col-span-4">
-              <CardHeader className="flex-row items-center justify-between gap-2 border-b px-4 py-3">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 border-b px-4 py-3">
                 <CardTitle className="shrink-0 text-sm font-semibold">
                   {t(
                     `客户列表 (${filteredClients.length})`,
@@ -1574,87 +1647,108 @@ export function AdminSettingsPage() {
                   />
                 </InputGroup>
               </CardHeader>
-              <CardContent className="divide-y p-0">
-                {filteredClients
-                  .slice(
-                    (clientPage - 1) * clientPageSize,
-                    clientPage * clientPageSize
-                  )
-                  .map((name) => {
-                    const ordersForClient = data.orders.filter(
-                      (value) => value.client === name
-                    )
-                    const creditsLeft = ordersForClient.reduce(
-                      (sum, item) =>
-                        sum +
-                        item.count -
-                        (item.status === "completed" ? 1 : 0),
-                      0
-                    )
-                    const dbClient = data.clients.find((c) => c.name === name)
-                    const meta = clientDirectoryMeta[name]
-                    const email =
-                      dbClient?.email ||
-                      (name === data.account.name
-                        ? data.account.email
-                        : (meta?.email ?? ""))
-                    const company = (
-                      dbClient?.company ||
-                      (name === data.account.name
-                        ? data.account.company
-                        : (meta?.company ?? ""))
-                    ).replace(" (US)", "")
-                    const avatar =
-                      dbClient?.avatarUrl ||
-                      (name === data.account.name
-                        ? data.account.avatarUrl
-                        : undefined) ||
-                      meta?.avatar
-                    const isSelected = name === activeClientName
-                    return (
-                      <button
-                        key={name}
-                        type="button"
-                        onClick={() => setSelectedClient(name)}
-                        className={cn(
-                          "flex w-full items-center justify-between gap-3 border-l-2 px-4 py-3.5 text-left transition-colors hover:bg-muted/50",
-                          isSelected
-                            ? "border-l-primary bg-accent/55"
-                            : "border-l-transparent"
-                        )}
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <Avatar className="size-9 shrink-0">
-                            <AvatarImage
-                              src={avatar}
-                              alt=""
-                              referrerPolicy="no-referrer"
-                            />
-                            <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-                              {name.slice(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex min-w-0 flex-col">
-                            <span className="truncate text-sm font-medium text-foreground">
-                              {name}
-                              {company ? ` · ${company}` : ""}
+              <CardContent className="p-0">
+                <LayoutGroup id="admin-client-directory-group">
+                  <div className="divide-y">
+                    {filteredClients
+                      .slice(
+                        (clientPage - 1) * clientPageSize,
+                        clientPage * clientPageSize
+                      )
+                      .map((name) => {
+                        const ordersForClient = data.orders.filter(
+                          (value) => value.client === name
+                        )
+                        const creditsLeft = ordersForClient.reduce(
+                          (sum, item) =>
+                            sum +
+                            Math.max(
+                              0,
+                              item.count - countDeliveredVideos(item)
+                            ),
+                          0
+                        )
+                        const dbClient = data.clients.find(
+                          (c) => c.name === name
+                        )
+                        const meta = clientDirectoryMeta[name]
+                        const email =
+                          dbClient?.email ||
+                          (name === data.account.name
+                            ? data.account.email
+                            : (meta?.email ?? ""))
+                        const company = (
+                          dbClient?.company ||
+                          (name === data.account.name
+                            ? data.account.company
+                            : (meta?.company ?? ""))
+                        ).replace(" (US)", "")
+                        const avatar =
+                          dbClient?.avatarUrl ||
+                          (name === data.account.name
+                            ? data.account.avatarUrl
+                            : undefined) ||
+                          meta?.avatar
+                        const isSelected = name === activeClientName
+                        return (
+                          <button
+                            key={name}
+                            type="button"
+                            onClick={() => setSelectedClient(name)}
+                            className={cn(
+                              "relative flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors duration-200",
+                              !isSelected && "hover:bg-muted/50"
+                            )}
+                          >
+                            {isSelected && (
+                              <motion.span
+                                layoutId="admin-client-row-active"
+                                aria-hidden="true"
+                                transition={{
+                                  type: "spring",
+                                  stiffness: 420,
+                                  damping: 34,
+                                  mass: 0.88,
+                                }}
+                                className="pointer-events-none absolute inset-0 z-0 bg-accent/60"
+                              >
+                                <span className="absolute inset-y-0 left-0 w-0.5 bg-primary" />
+                              </motion.span>
+                            )}
+                            <div className="relative z-10 flex min-w-0 items-center gap-3">
+                              <Avatar className="size-9 shrink-0">
+                                <AvatarImage
+                                  src={avatar}
+                                  alt=""
+                                  referrerPolicy="no-referrer"
+                                />
+                                <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
+                                  {name.slice(0, 2)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex min-w-0 flex-col">
+                                <span className="truncate text-sm font-medium text-foreground">
+                                  {name}
+                                  {company ? ` · ${company}` : ""}
+                                </span>
+                                <span className="truncate text-xs text-muted-foreground">
+                                  {email}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="relative z-10 shrink-0 font-mono text-xs font-medium text-primary tabular-nums">
+                              {t(`余 ${creditsLeft} 条`, `${creditsLeft} left`)}
                             </span>
-                            <span className="truncate text-xs text-muted-foreground">
-                              {email}
-                            </span>
-                          </div>
-                        </div>
-                        <span className="shrink-0 font-mono text-xs font-medium text-primary tabular-nums">
-                          {t(`余 ${creditsLeft} 条`, `${creditsLeft} left`)}
-                        </span>
-                      </button>
-                    )
-                  })}
-                {filteredClients.length === 0 && (
-                  <p className="p-6 text-center text-xs text-muted-foreground">
-                    {t("未找到匹配客户", "No matching clients")}
-                  </p>
-                )}
+                          </button>
+                        )
+                      })}
+                    {filteredClients.length === 0 && (
+                      <p className="p-6 text-center text-xs text-muted-foreground">
+                        {t("未找到匹配客户", "No matching clients")}
+                      </p>
+                    )}
+                  </div>
+                </LayoutGroup>
                 <DataPagination
                   compact
                   page={clientPage}

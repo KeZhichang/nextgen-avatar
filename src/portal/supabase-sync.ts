@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import type { Addon, Plan } from "./checkout-catalog"
+import { defaultPlans, type Addon, type Plan } from "./checkout-catalog"
 import type { Database, OrderStatus, PaymentMethodType } from "./database.types"
 import type {
   ChatAttachment,
@@ -94,6 +94,10 @@ function parseVersionRef(metadata: unknown): EntryVersionRef | undefined {
     id,
     type,
     note: typeof record.note === "string" ? record.note : undefined,
+    itemIndex:
+      typeof record.itemIndex === "number" && record.itemIndex >= 1
+        ? record.itemIndex
+        : undefined,
   }
 }
 
@@ -112,19 +116,27 @@ export async function fetchPublicCatalog(sb: SbClient): Promise<{
   if (planErr) throw planErr
   if (addonErr) throw addonErr
 
-  const plans: Plan[] = (planRows ?? []).map((row) => ({
-    id: row.id,
-    zh: row.name_zh,
-    en: row.name_en,
-    tagZh: row.tag_zh || "",
-    tagEn: row.tag_en || "",
-    count: row.video_count,
-    price: centsToDollars(row.price_cents),
-    regular: row.original_price_cents
-      ? centsToDollars(row.original_price_cents)
-      : undefined,
-    active: row.is_published,
-  }))
+  const plans: Plan[] = (planRows ?? []).map((row) => {
+    const preset = defaultPlans.find((item) => item.id === row.id)
+    return {
+      id: row.id,
+      zh: row.name_zh,
+      en: row.name_en,
+      tagZh: row.tag_zh || "",
+      tagEn: row.tag_en || "",
+      count: row.video_count,
+      price: centsToDollars(row.price_cents),
+      regular: row.original_price_cents
+        ? centsToDollars(row.original_price_cents)
+        : undefined,
+      renewal:
+        typeof row.renewal_price_cents === "number" &&
+        row.renewal_price_cents > 0
+          ? centsToDollars(row.renewal_price_cents)
+          : preset?.renewal,
+      active: row.is_published,
+    }
+  })
 
   const addons: Addon[] = (addonRows ?? []).map((row) => ({
     id: row.id,
@@ -143,14 +155,26 @@ export async function fetchAuthenticatedSnapshot(
   fallbackEmail: string,
   authMeta?: { fullName?: string; avatarUrl?: string }
 ): Promise<SupabaseSnapshot> {
-  // 1. Load own profile & own team_members row
-  const [{ data: profile }, { data: selfMemberRows }] = await Promise.all([
+  // Round 1 (parallel): profile, own team row, notifications, and direct orders
+  const [
+    { data: profile },
+    { data: selfMemberRows },
+    { data: notificationRows },
+    { data: directOrderRows },
+  ] = await Promise.all([
     sb.from("profiles").select("*").eq("id", userId).maybeSingle(),
     sb
       .from("team_members")
       .select("*")
       .eq("user_id", userId)
       .eq("active", true),
+    sb
+      .from("notifications")
+      .select("*")
+      .eq("recipient_user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(20),
+    sb.from("orders").select("*").order("created_at", { ascending: false }),
   ])
 
   const selfMember = selfMemberRows?.[0] ?? null
@@ -189,22 +213,69 @@ export async function fetchAuthenticatedSnapshot(
     avatarUrl: dbAvatar || metaAvatar || undefined,
   }
 
-  // 2. Load RBAC roles, permissions & team members if team user
+  // Round 2 (parallel): team metadata + quotes + clients (if team) AND child rows for already-loaded orders
+  const directOrderIds = (directOrderRows ?? []).map((o) => o.id)
+
+  const [
+    teamBundle,
+    directChildrenBundle,
+  ] = await Promise.all([
+    isTeam && selfMember
+      ? Promise.all([
+          sb.from("team_roles").select("*"),
+          sb.from("role_permissions").select("*"),
+          sb
+            .from("team_members")
+            .select("*")
+            .order("created_at", { ascending: true }),
+          sb
+            .from("profiles")
+            .select("id, full_name, email, company, avatar_url")
+            .order("created_at", { ascending: false }),
+          sb
+            .from("custom_quotes")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .limit(20),
+        ])
+      : Promise.resolve(null),
+    directOrderIds.length > 0
+      ? Promise.all([
+          sb
+            .from("order_messages")
+            .select("*")
+            .in("order_id", directOrderIds)
+            .order("created_at", { ascending: true }),
+          sb
+            .from("order_attachments")
+            .select("*")
+            .in("order_id", directOrderIds)
+            .eq("status", "ready")
+            .order("created_at", { ascending: true }),
+          sb
+            .from("video_versions")
+            .select("*")
+            .in("order_id", directOrderIds)
+            .order("created_at", { ascending: true }),
+        ])
+      : Promise.resolve(null),
+  ])
+
   let teamRoles: TeamRoleConfig[] = defaultTeamRoles
   let teamMembers: TeamMember[] = []
   let canViewAllOrders = false
-  let canViewClients = false
+  let clients: ClientDirectoryEntry[] = []
+  let customQuotes: CustomQuoteRecord[] = []
+  const clientNameById = new Map<string, string>([[userId, account.name]])
 
-  if (isTeam && selfMember) {
-    const [{ data: rolesRows }, { data: permRows }, { data: memberRows }] =
-      await Promise.all([
-        sb.from("team_roles").select("*"),
-        sb.from("role_permissions").select("*"),
-        sb
-          .from("team_members")
-          .select("*")
-          .order("created_at", { ascending: true }),
-      ])
+  if (isTeam && selfMember && teamBundle) {
+    const [
+      { data: rolesRows },
+      { data: permRows },
+      { data: memberRows },
+      { data: profileRows },
+      { data: quoteRows },
+    ] = teamBundle
 
     if (rolesRows && rolesRows.length > 0) {
       teamRoles = rolesRows.map((role) => ({
@@ -246,24 +317,14 @@ export async function fetchAuthenticatedSnapshot(
     canViewAllOrders = Boolean(
       myRole?.locked || myRole?.permissions.includes("orders:view_all")
     )
-    canViewClients = Boolean(
+    const canViewClients = Boolean(
       myRole?.locked || myRole?.permissions.includes("settings:clients")
     )
-  }
+    const canViewQuotes = Boolean(
+      myRole?.locked || myRole?.permissions.includes("settings:quotes")
+    )
 
-  const memberNameById = new Map<string, string>(
-    teamMembers.map((m) => [m.id, m.name])
-  )
-
-  // 3. Load clients directory if authorized
-  let clients: ClientDirectoryEntry[] = []
-  const clientNameById = new Map<string, string>([[userId, account.name]])
-  if (canViewClients || canViewAllOrders) {
-    const { data: profileRows } = await sb
-      .from("profiles")
-      .select("id, full_name, email, company, avatar_url")
-      .order("created_at", { ascending: false })
-    if (profileRows) {
+    if ((canViewClients || canViewAllOrders) && profileRows) {
       clients = profileRows.map((p) => ({
         id: p.id,
         name: p.full_name || p.email.split("@")[0] || "Client",
@@ -275,10 +336,28 @@ export async function fetchAuthenticatedSnapshot(
         clientNameById.set(c.id, c.name)
       }
     }
+
+    if (canViewQuotes && quoteRows) {
+      customQuotes = quoteRows.map((row) => ({
+        id: row.id,
+        clientEmail: row.client_email ?? undefined,
+        projectName: row.project_name,
+        videoCount: row.video_count,
+        amountDollars: centsToDollars(row.amount_cents),
+        status: row.status,
+        createdAt: row.created_at,
+      }))
+    }
   }
 
-  // 4. Load accessible orders (privacy-preserving view for subcontractors)
+  const memberNameById = new Map<string, string>(
+    teamMembers.map((m) => [m.id, m.name])
+  )
+
+  // Assemble accessible orders (privacy-preserving view for subcontractors)
   const rawOrders: Order[] = []
+  let childrenBundle = directChildrenBundle
+
   if (isTeam && !canViewAllOrders) {
     const { data: viewRows } = await sb
       .from("producer_orders_view")
@@ -291,7 +370,7 @@ export async function fetchAuthenticatedSnapshot(
         en: row.title_en,
         client: row.client_first_name || "Client",
         status: row.status as Status,
-        plan: "pro",
+        plan: "presenter-5",
         count: row.video_credits_total,
         total: 0,
         method: "card",
@@ -305,12 +384,30 @@ export async function fetchAuthenticatedSnapshot(
         revision: row.latest_revision_note ?? undefined,
       })
     }
+    const producerOrderIds = rawOrders.map((o) => o.id)
+    childrenBundle =
+      producerOrderIds.length > 0
+        ? await Promise.all([
+            sb
+              .from("order_messages")
+              .select("*")
+              .in("order_id", producerOrderIds)
+              .order("created_at", { ascending: true }),
+            sb
+              .from("order_attachments")
+              .select("*")
+              .in("order_id", producerOrderIds)
+              .eq("status", "ready")
+              .order("created_at", { ascending: true }),
+            sb
+              .from("video_versions")
+              .select("*")
+              .in("order_id", producerOrderIds)
+              .order("created_at", { ascending: true }),
+          ])
+        : null
   } else {
-    const { data: orderRows } = await sb
-      .from("orders")
-      .select("*")
-      .order("created_at", { ascending: false })
-    for (const row of orderRows ?? []) {
+    for (const row of directOrderRows ?? []) {
       rawOrders.push({
         id: row.id,
         zh: row.title_zh,
@@ -318,7 +415,7 @@ export async function fetchAuthenticatedSnapshot(
         client: clientNameById.get(row.client_id) ?? account.name,
         clientId: row.client_id,
         status: row.status as Status,
-        plan: row.plan_id ?? (row.custom_quote_id ? "quote" : "pro"),
+        plan: row.plan_id ?? (row.custom_quote_id ? "quote" : "presenter-5"),
         count: row.video_credits_total,
         total: centsToDollars(row.amount_cents),
         method: row.payment_method,
@@ -334,28 +431,10 @@ export async function fetchAuthenticatedSnapshot(
     }
   }
 
-  // 5. Load messages, attachments, versions & notifications for accessible orders
-  const orderIds = rawOrders.map((o) => o.id)
-  if (orderIds.length > 0) {
+  // Merge messages, attachments & versions into orders
+  if (rawOrders.length > 0 && childrenBundle) {
     const [{ data: msgRows }, { data: attRows }, { data: verRows }] =
-      await Promise.all([
-        sb
-          .from("order_messages")
-          .select("*")
-          .in("order_id", orderIds)
-          .order("created_at", { ascending: true }),
-        sb
-          .from("order_attachments")
-          .select("*")
-          .in("order_id", orderIds)
-          .eq("status", "ready")
-          .order("created_at", { ascending: true }),
-        sb
-          .from("video_versions")
-          .select("*")
-          .in("order_id", orderIds)
-          .order("created_at", { ascending: true }),
-      ])
+      childrenBundle
 
     const attachmentsByMsg = new Map<string, ChatAttachment[]>()
     for (const a of attRows ?? []) {
@@ -387,13 +466,21 @@ export async function fetchAuthenticatedSnapshot(
     const versionsByOrder = new Map<string, Version[]>()
     for (const v of verRows ?? []) {
       const list = versionsByOrder.get(v.order_id) ?? []
-      const resolvedFileId = v.r2_key?.startsWith("sb:")
-        ? v.r2_key
-        : v.r2_key?.startsWith("local:")
-          ? v.r2_key.slice(6)
-          : undefined
+      const resolvedFileId =
+        v.r2_key?.startsWith("sb:") || v.r2_key?.startsWith("r2:")
+          ? v.r2_key
+          : v.r2_key?.startsWith("local:")
+            ? v.r2_key.slice(6)
+            : undefined
+      const itemIndex =
+        typeof v.item_index === "number" && v.item_index >= 1
+          ? v.item_index
+          : 1
       list.push({
-        id: v.version_code,
+        id: itemIndex > 1 ? `#${itemIndex}-${v.version_code}` : v.version_code,
+        code: v.version_code,
+        itemIndex,
+        itemTitle: v.item_title || undefined,
         type: v.version_type,
         note: v.notes,
         file: v.file_name || undefined,
@@ -408,13 +495,6 @@ export async function fetchAuthenticatedSnapshot(
     }
   }
 
-  const { data: notificationRows } = await sb
-    .from("notifications")
-    .select("*")
-    .eq("recipient_user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(20)
-
   const notifications: NotificationItem[] = (notificationRows ?? []).map(
     (row) => ({
       id: row.id,
@@ -428,33 +508,6 @@ export async function fetchAuthenticatedSnapshot(
       createdAt: row.created_at,
     })
   )
-
-  const canViewQuotes = Boolean(
-    isTeam &&
-      selfMember &&
-      (() => {
-        const myRole = teamRoles.find((r) => r.id === selfMember.role_id)
-        return myRole?.locked || myRole?.permissions.includes("settings:quotes")
-      })()
-  )
-
-  let customQuotes: CustomQuoteRecord[] = []
-  if (canViewQuotes) {
-    const { data: quoteRows } = await sb
-      .from("custom_quotes")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(20)
-    customQuotes = (quoteRows ?? []).map((row) => ({
-      id: row.id,
-      clientEmail: row.client_email ?? undefined,
-      projectName: row.project_name,
-      videoCount: row.video_count,
-      amountDollars: centsToDollars(row.amount_cents),
-      status: row.status,
-      createdAt: row.created_at,
-    }))
-  }
 
   return {
     account,
@@ -497,6 +550,8 @@ export async function saveCatalogToDb(
       plan.regular && plan.regular > plan.price
         ? dollarsToCents(plan.regular)
         : null,
+    renewal_price_cents:
+      plan.renewal && plan.renewal > 0 ? dollarsToCents(plan.renewal) : null,
     is_published: plan.active !== false,
     sort_order: idx + 1,
   }))
@@ -504,7 +559,23 @@ export async function saveCatalogToDb(
     const { error } = await sb
       .from("plans")
       .upsert(planPayload, { onConflict: "id" })
-    if (error) throw error
+    if (error) {
+      // Fallback gracefully if DB hasn't applied renewal_price_cents column yet
+      if (error.code === "42703" || error.code === "PGRST204") {
+        const legacyPayload = planPayload.map((item) => {
+          const rest = { ...item }
+          delete (rest as { renewal_price_cents?: number | null })
+            .renewal_price_cents
+          return rest
+        })
+        const { error: fallbackErr } = await sb
+          .from("plans")
+          .upsert(legacyPayload, { onConflict: "id" })
+        if (fallbackErr) throw fallbackErr
+      } else {
+        throw error
+      }
+    }
   }
 
   const { data: existingAddons } = await sb.from("addons").select("id")
@@ -540,7 +611,18 @@ export async function createOrderInDb(
   order: Order,
   addonIds: string[] = [],
   options?: { customQuoteId?: string; receiptUrl?: string }
-) {
+): Promise<{ orderId: string; existed: boolean }> {
+  if (order.paymentSession) {
+    const { data: existing } = await sb
+      .from("orders")
+      .select("id")
+      .eq("stripe_checkout_session_id", order.paymentSession)
+      .maybeSingle()
+    if (existing?.id) {
+      return { orderId: existing.id, existed: true }
+    }
+  }
+
   const method: PaymentMethodType =
     order.method === "apple" || order.method === "ach" ? order.method : "card"
   const { error } = await sb.from("orders").insert({
@@ -560,7 +642,21 @@ export async function createOrderInDb(
     stripe_checkout_session_id: order.paymentSession ?? null,
     receipt_url: options?.receiptUrl ?? order.receiptUrl ?? null,
   })
-  if (error) throw error
+  if (error) {
+    // Handle race condition when Stripe Webhook inserted the order milliseconds earlier
+    if (order.paymentSession && error.code === "23505") {
+      const { data: existing } = await sb
+        .from("orders")
+        .select("id")
+        .eq("stripe_checkout_session_id", order.paymentSession)
+        .maybeSingle()
+      if (existing?.id) {
+        return { orderId: existing.id, existed: true }
+      }
+    }
+    throw error
+  }
+  return { orderId: order.id, existed: false }
 }
 
 export async function updateOrderInDb(
@@ -599,7 +695,10 @@ export async function insertMessageInDb(
       order_id: orderId,
       message_id: msgRow.id,
       uploader_user_id: userId,
-      r2_key: att.fileId.startsWith("sb:") ? att.fileId : `local:${att.fileId}`,
+      r2_key:
+        att.fileId.startsWith("sb:") || att.fileId.startsWith("r2:")
+          ? att.fileId
+          : `local:${att.fileId}`,
       file_name: att.name,
       mime_type: att.type || "application/octet-stream",
       size_bytes: att.size ?? 0,
@@ -617,16 +716,20 @@ export async function insertVersionInDb(
   version: Version
 ) {
   const r2Key = version.fileId
-    ? version.fileId.startsWith("sb:")
+    ? version.fileId.startsWith("sb:") || version.fileId.startsWith("r2:")
       ? version.fileId
       : `local:${version.fileId}`
     : `sample:${version.id}`
+  const itemIndex = version.itemIndex && version.itemIndex >= 1 ? version.itemIndex : 1
+  const versionCode = version.code || version.id.replace(/^#\d+-/, "")
   const { error } = await sb.from("video_versions").insert({
     order_id: orderId,
-    version_code: version.id,
+    item_index: itemIndex,
+    item_title: version.itemTitle ?? "",
+    version_code: versionCode,
     version_type: version.type,
     r2_key: r2Key,
-    file_name: version.file ?? `${orderId}-${version.id}.mp4`,
+    file_name: version.file ?? `${orderId}-video${itemIndex}-${versionCode}.mp4`,
     notes: version.note,
     uploaded_by: userId,
   })

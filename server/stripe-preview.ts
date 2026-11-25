@@ -3,6 +3,10 @@ import Stripe from "stripe"
 import type { Plugin } from "vite"
 
 import {
+  verifyCheckoutEligibility,
+  type CheckoutEligibilityEnv,
+} from "../api/_lib/checkout-eligibility.ts"
+import {
   defaultAddons,
   stripePreviewPlans,
   type CheckoutExtras,
@@ -36,7 +40,10 @@ function extrasFrom(input: unknown): CheckoutExtras | undefined {
   return { script: input.script, duration: input.duration }
 }
 
-export function stripePreviewPlugin(secret: string | undefined): Plugin {
+export function stripePreviewPlugin(
+  secret: string | undefined,
+  eligibilityEnv?: CheckoutEligibilityEnv
+): Plugin {
   const stripe =
     secret && /^(?:sk|rk|rkcs)_test_/.test(secret)
       ? new Stripe(secret, { timeout: 15000, maxNetworkRetries: 1 })
@@ -86,6 +93,22 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
       }
       const locale = inputRecord.locale === "zh" ? "zh" : "en"
       const zh = locale === "zh"
+      const clientId =
+        typeof inputRecord.clientId === "string" && inputRecord.clientId.trim()
+          ? inputRecord.clientId.trim().slice(0, 64)
+          : ""
+      const eligibility = await verifyCheckoutEligibility({
+        planId,
+        locale,
+        authorizationHeader: request.headers.authorization,
+        clientId,
+        env: eligibilityEnv ?? {},
+      })
+      if (!eligibility.ok) {
+        sendJson(response, eligibility.status, { error: eligibility.error })
+        return
+      }
+
       const customName =
         typeof inputRecord.planName === "string" && inputRecord.planName.trim()
           ? inputRecord.planName.trim().slice(0, 80)
@@ -96,14 +119,23 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
         inputRecord.planPrice > 0
           ? inputRecord.planPrice
           : undefined
-      const resolvedName =
+      const baseName =
+        eligibility.authoritativeName ??
         customName ??
         (presetPlan
           ? zh
             ? presetPlan.zh
             : presetPlan.en
           : "Production Package")
-      const resolvedPrice = customPrice ?? presetPlan?.price
+      const resolvedName = eligibility.appliedRenewal
+        ? zh
+          ? `${baseName}（老客续费价）`
+          : `${baseName} (Renewal Rate)`
+        : baseName
+      const resolvedPrice =
+        planId === "quote"
+          ? (customPrice ?? presetPlan?.price)
+          : (eligibility.authoritativePrice ?? customPrice ?? presetPlan?.price)
       if (!planId || !resolvedPrice || resolvedPrice <= 0) {
         sendJson(response, 400, { error: "invalid_selection" })
         return
@@ -145,6 +177,42 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
       const returnQuery = new URLSearchParams({ plan: planId })
       if (extras.script) returnQuery.set("script", "1")
       if (extras.duration) returnQuery.set("duration", "1")
+      const customQuoteId =
+        typeof inputRecord.customQuoteId === "string" &&
+        inputRecord.customQuoteId.trim()
+          ? inputRecord.customQuoteId.trim().slice(0, 64)
+          : ""
+      const projectName =
+        typeof inputRecord.projectName === "string" &&
+        inputRecord.projectName.trim()
+          ? inputRecord.projectName.trim().slice(0, 100)
+          : ""
+      const videoCount =
+        eligibility.authoritativeCount && planId !== "quote"
+          ? String(eligibility.authoritativeCount)
+          : typeof inputRecord.videoCount === "number" &&
+              Number.isFinite(inputRecord.videoCount) &&
+              inputRecord.videoCount > 0
+            ? String(Math.floor(inputRecord.videoCount))
+            : presetPlan
+              ? String(presetPlan.count)
+              : ""
+      const addonIds = Array.isArray(inputRecord.addonIds)
+        ? (inputRecord.addonIds as unknown[])
+            .filter(
+              (v): v is string => typeof v === "string" && Boolean(v.trim())
+            )
+            .map((v) => v.trim().slice(0, 32))
+            .slice(0, 10)
+            .join(",")
+        : ""
+      const customerEmail =
+        typeof inputRecord.customerEmail === "string" &&
+        inputRecord.customerEmail.includes("@")
+          ? inputRecord.customerEmail.trim().slice(0, 120)
+          : "checkout-preview@example.com"
+      if (customQuoteId) returnQuery.set("quote", customQuoteId)
+
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
         ui_mode: "elements",
@@ -156,7 +224,7 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
         ],
         locale,
         return_url: `${origin}/${locale}/checkout?${returnQuery}&stripe_session={CHECKOUT_SESSION_ID}`,
-        customer_email: "checkout-preview@example.com",
+        customer_email: customerEmail,
         line_items: details.map(({ name, price }) => ({
           quantity: 1,
           price_data: {
@@ -168,8 +236,14 @@ export function stripePreviewPlugin(secret: string | undefined): Plugin {
         metadata: {
           purpose,
           planId,
+          locale,
           script: extras.script ? "1" : "0",
           duration: extras.duration ? "1" : "0",
+          ...(clientId ? { clientId } : {}),
+          ...(customQuoteId ? { customQuoteId } : {}),
+          ...(projectName ? { projectName } : {}),
+          ...(videoCount ? { videoCount } : {}),
+          ...(addonIds ? { addonIds } : {}),
         },
       })
       if (

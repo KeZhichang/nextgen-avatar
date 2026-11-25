@@ -157,6 +157,7 @@ export interface Database {
           video_count: number
           price_cents: number
           original_price_cents: number | null
+          renewal_price_cents?: number | null
           is_published: boolean
           sort_order: number
           updated_at: string
@@ -170,6 +171,7 @@ export interface Database {
           video_count: number
           price_cents: number
           original_price_cents?: number | null
+          renewal_price_cents?: number | null
           is_published?: boolean
           sort_order?: number
         }
@@ -181,6 +183,7 @@ export interface Database {
           video_count?: number
           price_cents?: number
           original_price_cents?: number | null
+          renewal_price_cents?: number | null
           is_published?: boolean
           sort_order?: number
         }
@@ -386,6 +389,8 @@ export interface Database {
         Row: {
           id: string
           order_id: string
+          item_index: number
+          item_title: string
           version_code: string
           version_type: VideoVersionType
           r2_key: string
@@ -397,6 +402,8 @@ export interface Database {
         Insert: {
           id?: string
           order_id: string
+          item_index?: number
+          item_title?: string
           version_code: string
           version_type: VideoVersionType
           r2_key: string
@@ -405,6 +412,7 @@ export interface Database {
           uploaded_by: string
         }
         Update: {
+          item_title?: string
           notes?: string
         }
         Relationships: []

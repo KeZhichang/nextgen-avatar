@@ -58,85 +58,85 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* Synchronized with the marketing website palette: Deep Navy + Electric Blue + Warm Gold + Ice Slate */
+/* Synchronized with the official NextGen Avatar (2301 Pictures) palette: Studio Navy + Royal Blue + Warm Apricot Gold + Cool Paper */
 :root {
   --radius: 0.625rem;
-  --background: #f5f8fc;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
+  --background: #f4f6fa;
+  --foreground: #111c30;
+  --card: #fbfcfe;
+  --card-foreground: #111c30;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #0066e6;
+  --popover-foreground: #111c30;
+  --primary: #1f4bc4;
   --primary-foreground: #ffffff;
-  --secondary: #eef2f7;
-  --secondary-foreground: #0f172a;
-  --muted: #eef2f7;
-  --muted-foreground: #5a677c;
-  --accent: #eaf3ff;
-  --accent-foreground: #0f2142;
+  --secondary: #eaeff7;
+  --secondary-foreground: #111c30;
+  --muted: #eaeff7;
+  --muted-foreground: #45536b;
+  --accent: #e7eefc;
+  --accent-foreground: #111c30;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #dfe6f0;
-  --input: #d5dfec;
-  --ring: #0073f5;
-  --brand-navy: #0f2142;
-  --brand-navy-foreground: #f8fafc;
-  --brand-gold: #e2aa3b;
-  --brand-gold-foreground: #0f2142;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #0f172a;
-  --sidebar-primary: #0066e6;
+  --border: #d5dde9;
+  --input: #cbd4e2;
+  --ring: #1f4bc4;
+  --brand-navy: #101b2d;
+  --brand-navy-foreground: #f8f6f3;
+  --brand-gold: #e5b77b;
+  --brand-gold-foreground: #211a17;
+  --sidebar: #fbfcfe;
+  --sidebar-foreground: #111c30;
+  --sidebar-primary: #1f4bc4;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eaf3ff;
-  --sidebar-accent-foreground: #0052cc;
-  --sidebar-border: #dfe6f0;
-  --sidebar-ring: #0073f5;
+  --sidebar-accent: #e7eefc;
+  --sidebar-accent-foreground: #183c9f;
+  --sidebar-border: #d5dde9;
+  --sidebar-ring: #1f4bc4;
 }
 
 .dark {
-  --background: #0a101d;
+  --background: #0b1322;
   --foreground: #f1f5f9;
-  --card: #10192c;
+  --card: #101b2d;
   --card-foreground: #f1f5f9;
-  --popover: #10192c;
+  --popover: #101b2d;
   --popover-foreground: #f1f5f9;
-  --primary: #2589ff;
+  --primary: #4f7bf5;
   --primary-foreground: #ffffff;
-  --secondary: #18253d;
+  --secondary: #182640;
   --secondary-foreground: #f1f5f9;
-  --muted: #18253d;
+  --muted: #182640;
   --muted-foreground: #94a3b8;
-  --accent: #1c2f4f;
+  --accent: #1c2f52;
   --accent-foreground: #f1f5f9;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --border: #23334f;
-  --input: #23334f;
-  --ring: #2589ff;
-  --brand-navy: #0c1a34;
-  --brand-navy-foreground: #f8fafc;
-  --brand-gold: #e6b34a;
-  --brand-gold-foreground: #0f2142;
-  --sidebar: #0c1629;
+  --border: #233452;
+  --input: #233452;
+  --ring: #4f7bf5;
+  --brand-navy: #101b2d;
+  --brand-navy-foreground: #f8f6f3;
+  --brand-gold: #f8cfaa;
+  --brand-gold-foreground: #211a17;
+  --sidebar: #0d1627;
   --sidebar-foreground: #e2e8f0;
-  --sidebar-primary: #2589ff;
+  --sidebar-primary: #4f7bf5;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #182a47;
+  --sidebar-accent: #1a2c4d;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #1e2f4d;
-  --sidebar-ring: #2589ff;
+  --sidebar-border: #1e3050;
+  --sidebar-ring: #4f7bf5;
 }
 
 .team-sidebar {
-  --sidebar: #0f2142;
-  --sidebar-foreground: #dbe6f6;
-  --sidebar-primary: #0066e6;
+  --sidebar: #101b2d;
+  --sidebar-foreground: #dbe4f3;
+  --sidebar-primary: #1f4bc4;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #0066e6;
+  --sidebar-accent: #1f4bc4;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #1d345c;
-  --sidebar-ring: #3b9eff;
+  --sidebar-border: #1d2f4d;
+  --sidebar-ring: #6b93f8;
 }
 
 .chat-bubble-incoming {
