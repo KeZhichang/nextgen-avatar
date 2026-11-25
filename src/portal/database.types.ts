@@ -157,6 +157,7 @@ export interface Database {
           video_count: number
           price_cents: number
           original_price_cents: number | null
+          renewal_price_cents?: number | null
           is_published: boolean
           sort_order: number
           updated_at: string
@@ -170,6 +171,7 @@ export interface Database {
           video_count: number
           price_cents: number
           original_price_cents?: number | null
+          renewal_price_cents?: number | null
           is_published?: boolean
           sort_order?: number
         }
@@ -181,6 +183,7 @@ export interface Database {
           video_count?: number
           price_cents?: number
           original_price_cents?: number | null
+          renewal_price_cents?: number | null
           is_published?: boolean
           sort_order?: number
         }

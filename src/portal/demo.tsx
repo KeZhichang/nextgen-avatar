@@ -67,7 +67,7 @@ export type {
 } from "./supabase-sync"
 
 export const sampleOrder = "NGA-20261108"
-const storageKey = "nextgen-avatar-demo-v1"
+const storageKey = "nextgen-avatar-demo-v2"
 const hideSampleData =
   (import.meta.env.VITE_HIDE_SAMPLE_DATA as string | undefined)
     ?.trim()
@@ -392,14 +392,19 @@ const initialDemo: DemoState = {
   plans: defaultPlans,
   orders: [
     sample,
-    order(
-      "NGA-20261115",
-      "Black Friday 大促口播",
-      "Black Friday campaign",
-      "Sarah Lin",
-      "waiting_assets",
-      ""
-    ),
+    {
+      ...order(
+        "NGA-20261115",
+        "Black Friday 大促口播",
+        "Black Friday campaign",
+        "Sarah Lin",
+        "waiting_assets",
+        ""
+      ),
+      plan: "cinematic-4",
+      count: 4,
+      total: 459,
+    },
     {
       ...order(
         "NGA-20261024",
@@ -409,24 +414,37 @@ const initialDemo: DemoState = {
         "completed",
         "Mia"
       ),
+      plan: "trial",
+      count: 1,
+      total: 59,
       versions: [{ id: "final", type: "final", note: "Final delivery" }],
     },
-    order(
-      "NGA-20261105",
-      "企业品牌介绍",
-      "Company introduction",
-      "Michael Ross",
-      "revision",
-      "Mia"
-    ),
-    order(
-      "NGA-20261112",
-      "产品功能介绍",
-      "Product walkthrough",
-      "Emily Clark",
-      "producing",
-      "Leo"
-    ),
+    {
+      ...order(
+        "NGA-20261105",
+        "企业品牌介绍",
+        "Company introduction",
+        "Michael Ross",
+        "revision",
+        "Mia"
+      ),
+      plan: "presenter-10",
+      count: 10,
+      total: 759,
+    },
+    {
+      ...order(
+        "NGA-20261112",
+        "产品功能介绍",
+        "Product walkthrough",
+        "Emily Clark",
+        "producing",
+        "Leo"
+      ),
+      plan: "cinematic-6",
+      count: 6,
+      total: 599,
+    },
   ],
   role: "admin",
   unread: true,
@@ -485,6 +503,10 @@ function normalizePlans(raw: unknown): Plan[] {
           plan.regular > (plan.price ?? fallback?.price ?? 0)
           ? plan.regular
           : undefined,
+      renewal:
+        typeof plan.renewal === "number" && plan.renewal > 0
+          ? plan.renewal
+          : fallback?.renewal,
       active: typeof plan.active === "boolean" ? plan.active : true,
     }
   })

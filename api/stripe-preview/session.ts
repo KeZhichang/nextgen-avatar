@@ -107,8 +107,8 @@ export default async function handler(req: Req, res: ServerResponse) {
           : undefined
       const customPrice =
         typeof input?.planPrice === "number" &&
-        Number.isFinite(input.planPrice) &&
-        input.planPrice > 0
+          Number.isFinite(input.planPrice) &&
+          input.planPrice > 0
           ? input.planPrice
           : undefined
 
@@ -132,15 +132,15 @@ export default async function handler(req: Req, res: ServerResponse) {
 
       const customAddons = Array.isArray(input?.addons)
         ? (input.addons as unknown[])
-            .filter(
-              (item): item is { name: string; price: number } =>
-                Boolean(item) &&
-                typeof item === "object" &&
-                typeof (item as Record<string, unknown>).name === "string" &&
-                typeof (item as Record<string, unknown>).price === "number" &&
-                (item as Record<string, number>).price > 0
-            )
-            .slice(0, 10)
+          .filter(
+            (item): item is { name: string; price: number } =>
+              Boolean(item) &&
+              typeof item === "object" &&
+              typeof (item as Record<string, unknown>).name === "string" &&
+              typeof (item as Record<string, unknown>).price === "number" &&
+              (item as Record<string, number>).price > 0
+          )
+          .slice(0, 10)
         : null
 
       if (customAddons) {
@@ -187,22 +187,22 @@ export default async function handler(req: Req, res: ServerResponse) {
           : ""
       const videoCount =
         typeof input?.videoCount === "number" &&
-        Number.isFinite(input.videoCount) &&
-        input.videoCount > 0
+          Number.isFinite(input.videoCount) &&
+          input.videoCount > 0
           ? String(Math.floor(input.videoCount))
           : presetPlan
             ? String(presetPlan.count)
             : ""
       const addonIds = Array.isArray(input?.addonIds)
         ? (input.addonIds as unknown[])
-            .filter((v): v is string => typeof v === "string" && Boolean(v.trim()))
-            .map((v) => v.trim().slice(0, 32))
-            .slice(0, 10)
-            .join(",")
+          .filter((v): v is string => typeof v === "string" && Boolean(v.trim()))
+          .map((v) => v.trim().slice(0, 32))
+          .slice(0, 10)
+          .join(",")
         : ""
       const customerEmail =
         typeof input?.customerEmail === "string" &&
-        input.customerEmail.includes("@")
+          input.customerEmail.includes("@")
           ? input.customerEmail.trim().slice(0, 120)
           : undefined
 
@@ -297,8 +297,8 @@ export default async function handler(req: Req, res: ServerResponse) {
           : null
       const latestCharge =
         intent &&
-        typeof intent.latest_charge === "object" &&
-        intent.latest_charge !== null
+          typeof intent.latest_charge === "object" &&
+          intent.latest_charge !== null
           ? intent.latest_charge
           : null
       const payment =

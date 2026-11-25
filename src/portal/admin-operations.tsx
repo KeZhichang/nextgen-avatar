@@ -14,6 +14,7 @@ import {
   Pencil,
   Plus,
   Receipt,
+  RefreshCw,
   Search,
   ShieldCheck,
   Trash2,
@@ -103,6 +104,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { defaultAddonItems, defaultPlans } from "./checkout-catalog"
 import {
   formatDollars,
   useDemo,
@@ -115,12 +117,14 @@ import { ActionLink } from "./layout"
 
 type PlanDraft = {
   id: string | null
+  code: string
   zh: string
   en: string
   tagZh: string
   tagEn: string
   count: string
   price: string
+  renewal: string
   regular: string
   active: boolean
 }
@@ -136,12 +140,14 @@ type AddonDraft = {
 function emptyPlanDraft(): PlanDraft {
   return {
     id: null,
+    code: "",
     zh: "",
     en: "",
     tagZh: "",
     tagEn: "",
     count: "5",
-    price: "299",
+    price: "459",
+    renewal: "359",
     regular: "",
     active: true,
   }
@@ -150,12 +156,14 @@ function emptyPlanDraft(): PlanDraft {
 function planToDraft(plan: Plan): PlanDraft {
   return {
     id: plan.id,
+    code: plan.id,
     zh: plan.zh,
     en: plan.en,
     tagZh: plan.tagZh ?? "",
     tagEn: plan.tagEn ?? "",
     count: String(plan.count),
     price: String(plan.price),
+    renewal: plan.renewal ? String(plan.renewal) : "",
     regular: plan.regular ? String(plan.regular) : "",
     active: plan.active !== false,
   }
@@ -166,7 +174,7 @@ function emptyAddonDraft(): AddonDraft {
     id: null,
     zh: "",
     en: "",
-    price: "49",
+    price: "50",
     active: true,
   }
 }
@@ -190,8 +198,8 @@ export function PricingCatalogView() {
   const { t, zh } = usePortal()
   const { data, saveCatalog } = useDemo()
 
-  const [plans, setPlans] = useState<Plan[]>(data.plans)
-  const [addons, setAddons] = useState<Addon[]>(data.addons)
+  const plans = data.plans
+  const addons = data.addons
   const [catalogTab, setCatalogTab] = useState<"packages" | "addons">(
     "packages"
   )
@@ -280,8 +288,6 @@ export function PricingCatalogView() {
     successMsg: string,
     errorMsg: string
   ) {
-    setPlans(nextPlans)
-    setAddons(nextAddons)
     void saveCatalog(nextPlans, nextAddons).then((ok) => {
       if (ok) toast.success(successMsg)
       else toast.error(errorMsg)
@@ -295,9 +301,18 @@ export function PricingCatalogView() {
     const enName = planDraft.en.trim()
     const count = Math.floor(Number(planDraft.count))
     const price = Number(planDraft.price)
+    const renewalNum = planDraft.renewal.trim()
+      ? Number(planDraft.renewal)
+      : undefined
     const regularNum = planDraft.regular.trim()
       ? Number(planDraft.regular)
       : undefined
+    const rawCode = planDraft.code
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
 
     if (
       !zhName ||
@@ -305,7 +320,8 @@ export function PricingCatalogView() {
       !Number.isInteger(count) ||
       count <= 0 ||
       !Number.isFinite(price) ||
-      price <= 0
+      price <= 0 ||
+      (renewalNum !== undefined && (!Number.isFinite(renewalNum) || renewalNum <= 0))
     ) {
       toast.error(
         t(
@@ -316,14 +332,27 @@ export function PricingCatalogView() {
       return
     }
 
+    const resolvedId =
+      planDraft.id ?? (rawCode || "plan-" + crypto.randomUUID().slice(0, 6))
+    if (!planDraft.id && plans.some((item) => item.id === resolvedId)) {
+      toast.error(
+        t(
+          `套餐编码 "${resolvedId}" 已存在，请更换其他编码。`,
+          `Package code "${resolvedId}" already exists.`
+        )
+      )
+      return
+    }
+
     const saved: Plan = {
-      id: planDraft.id ?? "plan-" + crypto.randomUUID().slice(0, 6),
+      id: resolvedId,
       zh: zhName,
       en: enName,
       tagZh: planDraft.tagZh.trim(),
       tagEn: planDraft.tagEn.trim(),
       count,
       price,
+      renewal: renewalNum && renewalNum > 0 ? renewalNum : undefined,
       regular: regularNum && regularNum > price ? regularNum : undefined,
       active: planDraft.active,
     }
@@ -381,9 +410,50 @@ export function PricingCatalogView() {
     openPlanEditor({
       ...planToDraft(plan),
       id: null,
+      code: `${plan.id}-copy`,
       zh: `${plan.zh}（副本）`,
       en: `${plan.en} (Copy)`,
     })
+  }
+
+  function copyCheckoutPath(planId: string) {
+    const path = `${window.location.origin}/checkout/${planId}`
+    void navigator.clipboard?.writeText(path).then(
+      () => toast.success(t(`已复制结账链接 /checkout/${planId}`, `Copied /checkout/${planId}`)),
+      () => toast.info(path)
+    )
+  }
+
+  function syncOfficialCatalog() {
+    const legacyHidden = plans
+      .filter(
+        (item) =>
+          (item.id === "pro" || item.id === "ent") &&
+          !defaultPlans.some((preset) => preset.id === item.id)
+      )
+      .map((item) => ({ ...item, active: false }))
+    const customExtra = plans.filter(
+      (item) =>
+        item.id !== "pro" &&
+        item.id !== "ent" &&
+        !defaultPlans.some((preset) => preset.id === item.id)
+    )
+    const nextPlans = [...defaultPlans, ...customExtra, ...legacyHidden]
+    const nextAddons = [
+      ...defaultAddonItems,
+      ...addons.filter(
+        (item) => !defaultAddonItems.some((preset) => preset.id === item.id)
+      ),
+    ]
+    persist(
+      nextPlans,
+      nextAddons,
+      t(
+        "已同步官网 7 档标准套餐与加项配置。",
+        "Synced official 7-tier package catalog & add-ons."
+      ),
+      t("同步套餐目录失败，请重试。", "Could not sync official catalog.")
+    )
   }
 
   function saveAddonDraft(event: FormEvent<HTMLFormElement>) {
@@ -494,11 +564,17 @@ export function PricingCatalogView() {
   })
 
   const previewPrice = Number(planDraft?.price) || 0
+  const previewRenewal = planDraft?.renewal.trim()
+    ? Number(planDraft.renewal)
+    : undefined
   const previewCount = Math.max(1, Math.floor(Number(planDraft?.count) || 1))
   const previewRegular = planDraft?.regular.trim()
     ? Number(planDraft.regular)
     : undefined
   const previewDiscount = discountPercent(previewPrice, previewRegular)
+  const hasOfficialCatalogSynced = defaultPlans.every((preset) =>
+    plans.some((item) => item.id === preset.id)
+  )
 
   return (
     <div className="flex flex-col gap-5">
@@ -538,6 +614,17 @@ export function PricingCatalogView() {
                 aria-label={t("搜索商品目录", "Search catalog")}
               />
             </InputGroup>
+            {!hasOfficialCatalogSynced && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={syncOfficialCatalog}
+              >
+                <RefreshCw data-icon="inline-start" aria-hidden="true" />
+                {t("同步官网 7 档标准套餐", "Sync 7-tier catalog")}
+              </Button>
+            )}
             <Button
               type="button"
               size="sm"
@@ -576,7 +663,8 @@ export function PricingCatalogView() {
                   <TableBody>
                     {visiblePlans.map((plan) => {
                       const isActive = plan.active !== false
-                      const unitPrice = plan.price / Math.max(1, plan.count)
+                      const unitBase = plan.renewal ?? plan.price
+                      const unitPrice = unitBase / Math.max(1, plan.count)
                       const offPct = discountPercent(plan.price, plan.regular)
                       const tagLabel = zh ? plan.tagZh : plan.tagEn
                       return (
@@ -591,6 +679,12 @@ export function PricingCatalogView() {
                                 <span className="font-medium text-foreground">
                                   {zh ? plan.zh : plan.en}
                                 </span>
+                                <Badge
+                                  variant="outline"
+                                  className="h-5 px-1.5 font-mono text-[10px] font-normal text-muted-foreground"
+                                >
+                                  {plan.id}
+                                </Badge>
                                 {tagLabel && (
                                   <Badge variant="secondary">{tagLabel}</Badge>
                                 )}
@@ -610,23 +704,34 @@ export function PricingCatalogView() {
                                   Math.round(unitPrice * 100) / 100
                                 )}{" "}
                                 / {t("条", "video")}
+                                {plan.renewal
+                                  ? t("（续费均价）", " (renewal)")
+                                  : ""}
                               </span>
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="flex flex-wrap items-baseline gap-2 tabular-nums">
-                              <span className="font-mono text-sm font-semibold text-foreground">
-                                {formatDollars(plan.price)}
-                              </span>
-                              {plan.regular && plan.regular > plan.price && (
-                                <span className="font-mono text-xs text-muted-foreground line-through">
-                                  {formatDollars(plan.regular)}
+                            <div className="flex flex-col gap-0.5 tabular-nums">
+                              <div className="flex flex-wrap items-baseline gap-2">
+                                <span className="font-mono text-sm font-semibold text-foreground">
+                                  {formatDollars(plan.price)}
                                 </span>
-                              )}
-                              {offPct && (
-                                <Badge variant="outline">
-                                  -{offPct}%
-                                </Badge>
+                                {plan.regular && plan.regular > plan.price && (
+                                  <span className="font-mono text-xs text-muted-foreground line-through">
+                                    {formatDollars(plan.regular)}
+                                  </span>
+                                )}
+                                {offPct && (
+                                  <Badge variant="outline">-{offPct}%</Badge>
+                                )}
+                              </div>
+                              {plan.renewal && (
+                                <span className="font-mono text-xs text-muted-foreground">
+                                  {t(
+                                    `续费 ${formatDollars(plan.renewal)}/月`,
+                                    `Renew ${formatDollars(plan.renewal)}/mo`
+                                  )}
+                                </span>
                               )}
                             </div>
                           </TableCell>
@@ -682,6 +787,12 @@ export function PricingCatalogView() {
                                   >
                                     <Pencil aria-hidden="true" />
                                     {t("编辑套餐", "Edit package")}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onSelect={() => copyCheckoutPath(plan.id)}
+                                  >
+                                    <Link2 aria-hidden="true" />
+                                    {t("复制结账链接", "Copy checkout URL")}
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onSelect={() => duplicatePlan(plan)}
@@ -971,6 +1082,12 @@ export function PricingCatalogView() {
                         `包含 ${previewCount} 条定制数字人视频`,
                         `Includes ${previewCount} avatar videos`
                       )}
+                      {previewRenewal && previewRenewal > 0
+                        ? t(
+                            ` · 续费 ${formatDollars(previewRenewal)}/月`,
+                            ` · Renew ${formatDollars(previewRenewal)}/mo`
+                          )
+                        : ""}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-baseline gap-1.5 tabular-nums">
@@ -991,6 +1108,46 @@ export function PricingCatalogView() {
 
               <div className="rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
                 <FieldGroup className="gap-4">
+                  <Field>
+                    <FieldLabel htmlFor="edit-plan-code">
+                      {t("套餐编码 ID（对应官网跳转路径）", "Package code (checkout slug)")}
+                    </FieldLabel>
+                    <div className="flex items-center gap-2">
+                      <InputGroup className="flex-1">
+                        <InputGroupAddon>
+                          <InputGroupText className="font-mono text-xs">
+                            /checkout/
+                          </InputGroupText>
+                        </InputGroupAddon>
+                        <InputGroupInput
+                          id="edit-plan-code"
+                          className="font-mono text-xs"
+                          value={planDraft.code}
+                          readOnly={Boolean(planDraft.id)}
+                          disabled={Boolean(planDraft.id)}
+                          onChange={(event) =>
+                            setPlanDraft({
+                              ...planDraft,
+                              code: event.target.value,
+                            })
+                          }
+                          placeholder="presenter-5"
+                        />
+                      </InputGroup>
+                      {planDraft.id && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => copyCheckoutPath(planDraft.id!)}
+                        >
+                          <Copy data-icon="inline-start" aria-hidden="true" />
+                          {t("复制链接", "Copy URL")}
+                        </Button>
+                      )}
+                    </div>
+                  </Field>
+
                   <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
                     <Field>
                       <FieldLabel htmlFor="edit-plan-en">
@@ -1059,7 +1216,7 @@ export function PricingCatalogView() {
 
                   <Separator />
 
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <Field>
                       <FieldLabel htmlFor="edit-plan-count">
                         {t("视频条数", "Credits")}
@@ -1081,7 +1238,7 @@ export function PricingCatalogView() {
                     </Field>
                     <Field>
                       <FieldLabel htmlFor="edit-plan-price">
-                        {t("售价 (USD)", "Price (USD)")}
+                        {t("首月 / 售价 (USD)", "First month / price (USD)")}
                       </FieldLabel>
                       <InputGroup>
                         <InputGroupAddon>
@@ -1105,8 +1262,33 @@ export function PricingCatalogView() {
                       </InputGroup>
                     </Field>
                     <Field>
+                      <FieldLabel htmlFor="edit-plan-renewal">
+                        {t("续费月价（选填）", "Renewal / mo (optional)")}
+                      </FieldLabel>
+                      <InputGroup>
+                        <InputGroupAddon>
+                          <InputGroupText>$</InputGroupText>
+                        </InputGroupAddon>
+                        <InputGroupInput
+                          id="edit-plan-renewal"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="—"
+                          className="font-mono tabular-nums"
+                          value={planDraft.renewal}
+                          onChange={(event) =>
+                            setPlanDraft({
+                              ...planDraft,
+                              renewal: event.target.value,
+                            })
+                          }
+                        />
+                      </InputGroup>
+                    </Field>
+                    <Field>
                       <FieldLabel htmlFor="edit-plan-regular">
-                        {t("划线原价", "Compare at")}
+                        {t("划线原价（选填）", "Compare at (optional)")}
                       </FieldLabel>
                       <InputGroup>
                         <InputGroupAddon>

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-import type { Addon, Plan } from "./checkout-catalog"
+import { defaultPlans, type Addon, type Plan } from "./checkout-catalog"
 import type { Database, OrderStatus, PaymentMethodType } from "./database.types"
 import type {
   ChatAttachment,
@@ -116,19 +116,27 @@ export async function fetchPublicCatalog(sb: SbClient): Promise<{
   if (planErr) throw planErr
   if (addonErr) throw addonErr
 
-  const plans: Plan[] = (planRows ?? []).map((row) => ({
-    id: row.id,
-    zh: row.name_zh,
-    en: row.name_en,
-    tagZh: row.tag_zh || "",
-    tagEn: row.tag_en || "",
-    count: row.video_count,
-    price: centsToDollars(row.price_cents),
-    regular: row.original_price_cents
-      ? centsToDollars(row.original_price_cents)
-      : undefined,
-    active: row.is_published,
-  }))
+  const plans: Plan[] = (planRows ?? []).map((row) => {
+    const preset = defaultPlans.find((item) => item.id === row.id)
+    return {
+      id: row.id,
+      zh: row.name_zh,
+      en: row.name_en,
+      tagZh: row.tag_zh || "",
+      tagEn: row.tag_en || "",
+      count: row.video_count,
+      price: centsToDollars(row.price_cents),
+      regular: row.original_price_cents
+        ? centsToDollars(row.original_price_cents)
+        : undefined,
+      renewal:
+        typeof row.renewal_price_cents === "number" &&
+        row.renewal_price_cents > 0
+          ? centsToDollars(row.renewal_price_cents)
+          : preset?.renewal,
+      active: row.is_published,
+    }
+  })
 
   const addons: Addon[] = (addonRows ?? []).map((row) => ({
     id: row.id,
@@ -509,6 +517,8 @@ export async function saveCatalogToDb(
       plan.regular && plan.regular > plan.price
         ? dollarsToCents(plan.regular)
         : null,
+    renewal_price_cents:
+      plan.renewal && plan.renewal > 0 ? dollarsToCents(plan.renewal) : null,
     is_published: plan.active !== false,
     sort_order: idx + 1,
   }))
@@ -516,7 +526,23 @@ export async function saveCatalogToDb(
     const { error } = await sb
       .from("plans")
       .upsert(planPayload, { onConflict: "id" })
-    if (error) throw error
+    if (error) {
+      // Fallback gracefully if DB hasn't applied renewal_price_cents column yet
+      if (error.code === "42703" || error.code === "PGRST204") {
+        const legacyPayload = planPayload.map((item) => {
+          const rest = { ...item }
+          delete (rest as { renewal_price_cents?: number | null })
+            .renewal_price_cents
+          return rest
+        })
+        const { error: fallbackErr } = await sb
+          .from("plans")
+          .upsert(legacyPayload, { onConflict: "id" })
+        if (fallbackErr) throw fallbackErr
+      } else {
+        throw error
+      }
+    }
   }
 
   const { data: existingAddons } = await sb.from("addons").select("id")
