@@ -1041,8 +1041,8 @@ export function CheckoutPage() {
                               className={cn(
                                 "relative flex flex-col gap-2 rounded-xl border p-4 text-left transition-colors duration-200",
                                 isFamilyActive
-                                  ? "border-transparent bg-card"
-                                  : "border-border bg-card hover:border-primary/40 hover:bg-accent/35",
+                                  ? "z-10 border-transparent bg-card"
+                                  : "z-0 border-border bg-card hover:border-primary/40 hover:bg-accent/35",
                                 locked && "cursor-not-allowed opacity-70"
                               )}
                             >
@@ -1051,7 +1051,7 @@ export function CheckoutPage() {
                                   layoutId="checkout-family-active-card"
                                   aria-hidden="true"
                                   transition={springTransition}
-                                  className="pointer-events-none absolute inset-0 z-0 rounded-xl border border-primary bg-accent/55 ring-1 ring-primary"
+                                  className="pointer-events-none absolute inset-0 z-0 rounded-xl border-2 border-primary bg-accent/55"
                                 />
                               )}
                               <div className="relative z-10 flex items-center justify-between gap-2">
@@ -1126,8 +1126,8 @@ export function CheckoutPage() {
                               className={cn(
                                 "relative flex flex-col justify-between gap-3 rounded-xl border p-4 text-left transition-colors duration-200",
                                 isSelected
-                                  ? "border-transparent bg-card"
-                                  : "border-border bg-card hover:border-primary/40 hover:bg-accent/35",
+                                  ? "z-10 border-transparent bg-card"
+                                  : "z-0 border-border bg-card hover:border-primary/40 hover:bg-accent/35",
                                 locked && "cursor-not-allowed opacity-70"
                               )}
                             >
@@ -1136,7 +1136,7 @@ export function CheckoutPage() {
                                   layoutId={`checkout-tier-active-${activeFamily.id}`}
                                   aria-hidden="true"
                                   transition={springTransition}
-                                  className="pointer-events-none absolute inset-0 z-0 rounded-xl border border-primary bg-accent/60 ring-1 ring-primary"
+                                  className="pointer-events-none absolute inset-0 z-0 rounded-xl border-2 border-primary bg-accent/60"
                                 />
                               )}
                               <div className="relative z-10 flex items-center justify-between gap-2">

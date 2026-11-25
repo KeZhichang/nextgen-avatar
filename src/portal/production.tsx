@@ -797,8 +797,8 @@ function ReviewPanel({
                       className={cn(
                         "relative inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors duration-200",
                         isActive
-                          ? "border-transparent font-semibold text-foreground"
-                          : "border-border/80 bg-muted/25 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                          ? "z-10 border-transparent font-semibold text-foreground"
+                          : "z-0 border-border/80 bg-muted/25 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
                       )}
                     >
                       {isActive && (
