@@ -302,20 +302,49 @@ export function AuthPage() {
           </Button>
         ) : null}
       </TopBar>
-      <main className="flex flex-1 items-center justify-center p-4 sm:p-8">
+      <main className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-8 sm:px-8">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="flex size-13 items-center justify-center rounded-2xl border border-border/80 bg-card shadow-xs">
+            <img
+              src="/portal-media/nextgen-avatar-mark-small.png"
+              alt="NextGen Avatar"
+              width={36}
+              height={32}
+              decoding="async"
+              className="h-8 w-auto object-contain"
+            />
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex items-baseline gap-2">
+              <span className="font-serif text-xl font-bold tracking-tight text-foreground">
+                NextGen Avatar
+              </span>
+              <span className="text-xs font-medium text-muted-foreground">
+                by 2301 Pictures
+              </span>
+            </div>
+            <p className="max-w-sm text-xs text-muted-foreground">
+              {t(
+                "人工精制 AI 数字人短视频、品牌广告与影视制作",
+                "Human-directed AI films, ads and digital humans."
+              )}
+            </p>
+          </div>
+        </div>
+
         <Card className="w-full max-w-md shadow-sm">
           <CardHeader className="gap-1.5 text-center">
-            <CardTitle className="text-xl font-bold tracking-tight">
+            <CardTitle className="text-lg font-semibold tracking-tight">
               <h1>
                 {mode === "login"
-                  ? t("登录 NextGen Avatar", "Sign in to NextGen Avatar")
+                  ? t("登录客户工作台", "Sign in to your workspace")
                   : labels[mode]}
               </h1>
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs">
               {t(
-                "登录您的客户工作台，管理数字人视频订单与成片交付",
-                "Manage your avatar video orders, reviews, and deliveries."
+                "查看订单进度、在线审片确认与下载 1080P 正式成片",
+                "Manage your avatar video orders, reviews, and 1080P deliveries."
               )}
             </CardDescription>
           </CardHeader>
@@ -564,6 +593,10 @@ export function AuthPage() {
             </CardFooter>
           )}
         </Card>
+
+        <p className="text-center text-xs text-muted-foreground/80">
+          © 2301 Pictures · nextgenavatar.com
+        </p>
       </main>
     </div>
   )

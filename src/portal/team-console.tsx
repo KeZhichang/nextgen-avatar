@@ -532,14 +532,40 @@ export function AdminLoginPage() {
         <LanguageSwitch dark />
       </header>
 
-      <main className="flex flex-1 items-center justify-center p-4 sm:p-8">
+      <main className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-8 sm:px-8">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="flex size-13 items-center justify-center rounded-2xl border border-white/10 bg-brand-navy shadow-sm">
+            <img
+              src="/portal-media/nextgen-avatar-mark-small.png"
+              alt="NextGen Studio"
+              width={36}
+              height={32}
+              decoding="async"
+              className="h-8 w-auto object-contain"
+            />
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex items-baseline gap-2">
+              <span className="font-serif text-xl font-bold tracking-tight text-foreground">
+                NextGen Studio
+              </span>
+              <span className="text-xs font-medium text-muted-foreground">
+                by 2301 Pictures
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "内部数字人制作协同与订单管理平台",
+                "Internal production workflow & order operations"
+              )}
+            </p>
+          </div>
+        </div>
+
         <Card className="w-full max-w-md shadow-xs">
           <CardHeader className="gap-1.5 text-center">
-            <div className="mx-auto mb-1 flex size-10 items-center justify-center rounded-xl bg-brand-navy text-white">
-              <ShieldCheck aria-hidden="true" className="size-5" />
-            </div>
             <CardTitle className="text-lg font-semibold tracking-tight">
-              <h1>{t("登录 NextGen Studio", "Sign in to NextGen Studio")}</h1>
+              <h1>{t("工作人员登录", "Studio Console sign in")}</h1>
             </CardTitle>
             <CardDescription className="text-xs">
               {t(
@@ -750,6 +776,10 @@ export function AdminLoginPage() {
             )}
           </CardFooter>
         </Card>
+
+        <p className="text-center text-xs text-muted-foreground/80">
+          © 2301 Pictures · nextgenavatar.com
+        </p>
       </main>
     </div>
   )
