@@ -1230,7 +1230,7 @@ export function WorkspacePage() {
                                 {t("已支付", "Paid")}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-right font-mono text-sm font-semibold text-foreground tabular-nums">
+                            <TableCell className="text-right text-sm font-semibold text-foreground tabular-nums">
                               {formatDollars(value.total)}
                             </TableCell>
                             <TableCell className="px-6 text-right">

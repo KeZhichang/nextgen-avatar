@@ -957,7 +957,7 @@ export function CheckoutPage() {
                     </h1>
                   </div>
                   <div className="text-right tabular-nums">
-                    <div className="font-mono text-2xl font-bold text-[#ffe8d1]">
+                    <div className="text-2xl font-bold tracking-tight text-[#ffe8d1] tabular-nums">
                       {formatDollars(quotedPlan.price)}
                     </div>
                     <div className="text-xs text-white/75">
@@ -1257,7 +1257,7 @@ export function CheckoutPage() {
                         </span>
                       </div>
                     </div>
-                    <span className="font-mono text-lg font-bold text-foreground tabular-nums">
+                    <span className="text-lg font-bold tracking-tight text-foreground tabular-nums">
                       {formatDollars(trialPlan.price)}
                     </span>
                   </button>
@@ -1383,7 +1383,7 @@ export function CheckoutPage() {
                 <span className="text-sm font-medium text-foreground">
                   {t("应付总额", "Total due")}
                 </span>
-                <strong className="font-mono text-2xl font-bold tracking-tight text-foreground tabular-nums">
+                <strong className="text-2xl font-bold tracking-tight text-foreground tabular-nums">
                   {formatDollars(total)}
                 </strong>
               </div>

@@ -1,15 +1,10 @@
 @import "tailwindcss" source(none);
 @import "tw-animate-css";
-@import "@fontsource-variable/geist";
+@import "@fontsource-variable/manrope";
+@import "@fontsource-variable/geist-mono";
+@import "@fontsource-variable/newsreader";
 
 @source "./";
-
-@font-face {
-  font-family: "Plus Jakarta Sans";
-  src: url("/portal-media/plus-jakarta.woff2") format("woff2");
-  font-weight: 400 700;
-  font-display: swap;
-}
 
 @custom-variant dark (&:is(.dark *));
 @custom-variant data-open (&[data-state="open"]);
@@ -23,8 +18,13 @@
 
 @theme inline {
   --font-sans:
-    "Plus Jakarta Sans", "Geist Variable", "Microsoft YaHei", system-ui,
-    sans-serif;
+    "Manrope Variable", "PingFang SC", "Noto Sans SC", "Hiragino Sans GB",
+    "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  --font-serif:
+    "Newsreader Variable", Georgia, "Songti SC", "Noto Serif SC", serif;
+  --font-mono:
+    "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas,
+    monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -173,6 +173,8 @@
   }
   body {
     @apply bg-background font-sans text-foreground antialiased;
+    text-rendering: optimizeLegibility;
+    font-optical-sizing: auto;
   }
 
   /* Unified subtle hover-reveal scrollbars (pixel-matched with ScrollArea) */

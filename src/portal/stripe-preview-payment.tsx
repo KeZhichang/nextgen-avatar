@@ -49,7 +49,8 @@ const appearance: Appearance = {
     colorText: "#111c30",
     colorTextSecondary: "#45536b",
     colorDanger: "#dc2626",
-    fontFamily: "Plus Jakarta Sans, system-ui, sans-serif",
+    fontFamily:
+      '"Manrope Variable", "PingFang SC", "Noto Sans SC", system-ui, sans-serif',
     fontSizeBase: "14px",
     spacingUnit: "4px",
     borderRadius: "8px",

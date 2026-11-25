@@ -1093,7 +1093,7 @@ export function PricingCatalogView() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-baseline gap-1.5 tabular-nums">
-                    <span className="font-mono text-lg font-bold text-foreground">
+                    <span className="text-lg font-bold tracking-tight text-foreground tabular-nums">
                       {formatDollars(previewPrice)}
                     </span>
                     {previewRegular && previewRegular > previewPrice && (
@@ -1858,7 +1858,7 @@ export function CustomQuotesView() {
                   <div className="text-[11px] text-white/70">
                     {t("应付总额 (USD)", "Amount due (USD)")}
                   </div>
-                  <div className="mt-0.5 font-mono text-3xl font-bold tracking-tight text-white tabular-nums">
+                  <div className="mt-0.5 text-3xl font-bold tracking-tight text-white tabular-nums">
                     {formatDollars(amountNum)}
                   </div>
                 </div>
