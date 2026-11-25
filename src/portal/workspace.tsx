@@ -877,7 +877,7 @@ export function WorkspacePage() {
                   </TabsList>
                 </Tabs>
               </CardHeader>
-              <CardContent className="min-h-[304px] p-0">
+              <CardContent className="p-0">
                 <Table className="table-fixed">
                   <TableHeader>
                     <TableRow>

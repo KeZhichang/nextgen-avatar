@@ -1169,7 +1169,7 @@ export function AdminOrdersPage() {
         </div>
 
         <Card className="gap-0 overflow-hidden py-0 shadow-xs">
-          <CardContent className="flex min-h-[340px] flex-col justify-between p-0">
+          <CardContent className="p-0">
             <Table className="table-fixed">
               <TableHeader>
                 <TableRow>
