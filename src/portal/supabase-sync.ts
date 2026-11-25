@@ -77,6 +77,27 @@ function dollarsToCents(dollars: number): number {
   return Math.max(0, Math.round(dollars * 100))
 }
 
+export type MessageSenderMeta = {
+  name: string
+  roleId?: TeamRoleId
+}
+
+function parseSenderMeta(metadata: unknown): MessageSenderMeta | undefined {
+  if (!metadata || typeof metadata !== "object") return undefined
+  const raw = (metadata as Record<string, unknown>).sender
+  if (!raw || typeof raw !== "object") return undefined
+  const record = raw as Record<string, unknown>
+  const name = typeof record.name === "string" ? record.name.trim() : ""
+  if (!name) return undefined
+  const roleId =
+    record.roleId === "admin" ||
+    record.roleId === "lead" ||
+    record.roleId === "producer"
+      ? record.roleId
+      : undefined
+  return { name, roleId }
+}
+
 function parseVersionRef(metadata: unknown): EntryVersionRef | undefined {
   if (!metadata || typeof metadata !== "object") return undefined
   const ref = (metadata as Record<string, unknown>).versionRef
@@ -449,16 +470,32 @@ export async function fetchAuthenticatedSnapshot(
       attachmentsByMsg.set(a.message_id, list)
     }
 
+    const teamMemberByUserId = new Map<string, TeamMember>()
+    for (const member of teamMembers) {
+      if (member.userId) teamMemberByUserId.set(member.userId, member)
+    }
+
     const messagesByOrder = new Map<string, Entry[]>()
     for (const m of msgRows ?? []) {
       const list = messagesByOrder.get(m.order_id) ?? []
       const atts = attachmentsByMsg.get(m.id)
+      const matchedMember = teamMemberByUserId.get(m.sender_user_id)
+      const metaSender = parseSenderMeta(m.metadata)
       list.push({
         id: m.id,
         side: m.sender_side,
         text: m.body,
         attachments: atts?.length ? atts : undefined,
         versionRef: parseVersionRef(m.metadata),
+        senderUserId: m.sender_user_id,
+        senderName:
+          m.sender_side === "studio"
+            ? (matchedMember?.name ?? metaSender?.name)
+            : undefined,
+        senderRoleId:
+          m.sender_side === "studio"
+            ? (matchedMember?.roleId ?? metaSender?.roleId)
+            : undefined,
       })
       messagesByOrder.set(m.order_id, list)
     }
@@ -675,8 +712,13 @@ export async function insertMessageInDb(
   side: "client" | "studio",
   body: string,
   versionRef?: EntryVersionRef,
-  attachments?: ChatAttachment[]
+  attachments?: ChatAttachment[],
+  senderMeta?: MessageSenderMeta
 ) {
+  const metadata: Record<string, unknown> = {}
+  if (versionRef) metadata.versionRef = versionRef
+  if (senderMeta?.name) metadata.sender = senderMeta
+
   const { data: msgRow, error } = await sb
     .from("order_messages")
     .insert({
@@ -684,7 +726,7 @@ export async function insertMessageInDb(
       sender_user_id: userId,
       sender_side: side,
       body,
-      metadata: versionRef ? { versionRef } : {},
+      metadata,
     })
     .select("id")
     .single()

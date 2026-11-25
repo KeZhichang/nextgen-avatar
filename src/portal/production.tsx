@@ -533,7 +533,10 @@ function ChatPanel({
   compactHeader?: boolean
 }) {
   const { t, zh } = usePortal()
-  const { data, sendChatMessage } = useDemo()
+  const { data, authUser, sendChatMessage } = useDemo()
+  const selfTeamMember = data.teamSession
+    ? data.teamMembers.find((m) => m.id === data.teamSession)
+    : undefined
   const hasMultipleDeliverables = getOrderDeliverableSlots(order).length > 1
   const clientAvatar =
     order.client === data.account.name && data.account.avatarUrl
@@ -674,9 +677,52 @@ function ChatPanel({
                 {entries.map((entry) => {
                   const own = entry.side === side
                   const client = entry.side === "client"
+                  const showStudioIdentity = side === "studio" && !client
+                  const matchedMember = entry.senderUserId
+                    ? data.teamMembers.find(
+                        (m) => m.userId === entry.senderUserId
+                      )
+                    : undefined
+                  const isSelfStudio = Boolean(
+                    showStudioIdentity &&
+                      entry.senderUserId &&
+                      authUser?.id &&
+                      entry.senderUserId === authUser.id
+                  )
+                  const studioSenderName = showStudioIdentity
+                    ? (entry.senderName ??
+                      matchedMember?.name ??
+                      (isSelfStudio ? selfTeamMember?.name : undefined) ??
+                      t("团队成员", "Team member"))
+                    : undefined
+                  const studioRoleId = showStudioIdentity
+                    ? (entry.senderRoleId ??
+                      matchedMember?.roleId ??
+                      (isSelfStudio ? selfTeamMember?.roleId : undefined))
+                    : undefined
+                  const studioRoleLabel =
+                    studioRoleId === "admin"
+                      ? t("管理员", "Admin")
+                      : studioRoleId === "lead"
+                        ? t("制作主管", "Lead")
+                        : studioRoleId === "producer"
+                          ? t("制作人员", "Producer")
+                          : t("团队", "Team")
+                  const studioAvatarClass =
+                    studioRoleId === "admin"
+                      ? "bg-brand-navy text-[#ffe8d1]"
+                      : studioRoleId === "lead"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-slate-600 text-white"
+                  const studioRoleBadgeClass =
+                    studioRoleId === "admin"
+                      ? "border-brand-gold/45 bg-brand-gold/15 text-amber-950"
+                      : studioRoleId === "lead"
+                        ? "border-primary/25 bg-primary/10 text-primary"
+                        : "border-border bg-muted text-muted-foreground"
                   const sender = client
                     ? order.client
-                    : t("制作团队", "Production team")
+                    : (studioSenderName ?? t("制作团队", "Production team"))
                   const attachments = entryAttachments(entry)
                   return (
                     <MessageScrollerItem key={entry.id} messageId={entry.id}>
@@ -693,16 +739,52 @@ function ChatPanel({
                         <Message align={own ? "end" : "start"}>
                       <MessageAvatar className="self-start">
                         <Avatar className="size-8">
-                          <AvatarImage
-                            src={client ? clientAvatar : studioImage}
-                            alt=""
-                            referrerPolicy="no-referrer"
-                          />
-                          <AvatarFallback>{sender.slice(0, 1)}</AvatarFallback>
+                          {showStudioIdentity ? (
+                            <AvatarFallback
+                              className={cn(
+                                "text-xs font-semibold",
+                                studioAvatarClass
+                              )}
+                            >
+                              {sender.slice(0, 1).toUpperCase()}
+                            </AvatarFallback>
+                          ) : (
+                            <>
+                              <AvatarImage
+                                src={client ? clientAvatar : studioImage}
+                                alt=""
+                                referrerPolicy="no-referrer"
+                              />
+                              <AvatarFallback>
+                                {sender.slice(0, 1)}
+                              </AvatarFallback>
+                            </>
+                          )}
                         </Avatar>
                       </MessageAvatar>
                       <MessageContent>
-                        <span className="sr-only">{sender}</span>
+                        {showStudioIdentity ? (
+                          <div className="mb-1 flex items-center justify-end gap-1.5 text-[11px]">
+                            <span className="font-medium text-foreground/85">
+                              {studioSenderName}
+                              {isSelfStudio && (
+                                <span className="ml-0.5 text-muted-foreground">
+                                  {t("（我）", " (You)")}
+                                </span>
+                              )}
+                            </span>
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-full border px-1.5 py-0 text-[10px] font-medium leading-4",
+                                studioRoleBadgeClass
+                              )}
+                            >
+                              {studioRoleLabel}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="sr-only">{sender}</span>
+                        )}
                         {entry.text && (
                           <Bubble
                             variant={own ? "default" : "outline"}
@@ -2211,7 +2293,7 @@ export function StudioWorkspacePage() {
   }
 
   function startProduction() {
-    if (order.status !== "waiting_assets") return
+    if (order.status !== "waiting_assets" || !order.owner) return
     void startOrderProduction(
       order.id,
       t(
@@ -2527,12 +2609,21 @@ export function StudioWorkspacePage() {
               {order.status === "waiting_assets" && (
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-accent/50 p-3">
                   <span className="text-xs font-medium text-foreground">
-                    {t(
-                      "收到完整素材后即可开始制作",
-                      "Ready to start production?"
-                    )}
+                    {order.owner
+                      ? t(
+                          "收到完整素材后即可开始制作",
+                          "Ready to start production?"
+                        )
+                      : t(
+                          "请先在订单管理中指派制作师，再开始制作",
+                          "Assign a producer in Orders before starting"
+                        )}
                   </span>
-                  <Button size="xs" onClick={startProduction}>
+                  <Button
+                    size="xs"
+                    disabled={!order.owner}
+                    onClick={startProduction}
+                  >
                     {t("开始制作", "Start production")}
                   </Button>
                 </div>

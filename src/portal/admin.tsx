@@ -497,14 +497,19 @@ function OrderDetailInspector({
           {order.status === "waiting_assets" && canWork && (
             <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
               <span className="text-xs text-foreground">
-                {t(
-                  "已确认素材齐备？可直接推进至制作中。",
-                  "Materials ready? Move directly into production."
-                )}
+                {order.owner
+                  ? t(
+                      "已确认素材齐备？可直接推进至制作中。",
+                      "Materials ready? Move directly into production."
+                    )
+                  : t(
+                      "请先在下方指派负责制作师，再开始制作。",
+                      "Assign a producer below before starting production."
+                    )}
               </span>
               <Button
                 size="xs"
-                disabled={starting}
+                disabled={starting || !order.owner}
                 onClick={() => void handleStart()}
               >
                 <Play data-icon="inline-start" aria-hidden="true" />

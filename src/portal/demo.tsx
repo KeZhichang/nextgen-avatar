@@ -206,6 +206,9 @@ export type Entry = {
   attachment?: string
   fileId?: string
   versionRef?: EntryVersionRef
+  senderUserId?: string
+  senderName?: string
+  senderRoleId?: TeamRoleId
 }
 export type Version = {
   id: string
@@ -1480,11 +1483,43 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function getCurrentStudioSender() {
+    const activeMember = dataRef.current.teamSession
+      ? dataRef.current.teamMembers.find(
+          (m) => m.id === dataRef.current.teamSession
+        )
+      : undefined
+    const name =
+      activeMember?.name ||
+      dataRef.current.account.name ||
+      authUserRef.current?.fullName ||
+      ""
+    const roleId = activeMember?.roleId
+    return {
+      userId: authUserRef.current?.id,
+      meta: name ? { name, roleId } : undefined,
+    }
+  }
+
   async function startOrderProduction(orderId: string, messageText: string) {
     const demoOnly = isDemoOrder(orderId)
     const targetOrder = dataRef.current.orders.find((o) => o.id === orderId)
+    const studioSender = getCurrentStudioSender()
     updateOrder(orderId, (value) =>
-      appendEntry({ ...value, status: "producing" }, "studio", messageText)
+      appendEntry(
+        { ...value, status: "producing" },
+        "studio",
+        messageText,
+        undefined,
+        undefined,
+        studioSender.meta
+          ? {
+              senderUserId: studioSender.userId,
+              senderName: studioSender.meta.name,
+              senderRoleId: studioSender.meta.roleId,
+            }
+          : undefined
+      )
     )
     const live = getLiveDbUser()
     if (!live || demoOnly) return true
@@ -1495,7 +1530,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         orderId,
         live.user.id,
         "studio",
-        messageText
+        messageText,
+        undefined,
+        undefined,
+        studioSender.meta
       )
       if (targetOrder?.clientId && targetOrder.clientId !== live.user.id) {
         await insertNotificationInDb(live.sb, {
@@ -1528,12 +1566,21 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       attachments?.length &&
       target?.status === "waiting_assets"
     )
+    const studioSender = side === "studio" ? getCurrentStudioSender() : null
     updateOrder(orderId, (current) =>
       appendEntry(
         shouldAdvance ? { ...current, status: "producing" } : current,
         side,
         text,
-        attachments
+        attachments,
+        undefined,
+        studioSender?.meta
+          ? {
+              senderUserId: studioSender.userId,
+              senderName: studioSender.meta.name,
+              senderRoleId: studioSender.meta.roleId,
+            }
+          : undefined
       )
     )
     const live = getLiveDbUser()
@@ -1546,7 +1593,8 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         side,
         text,
         undefined,
-        attachments
+        attachments,
+        studioSender?.meta
       )
       if (shouldAdvance) {
         await updateOrderInDb(live.sb, orderId, { status: "producing" })
@@ -1586,6 +1634,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       note: version.note || undefined,
       itemIndex,
     }
+    const studioSender = getCurrentStudioSender()
     updateOrder(orderId, (value) =>
       appendEntry(
         {
@@ -1597,7 +1646,14 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         "studio",
         messageText,
         undefined,
-        versionRef
+        versionRef,
+        studioSender.meta
+          ? {
+              senderUserId: studioSender.userId,
+              senderName: studioSender.meta.name,
+              senderRoleId: studioSender.meta.roleId,
+            }
+          : undefined
       )
     )
     setData((state) => ({ ...state, unread: true }))
@@ -1619,7 +1675,9 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         live.user.id,
         "studio",
         messageText,
-        versionRef
+        versionRef,
+        undefined,
+        studioSender.meta
       )
       if (targetOrder?.clientId && targetOrder.clientId !== live.user.id) {
         const videoPrefixZh = itemIndex > 1 ? `第 ${itemIndex} 条` : ""
@@ -1700,6 +1758,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   ) {
     const demoOnly = isDemoOrder(orderId)
     const targetOrder = dataRef.current.orders.find((o) => o.id === orderId)
+    const studioSender = side === "studio" ? getCurrentStudioSender() : null
     updateOrder(orderId, (value) =>
       appendEntry(
         {
@@ -1708,7 +1767,16 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           revision: undefined,
         },
         side,
-        messageText
+        messageText,
+        undefined,
+        undefined,
+        studioSender?.meta
+          ? {
+              senderUserId: studioSender.userId,
+              senderName: studioSender.meta.name,
+              senderRoleId: studioSender.meta.roleId,
+            }
+          : undefined
       )
     )
     const live = getLiveDbUser()
@@ -1723,7 +1791,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         orderId,
         live.user.id,
         side,
-        messageText
+        messageText,
+        undefined,
+        undefined,
+        studioSender?.meta
       )
       if (
         side === "studio" &&
@@ -1749,6 +1820,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
 
   async function reopenOrder(orderId: string, messageText: string) {
     const demoOnly = isDemoOrder(orderId)
+    const studioSender = getCurrentStudioSender()
     updateOrder(orderId, (value) =>
       appendEntry(
         {
@@ -1756,7 +1828,16 @@ export function DemoProvider({ children }: { children: ReactNode }) {
           status: "producing",
         },
         "studio",
-        messageText
+        messageText,
+        undefined,
+        undefined,
+        studioSender.meta
+          ? {
+              senderUserId: studioSender.userId,
+              senderName: studioSender.meta.name,
+              senderRoleId: studioSender.meta.roleId,
+            }
+          : undefined
       )
     )
     const live = getLiveDbUser()
@@ -1770,7 +1851,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
         orderId,
         live.user.id,
         "studio",
-        messageText
+        messageText,
+        undefined,
+        undefined,
+        studioSender.meta
       )
       return true
     } catch {
@@ -2103,13 +2187,25 @@ export function appendEntry(
   side: Entry["side"],
   text: string,
   attachments?: ChatAttachment[],
-  versionRef?: EntryVersionRef
+  versionRef?: EntryVersionRef,
+  sender?: {
+    senderUserId?: string
+    senderName?: string
+    senderRoleId?: TeamRoleId
+  }
 ) {
   return {
     ...value,
     entries: [
       ...value.entries,
-      { id: crypto.randomUUID(), side, text, attachments, versionRef },
+      {
+        id: crypto.randomUUID(),
+        side,
+        text,
+        attachments,
+        versionRef,
+        ...(sender ?? {}),
+      },
     ],
   }
 }
