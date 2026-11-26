@@ -141,7 +141,13 @@ import {
   uploadOrderFiles,
   validateOrderFile,
 } from "./files"
-import { ActionLink, FadeTransition, PageWidth, StatusBadge } from "./layout"
+import {
+  ActionLink,
+  FadeTransition,
+  OrderIdLabel,
+  PageWidth,
+  StatusBadge,
+} from "./layout"
 import { TeamConsoleLayout } from "./team-console"
 import { PortalVideo } from "./video"
 
@@ -1800,9 +1806,10 @@ function ClientOrderHubPage({
                       </motion.span>
                     )}
                     <div className="relative z-10 flex items-center justify-between gap-2">
-                      <span className="truncate font-mono text-xs text-muted-foreground">
-                        #{item.id}
-                      </span>
+                      <OrderIdLabel
+                        id={item.id}
+                        className="text-xs text-muted-foreground"
+                      />
                       <StatusBadge status={item.status} />
                     </div>
                     <div className="relative z-10 flex items-center justify-between gap-2">
@@ -1844,8 +1851,8 @@ function ClientOrderHubPage({
         <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-card px-3.5 py-3 sm:px-5">
           <div className="flex min-w-0 flex-col gap-0.5">
             <EditableOrderTitle key={order.id} order={order} />
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-mono">#{order.id}</span>
+            <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <OrderIdLabel id={order.id} />
               <span>·</span>
               <span>
                 {t(`${order.count} 条配额`, `${order.count} credit(s)`)}
@@ -2554,9 +2561,10 @@ export function StudioWorkspacePage() {
                         </motion.span>
                       )}
                       <div className="relative z-10 flex items-center justify-between gap-2">
-                        <span className="truncate font-mono text-xs text-muted-foreground">
-                          #{item.id}
-                        </span>
+                        <OrderIdLabel
+                          id={item.id}
+                          className="text-xs text-muted-foreground"
+                        />
                         <StatusBadge status={item.status} />
                       </div>
                       <div className="relative z-10 flex items-center justify-between gap-2">
@@ -2592,13 +2600,14 @@ export function StudioWorkspacePage() {
         <section className="flex h-[65dvh] min-h-[460px] min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs xl:h-auto xl:min-h-0">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-card px-3.5 py-3 sm:px-5">
             <div className="flex min-w-0 flex-col gap-0.5">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <strong className="truncate text-sm font-semibold text-foreground">
                   {order.client}
                 </strong>
-                <span className="font-mono text-xs text-muted-foreground">
-                  #{order.id}
-                </span>
+                <OrderIdLabel
+                  id={order.id}
+                  className="text-xs text-muted-foreground"
+                />
               </div>
               <EditableOrderTitle key={order.id} order={order} />
             </div>
@@ -2620,12 +2629,13 @@ export function StudioWorkspacePage() {
         {/* Column 3: Order Materials & Version Delivery Card */}
         <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs">
           <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
-            <span className="text-xs font-semibold text-foreground">
+            <span className="shrink-0 text-xs font-semibold text-foreground">
               {t("素材与交付", "Materials & delivery")}
             </span>
-            <span className="font-mono text-xs text-muted-foreground">
-              #{order.id}
-            </span>
+            <OrderIdLabel
+              id={order.id}
+              className="text-xs text-muted-foreground"
+            />
           </div>
           <ScrollArea className="min-h-0 flex-1">
             <FadeTransition

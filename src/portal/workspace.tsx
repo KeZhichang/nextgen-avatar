@@ -85,7 +85,13 @@ import {
   type Order,
 } from "./demo"
 import { downloadFile, downloadOrderFile } from "./files"
-import { ActionLink, LanguageSwitch, SmoothHeight, StatusBadge } from "./layout"
+import {
+  ActionLink,
+  LanguageSwitch,
+  OrderIdLabel,
+  SmoothHeight,
+  StatusBadge,
+} from "./layout"
 import {
   AppMorphIcon,
   clientNavMorphIcons,
@@ -862,9 +868,9 @@ export function WorkspacePage() {
                       </span>
                       <Badge
                         variant="outline"
-                        className="font-mono text-[11px] font-normal text-muted-foreground"
+                        className="max-w-full font-mono text-[11px] font-normal text-muted-foreground"
                       >
-                        #{focusOrder.id}
+                        <OrderIdLabel id={focusOrder.id} />
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -967,14 +973,14 @@ export function WorkspacePage() {
                                 }}
                                 className="border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted"
                               >
-                                <TableCell className="px-6 py-3.5">
+                                <TableCell className="overflow-hidden px-6 py-3.5">
                                   <div className="flex min-w-0 flex-col gap-0.5">
                                     <EditableOrderTitle
                                       key={value.id}
                                       order={value}
                                     />
-                                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                                      <span className="font-mono">#{value.id}</span>
+                                    <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                                      <OrderIdLabel id={value.id} />
                                       <span>·</span>
                                       <span className="truncate">{planLabel}</span>
                                       {value.owner && (
@@ -1143,9 +1149,10 @@ export function WorkspacePage() {
                           <span className="truncate text-sm font-medium text-foreground">
                             {zh ? value.zh : value.en}
                           </span>
-                          <span className="font-mono text-xs text-muted-foreground">
-                            #{value.id}
-                          </span>
+                          <OrderIdLabel
+                            id={value.id}
+                            className="text-xs text-muted-foreground"
+                          />
                         </div>
                         <Button
                           variant="outline"
@@ -1224,8 +1231,8 @@ export function WorkspacePage() {
                                 <span className="truncate text-sm font-medium text-foreground">
                                   {zh ? value.zh : value.en}
                                 </span>
-                                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                  <span className="font-mono">#{value.id}</span>
+                                <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                                  <OrderIdLabel id={value.id} />
                                   <span>·</span>
                                   <span className="truncate">{planLabel}</span>
                                 </span>

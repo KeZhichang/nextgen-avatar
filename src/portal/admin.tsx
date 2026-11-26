@@ -95,6 +95,7 @@ import {
   ActionLink,
   DataPagination,
   FadeTransition,
+  OrderIdLabel,
   SmoothHeight,
   StatusBadge,
 } from "./layout"
@@ -1254,14 +1255,14 @@ export function AdminOrdersPage() {
                               value.id === contextOrder && "bg-accent/50"
                             )}
                           >
-                            <TableCell className="px-5 py-3.5">
-                              <div className="font-mono text-xs font-semibold text-foreground">
-                                #{value.id}
+                            <TableCell className="overflow-hidden px-5 py-3.5">
+                              <div className="min-w-0 text-xs font-semibold text-foreground">
+                                <OrderIdLabel id={value.id} />
                               </div>
                               {canViewAll && (
                                 <div
                                   className={cn(
-                                    "mt-1 text-xs font-medium tabular-nums",
+                                    "mt-1 truncate text-xs font-medium tabular-nums",
                                     isCompleted
                                       ? "text-muted-foreground"
                                       : "text-emerald-700"
@@ -1275,9 +1276,9 @@ export function AdminOrdersPage() {
                                 </div>
                               )}
                             </TableCell>
-                            <TableCell className="py-3.5">
-                              <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                                <span>
+                            <TableCell className="overflow-hidden py-3.5">
+                              <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-foreground">
+                                <span className="truncate">
                                   {canViewAll
                                     ? value.client
                                     : zh
@@ -1285,13 +1286,13 @@ export function AdminOrdersPage() {
                                       : value.en}
                                 </span>
                                 {canViewAll && clientCompany && (
-                                  <span className="text-xs font-normal text-muted-foreground">
+                                  <span className="truncate text-xs font-normal text-muted-foreground">
                                     · {clientCompany}
                                   </span>
                                 )}
                               </div>
                               {canViewAll && (
-                                <div className="mt-1 text-xs text-muted-foreground tabular-nums">
+                                <div className="mt-1 truncate text-xs text-muted-foreground tabular-nums">
                                   {plan
                                     ? zh
                                       ? plan.zh
@@ -1839,9 +1840,10 @@ export function AdminSettingsPage() {
                               className="flex flex-wrap items-center justify-between gap-3 bg-card px-4 py-3 text-sm transition-colors hover:bg-muted/35"
                             >
                               <div className="flex min-w-0 items-center gap-3">
-                                <span className="font-mono text-xs font-semibold text-foreground">
-                                  #{order.id}
-                                </span>
+                                <OrderIdLabel
+                                  id={order.id}
+                                  className="shrink-0 text-xs font-semibold text-foreground"
+                                />
                                 <span className="truncate text-muted-foreground">
                                   {zh ? order.zh : order.en}
                                 </span>

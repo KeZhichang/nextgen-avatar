@@ -1,7 +1,17 @@
-import { type ReactNode, useId, useLayoutEffect, useRef, useState } from "react"
+import {
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react"
 import { Link, useLocation, useNavigate } from "react-router"
-import { ChevronLeft } from "lucide-react"
+import { Check, ChevronLeft, Copy } from "lucide-react"
 import { LayoutGroup, motion, useReducedMotion } from "motion/react"
+import { toast } from "sonner"
 import { cn } from "cn"
 
 import { Badge } from "@/components/ui/badge"
@@ -24,6 +34,11 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -370,6 +385,150 @@ export function SmoothHeight({
     >
       <div ref={innerRef}>{children}</div>
     </motion.div>
+  )
+}
+
+function formatCompactOrderId(id: string) {
+  if (id.length <= 18) return id
+  return `${id.slice(0, 8)}…${id.slice(-4)}`
+}
+
+export function OrderIdLabel({
+  id,
+  className,
+}: {
+  id: string
+  className?: string
+}) {
+  const { t } = usePortal()
+  const [open, setOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const timerRef = useRef<number | undefined>(undefined)
+  const startPosRef = useRef<{ x: number; y: number } | null>(null)
+  const suppressClickRef = useRef(false)
+
+  const fullText = `#${id}`
+  const compactText = `#${formatCompactOrderId(id)}`
+  const isTruncatedOnMobile = id.length > 18
+
+  useEffect(() => {
+    return () => {
+      window.clearTimeout(timerRef.current)
+    }
+  }, [])
+
+  function clearPressTimer() {
+    window.clearTimeout(timerRef.current)
+    timerRef.current = undefined
+    startPosRef.current = null
+  }
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLSpanElement>) {
+    if (event.button !== 0 && event.pointerType === "mouse") return
+    startPosRef.current = { x: event.clientX, y: event.clientY }
+    suppressClickRef.current = false
+    window.clearTimeout(timerRef.current)
+    timerRef.current = window.setTimeout(() => {
+      suppressClickRef.current = true
+      setOpen(true)
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        try {
+          navigator.vibrate(10)
+        } catch {
+          // Ignore unsupported haptics
+        }
+      }
+    }, 420)
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLSpanElement>) {
+    if (!startPosRef.current) return
+    const dx = Math.abs(event.clientX - startPosRef.current.x)
+    const dy = Math.abs(event.clientY - startPosRef.current.y)
+    if (dx > 8 || dy > 8) {
+      clearPressTimer()
+    }
+  }
+
+  function handleCopy(event: ReactMouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    void navigator.clipboard?.writeText(id).then(
+      () => {
+        setCopied(true)
+        toast.success(t(`已复制订单号 ${fullText}`, `Copied ${fullText}`))
+        window.setTimeout(() => setCopied(false), 1500)
+      },
+      () => {
+        toast.info(fullText)
+      }
+    )
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <span
+          title={fullText}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={clearPressTimer}
+          onPointerCancel={clearPressTimer}
+          onPointerLeave={clearPressTimer}
+          onContextMenu={(event) => {
+            if (isTruncatedOnMobile) {
+              event.preventDefault()
+              setOpen(true)
+            }
+          }}
+          onClick={(event) => {
+            if (suppressClickRef.current) {
+              suppressClickRef.current = false
+              event.preventDefault()
+              event.stopPropagation()
+            }
+          }}
+          className={cn(
+            "inline-block max-w-full truncate align-bottom font-mono select-none sm:select-text",
+            className
+          )}
+        >
+          {isTruncatedOnMobile ? (
+            <>
+              <span className="sm:hidden">{compactText}</span>
+              <span className="hidden sm:inline">{fullText}</span>
+            </>
+          ) : (
+            fullText
+          )}
+        </span>
+      </PopoverAnchor>
+      <PopoverContent
+        align="start"
+        side="top"
+        sideOffset={6}
+        onClick={(event) => event.stopPropagation()}
+        className="w-auto max-w-[calc(100vw-2rem)] p-2.5"
+      >
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-xs font-semibold break-all text-foreground select-all">
+            {fullText}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-xs"
+            aria-label={t("复制订单号", "Copy order ID")}
+            onClick={handleCopy}
+          >
+            {copied ? (
+              <Check className="size-3 text-emerald-600" aria-hidden="true" />
+            ) : (
+              <Copy className="size-3" aria-hidden="true" />
+            )}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
