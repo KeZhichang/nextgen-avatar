@@ -981,11 +981,7 @@ export function CheckoutPage() {
                       </div>
                     </div>
 
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/18 bg-[#0b1525]/65 px-2.5 py-1 font-mono text-[11px] font-medium text-white/90 backdrop-blur-md">
-                      <span
-                        className="size-1.5 rounded-full bg-emerald-400"
-                        aria-hidden="true"
-                      />
+                    <span className="inline-flex items-center rounded-md border border-[#f8cfaa]/25 bg-[#0a1322]/70 px-2.5 py-1 font-mono text-[11px] font-medium tracking-[0.08em] text-[#ffe8d1]/95 backdrop-blur-md">
                       #{quote}
                     </span>
                   </div>
