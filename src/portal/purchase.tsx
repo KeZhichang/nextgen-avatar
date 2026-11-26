@@ -941,200 +941,257 @@ export function CheckoutPage() {
           )}
 
           {isQuoteSelected && quotedPlan ? (
-            <Card className="gap-0 overflow-hidden py-0 shadow-xs">
-              <div className="relative overflow-hidden px-5 py-5 text-white sm:px-6 sm:py-6">
+            <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+              {/* 1. Editorial Cinema Hero Header */}
+              <div className="relative overflow-hidden bg-[#0c1626] px-6 pt-5 pb-7 text-white sm:px-7 sm:pt-6 sm:pb-8">
                 <img
-                  src="/portal-media/quote-header-bg.svg"
+                  src="/portal-media/quote-hero-editorial.jpg"
                   alt=""
                   aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 size-full object-cover"
+                  className="pointer-events-none absolute inset-0 size-full object-cover object-right select-none"
                 />
-                <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
-                  <div className="flex min-w-0 flex-col gap-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[11px] font-medium tracking-wider text-white/75 uppercase">
-                        {t("专属定制报价单", "Cinematic Custom Quote")} · #{quote}
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[10px] font-medium text-white/95 backdrop-blur-xs">
-                        <span
-                          className="size-1.5 rounded-full bg-emerald-400"
-                          aria-hidden="true"
-                        />
-                        {t("已锁定报价", "Locked quote")}
-                      </span>
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#0b1525]/92 via-[#0b1525]/72 to-[#0b1525]/15"
+                />
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#0b1525]/70 to-transparent"
+                />
+
+                <div className="relative z-10 flex flex-col gap-6">
+                  {/* Top Brand Masthead */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="inline-flex items-center gap-2.5">
+                      <img
+                        src="/portal-media/nextgen-avatar-mark-small.png"
+                        alt="NextGen Avatar"
+                        width={28}
+                        height={25}
+                        decoding="async"
+                        className="h-6 w-auto shrink-0 object-contain"
+                      />
+                      <div className="flex flex-col leading-none">
+                        <span className="font-serif text-[14px] font-bold tracking-tight text-[#ffe8d1]">
+                          NextGen Avatar
+                        </span>
+                        <span className="mt-0.5 text-[10px] font-medium tracking-wide text-white/65">
+                          by 2301 Pictures
+                        </span>
+                      </div>
                     </div>
-                    <h1 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/18 bg-[#0b1525]/65 px-2.5 py-1 font-mono text-[11px] font-medium text-white/90 backdrop-blur-md">
+                      <span
+                        className="size-1.5 rounded-full bg-emerald-400"
+                        aria-hidden="true"
+                      />
+                      #{quote}
+                    </span>
+                  </div>
+
+                  {/* Proposal Title & Amount (anchored on left clean space, never collides with lens) */}
+                  <div className="flex max-w-md flex-col gap-2">
+                    <span className="text-[10px] font-semibold tracking-[0.18em] text-[#f8cfaa]/85 uppercase">
+                      {t("专属定制报价单 · PRODUCTION PROPOSAL", "PRODUCTION PROPOSAL · CUSTOM QUOTE")}
+                    </span>
+                    <h1 className="font-serif text-2xl leading-[1.2] font-bold tracking-tight text-white sm:text-[28px]">
                       {resolvedQuoteName}
                     </h1>
-                  </div>
-                  <div className="text-left tabular-nums sm:text-right">
-                    <div className="text-2xl font-bold tracking-tight text-[#ffe8d1] tabular-nums sm:text-3xl">
-                      {formatDollars(quotedPlan.price)}
-                    </div>
-                    <div className="mt-0.5 text-xs text-white/80">
-                      {t(
-                        `${quotedPlan.count} 条 1080P 成片 · 约 ${formatDollars(Math.round((quotedPlan.price / quotedPlan.count) * 100) / 100)}/条`,
-                        `${quotedPlan.count} × 1080P videos · ~${formatDollars(Math.round((quotedPlan.price / quotedPlan.count) * 100) / 100)}/vid`
-                      )}
+                    <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                      <span className="text-3xl font-bold tracking-tight text-[#ffe8d1] tabular-nums">
+                        {formatDollars(quotedPlan.price)}
+                      </span>
+                      <span className="text-xs font-medium text-white/75 tabular-nums">
+                        USD ·{" "}
+                        {t(
+                          `${quotedPlan.count} 条 1080P 成片（约 ${formatDollars(Math.round((quotedPlan.price / quotedPlan.count) * 100) / 100)}/条）`,
+                          `${quotedPlan.count} × 1080P videos (~${formatDollars(Math.round((quotedPlan.price / quotedPlan.count) * 100) / 100)}/vid)`
+                        )}
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <CardContent className="flex flex-col gap-6 p-5 sm:p-6">
-                {/* Structured quote summary grid */}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1 rounded-xl border border-border/80 bg-muted/25 px-4 py-3">
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                      {t("交付配额与均价", "Deliverables & unit rate")}
+              {/* 2. Clean Paper-Style Proposal Body (hairlines & whitespace, zero nested box clutter) */}
+              <CardContent className="flex flex-col gap-6 p-6 sm:p-7">
+                {/* Issued-to / Issued-by Ledger Meta */}
+                <div className="grid grid-cols-1 gap-4 border-b border-border/80 pb-5 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+                      {t("致客户 · PREPARED FOR", "PREPARED FOR")}
                     </span>
-                    <span className="text-sm font-semibold text-foreground tabular-nums">
-                      {t(
-                        `${quotedPlan.count} 条 1080P 正式成片`,
-                        `${quotedPlan.count} × 1080P final videos`
-                      )}
-                    </span>
-                    <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                      {t(
-                        `折合 ${formatDollars(Math.round((quotedPlan.price / quotedPlan.count) * 100) / 100)} / 条`,
-                        `~${formatDollars(Math.round((quotedPlan.price / quotedPlan.count) * 100) / 100)} per video`
-                      )}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col gap-1 rounded-xl border border-border/80 bg-muted/25 px-4 py-3">
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                      {t("专属受邀客户", "Prepared for")}
-                    </span>
-                    <span className="truncate font-mono text-sm font-semibold text-foreground">
+                    <span className="truncate font-mono text-sm font-medium text-foreground">
                       {activeDbQuote?.clientEmail ||
                         data.account.email ||
-                        t("已登录客户账号", "Signed-in account")}
+                        t("当前登录客户", "Signed-in client")}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {t(
-                        "单次美元结算 · 无强制自动续费",
-                        "One-time USD payment · No auto-renewal"
+                        "单次美元结算 · 无自动续费扣款",
+                        "One-time USD charge · No recurring billing"
                       )}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1 sm:items-end sm:text-right">
+                    <span className="text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+                      {t("签发出品 · ISSUED BY", "ISSUED BY")}
+                    </span>
+                    <span className="text-sm font-semibold text-foreground">
+                      2301 Pictures Studio
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      support@nextgenavatar.com
                     </span>
                   </div>
                 </div>
 
-                {/* Included deliverables & guarantees */}
-                <div className="flex flex-col gap-3">
-                  <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                    {t("本报价单包含服务与保障", "What's included in this quote")}
-                  </span>
-                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                    {[
-                      {
-                        title: t("1080P 无水印正式成片", "1080P watermark-free finals"),
-                        desc: t(
-                          "每条视频先交付预览版在线审片，确认满意后再导出正式母版。",
-                          "Preview drafts first for online review, then clean 1080P master delivery."
-                        ),
-                      },
-                      {
-                        title: t("专属团队一对一精制", "Dedicated studio production"),
-                        desc: t(
-                          "分配专属制作师全程沟通，支持按时间点提交多轮修改反馈。",
-                          "Direct chat with your producer and multi-round timecoded revisions."
-                        ),
-                      },
-                      {
-                        title: t("人物与声音档案可复用", "Reusable presenter assets"),
-                        desc: t(
-                          "上传的素材自动归档至工作台，后续加单无需重复拍摄录制。",
-                          "Your visual & voice materials stay ready in your workspace for future packs."
-                        ),
-                      },
-                      {
-                        title: t("Stripe 加密支付与收据", "Stripe checkout & receipt"),
-                        desc: t(
-                          "支持主流信用卡与银行转账，付款完成后自动建单并开具官方收据。",
-                          "Encrypted USD checkout with automatic order creation and official receipt."
-                        ),
-                      },
-                    ].map((feature) => (
-                      <div
-                        key={feature.title}
-                        className="flex items-start gap-2.5 rounded-xl border border-border/70 bg-card p-3.5"
-                      >
-                        <CheckCircle2
-                          aria-hidden="true"
-                          className="mt-0.5 size-4 shrink-0 text-primary"
-                        />
-                        <div className="flex min-w-0 flex-col gap-0.5">
-                          <span className="text-xs font-semibold text-foreground">
-                            {feature.title}
-                          </span>
-                          <span className="text-xs leading-relaxed text-muted-foreground">
-                            {feature.desc}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                {/* Formal Line-Item Schedule */}
+                <div className="flex flex-col">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-4 border-b border-border/80 pb-2 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+                    <span>{t("交付项目明细", "Deliverable")}</span>
+                    <span className="text-right">{t("数量", "Qty")}</span>
+                    <span className="w-20 text-right">{t("小计", "Amount")}</span>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-4 border-b border-border/60 py-4">
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <span className="text-sm font-semibold text-foreground">
+                        {resolvedQuoteName}
+                      </span>
+                      <span className="text-xs leading-relaxed text-muted-foreground">
+                        {t(
+                          "1080P 无水印正式成片 · 含专属制作师精制、在线审片修订及人物档案留存",
+                          "1080P watermark-free masters · Dedicated producer, online review & reusable presenter profile"
+                        )}
+                      </span>
+                    </div>
+                    <span className="pt-0.5 font-mono text-xs font-medium text-muted-foreground tabular-nums">
+                      {t(`${quotedPlan.count} 条`, `${quotedPlan.count} vid`)}
+                    </span>
+                    <span className="w-20 pt-0.5 text-right font-mono text-sm font-semibold text-foreground tabular-nums">
+                      {formatDollars(quotedPlan.price)}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-4 pt-3.5">
+                    <span className="text-xs text-muted-foreground">
+                      {t(
+                        `锁定报价总额 · 折合单条 ${formatDollars(Math.round((quotedPlan.price / quotedPlan.count) * 100) / 100)}`,
+                        `Locked quote total · ~${formatDollars(Math.round((quotedPlan.price / quotedPlan.count) * 100) / 100)} per video`
+                      )}
+                    </span>
+                    <div className="flex items-baseline gap-1.5 tabular-nums">
+                      <span className="text-lg font-bold tracking-tight text-foreground">
+                        {formatDollars(quotedPlan.price)}
+                      </span>
+                      <span className="font-mono text-[11px] font-medium text-muted-foreground">
+                        USD
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <Separator />
-
-                {/* Post-payment workflow timeline */}
-                <div className="flex flex-col gap-3">
-                  <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                    {t("付款后的制作交付流程", "How delivery works after checkout")}
-                  </span>
-                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                {/* Production Terms + Subtle 2301 Pictures Studio Seal */}
+                <div className="flex items-center justify-between gap-6 border-t border-dashed border-border pt-5">
+                  <ol className="flex min-w-0 flex-1 flex-col gap-2.5 text-xs">
                     {[
                       {
-                        step: "01",
-                        title: t("自动建单入账", "Instant order setup"),
-                        desc: t(
-                          "付款成功后自动生成专属订单并进入工作台。",
-                          "Your order & video credits unlock immediately."
+                        num: "01",
+                        label: t("自动建单", "Instant activation"),
+                        text: t(
+                          "付款成功后自动生成专属项目订单，并立即开具 Stripe 官方收据。",
+                          "Order & credits unlock immediately upon payment with an official Stripe receipt."
                         ),
                       },
                       {
-                        step: "02",
-                        title: t("上传参考素材", "Share materials"),
-                        desc: t(
-                          "在订单会话中提交人物、声音与口播脚本。",
-                          "Send photos, voice sample, and script in chat."
+                        num: "02",
+                        label: t("先审片后交付", "Approve before final"),
+                        text: t(
+                          "每条成片先提供预览版在线审片，按时间点确认满意后再交付无水印母版。",
+                          "Every video goes through timecoded online review before watermark-free delivery."
                         ),
                       },
                       {
-                        step: "03",
-                        title: t("在线审片交付", "Review & download"),
-                        desc: t(
-                          "在线审片确认后下载 1080P 无水印成片。",
-                          "Approve drafts online and download clean finals."
+                        num: "03",
+                        label: t("档案永久复用", "Reusable studio assets"),
+                        text: t(
+                          "人物与声音素材留存于工作台，后续加单可直接复用无需重拍。",
+                          "Presenter & voice assets remain archived in your workspace for future batches."
                         ),
                       },
-                    ].map((item) => (
-                      <div
-                        key={item.step}
-                        className="flex flex-col gap-1 rounded-xl border border-border/70 bg-muted/20 p-3"
-                      >
-                        <span className="font-mono text-[11px] font-semibold text-primary">
-                          STEP {item.step}
+                    ].map((term) => (
+                      <li key={term.num} className="flex items-baseline gap-2.5">
+                        <span className="shrink-0 font-mono text-[11px] font-semibold text-primary/85">
+                          {term.num}
                         </span>
-                        <span className="text-xs font-semibold text-foreground">
-                          {item.title}
+                        <span className="leading-relaxed text-muted-foreground">
+                          <strong className="font-semibold text-foreground">
+                            {term.label}
+                          </strong>
+                          {" — "}
+                          {term.text}
                         </span>
-                        <span className="text-[11px] leading-relaxed text-muted-foreground">
-                          {item.desc}
-                        </span>
-                      </div>
+                      </li>
                     ))}
+                  </ol>
+
+                  {/* Minimalist Circular Studio Seal */}
+                  <div
+                    aria-hidden="true"
+                    className="relative hidden size-22 shrink-0 items-center justify-center select-none sm:flex"
+                  >
+                    <svg
+                      viewBox="0 0 100 100"
+                      className="size-full text-brand-navy/35"
+                    >
+                      <defs>
+                        <path
+                          id="quote-studio-seal-circle"
+                          d="M 50, 50 m -36, 0 a 36,36 0 1,1 72,0 a 36,36 0 1,1 -72,0"
+                        />
+                      </defs>
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="46"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="0.9"
+                        strokeDasharray="2 2.5"
+                      />
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="26"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="0.7"
+                      />
+                      <text
+                        fill="currentColor"
+                        fontSize="7.4"
+                        fontWeight="600"
+                        letterSpacing="2.1"
+                      >
+                        <textPath href="#quote-studio-seal-circle" startOffset="0%">
+                          2301 PICTURES · VERIFIED QUOTE ·
+                        </textPath>
+                      </text>
+                    </svg>
+                    <img
+                      src="/portal-media/nextgen-avatar-mark-small.png"
+                      alt=""
+                      className="absolute size-7 object-contain opacity-85"
+                    />
                   </div>
                 </div>
               </CardContent>
 
-              <CardFooter className="flex-wrap justify-between gap-2 border-t bg-muted/20 px-5 py-3 text-xs text-muted-foreground sm:px-6">
+              <CardFooter className="flex-wrap justify-between gap-2 border-t bg-muted/20 px-6 py-3 text-xs text-muted-foreground sm:px-7">
                 <span>
                   {t(
-                    "专属定制报价已锁定金额与交付配额 · 出品方 2301 Pictures",
-                    "Custom quote pricing and video credits are locked · Issued by 2301 Pictures"
+                    "专属定制报价已锁定金额与交付配额",
+                    "Custom quote pricing and video credits are locked"
                   )}
                 </span>
                 {families.length > 0 && !locked && (
