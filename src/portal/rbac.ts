@@ -42,10 +42,10 @@ export const allPermissions: PermissionMeta[] = [
   {
     key: "orders:view_all",
     group: "orders",
-    zh: "查看全部订单与金额",
-    en: "View all orders & payments",
-    descZh: "关闭后仅查看本人负责订单，并隐藏付款金额",
-    descEn: "When off, users only see assigned orders without payment totals",
+    zh: "查看订单",
+    en: "View orders",
+    descZh: "查看全部订单及详情；关闭后仅查看本人负责的订单",
+    descEn: "View all orders and details; when off, users only see assigned orders",
   },
   {
     key: "orders:assign",
