@@ -182,13 +182,13 @@ export function TopBar({
   return (
     <header
       className={cn(
-        "sticky top-0 z-30 flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-4 py-2 backdrop-blur-md sm:px-6",
+        "sticky top-0 z-30 flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b px-3.5 py-2 backdrop-blur-md sm:gap-x-4 sm:px-6",
         dark
           ? "border-white/10 bg-brand-navy/95 text-brand-navy-foreground"
           : "border-border bg-card/95 text-foreground"
       )}
     >
-      <Breadcrumb>
+      <Breadcrumb className="min-w-0">
         <BreadcrumbList className={dark ? "text-white/65" : undefined}>
           <BreadcrumbItem>
             <BreadcrumbLink
@@ -207,9 +207,9 @@ export function TopBar({
           {title && (
             <>
               <BreadcrumbSeparator
-                className={dark ? "text-white/40" : undefined}
+                className={cn("hidden sm:block", dark && "text-white/40")}
               />
-              <BreadcrumbItem>
+              <BreadcrumbItem className="hidden sm:inline-flex">
                 <BreadcrumbPage
                   className={cn(
                     "font-medium",
@@ -223,7 +223,7 @@ export function TopBar({
           )}
         </BreadcrumbList>
       </Breadcrumb>
-      <div className="ms-auto flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
+      <div className="ms-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 sm:gap-3">
         {children}
         <LanguageSwitch dark={dark} />
       </div>
@@ -430,7 +430,7 @@ export function DataPagination({
               )}
         </span>
         {!compact && onPageSizeChange && (
-          <div className="flex items-center gap-1.5">
+          <div className="hidden items-center gap-1.5 sm:flex">
             <span>{t("每页", "Rows")}</span>
             <Select
               value={String(pageSize)}

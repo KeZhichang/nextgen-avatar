@@ -334,7 +334,7 @@ export function WorkbenchLayout({
     >
       <WorkbenchSidebar {...sidebar} />
       <SidebarInset className="min-w-0 bg-background">
-        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-x-4 border-b bg-card/95 px-4 backdrop-blur-md sm:px-6">
+        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-x-2 border-b bg-card/95 px-3 backdrop-blur-md sm:gap-x-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-2">
             <SidebarTrigger
               aria-label={t("切换导航菜单", "Toggle navigation menu")}
@@ -348,7 +348,7 @@ export function WorkbenchLayout({
               {heading}
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
             {actions}
             <LanguageSwitch />
           </div>

@@ -210,10 +210,15 @@ function TeamConsoleShell() {
         return studioTarget ? (
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate">
-              {t("制作协同", "Studio inbox")} ·{" "}
-              <span className="font-mono text-xs">#{studioTarget.id}</span>
+              {t("制作协同", "Studio inbox")}
+              <span className="hidden sm:inline">
+                {" "}
+                · <span className="font-mono text-xs">#{studioTarget.id}</span>
+              </span>
             </span>
-            <StatusBadge status={studioTarget.status} />
+            <span className="hidden shrink-0 sm:inline-flex">
+              <StatusBadge status={studioTarget.status} />
+            </span>
           </div>
         ) : (
           <h1>{t("制作协同", "Studio inbox")}</h1>
@@ -1001,7 +1006,7 @@ export function AdminPermissionsPage() {
       activeNav="permissions"
       heading={<h1>{t("权限与成员", "Roles & access")}</h1>}
     >
-      <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-5 py-6 sm:px-8">
+      <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-3.5 py-4 sm:px-8 sm:py-6">
         <Tabs value={tab} onValueChange={setTab} className="gap-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <TabsList>
@@ -1143,7 +1148,7 @@ export function AdminPermissionsPage() {
             <FadeTransition key="roles">
               <Card className="gap-0 overflow-hidden py-0 shadow-xs">
                 <CardContent className="p-0">
-                  <Table>
+                  <Table className="min-w-[660px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="px-5">
@@ -1285,6 +1290,7 @@ export function AdminPermissionsPage() {
                     type="single"
                     size="sm"
                     variant="outline"
+                    className="max-w-full flex-wrap"
                     value={memberRoleFilter}
                     onValueChange={(value) => {
                       if (value) {
@@ -1329,7 +1335,7 @@ export function AdminPermissionsPage() {
                 <Card className="gap-0 overflow-hidden py-0 shadow-xs">
                   <CardContent className="p-0">
                     {pagedMembers.length > 0 ? (
-                      <Table>
+                      <Table className="min-w-[600px]">
                         <TableHeader>
                           <TableRow>
                             <TableHead className="px-5">

@@ -599,8 +599,8 @@ export function PricingCatalogView() {
             </TabsTrigger>
           </TabsList>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <InputGroup className="h-9 w-52 bg-card">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <InputGroup className="h-9 w-full bg-card sm:w-52">
               <InputGroupAddon>
                 <Search aria-hidden="true" />
               </InputGroupAddon>
@@ -647,7 +647,7 @@ export function PricingCatalogView() {
           <Card className="gap-0 overflow-hidden py-0 shadow-xs">
             <CardContent className="p-0">
               {visiblePlans.length > 0 ? (
-                <Table>
+                <Table className="min-w-[700px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="px-5">
@@ -863,7 +863,7 @@ export function PricingCatalogView() {
           <Card className="gap-0 overflow-hidden py-0 shadow-xs">
             <CardContent className="p-0">
               {visibleAddons.length > 0 ? (
-                <Table>
+                <Table className="min-w-[540px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="px-5">
@@ -1760,7 +1760,7 @@ export function CustomQuotesView() {
                       ))}
                     </ToggleGroup>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                     <Input
                       id="quote-count"
                       type="number"
@@ -1869,8 +1869,8 @@ export function CustomQuotesView() {
             </div>
           </div>
 
-          <CardContent className="flex flex-1 flex-col justify-between gap-4 p-5">
-            <div className="flex items-start justify-between gap-4">
+          <CardContent className="flex flex-1 flex-col justify-between gap-4 p-4 sm:p-5">
+            <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex min-w-0 flex-1 flex-col gap-2.5">
                 <Item variant="muted" size="xs" className="px-3 py-2.5">
                   <ItemContent>
@@ -1994,14 +1994,14 @@ export function CustomQuotesView() {
 
       {/* Quote Ledger Table */}
       <Card className="gap-0 overflow-hidden py-0 shadow-xs">
-        <CardHeader className="border-b px-5 py-3.5">
+        <CardHeader className="border-b px-4 py-3.5 sm:px-5">
           <CardTitle className="text-sm font-semibold">
             {t(
               `近期定制报价记录 (${data.customQuotes.length})`,
               `Recent custom quotes (${data.customQuotes.length})`
             )}
           </CardTitle>
-          <CardAction>
+          <CardAction className="hidden sm:block">
             <span className="text-xs text-muted-foreground">
               {t("客户付款后自动核销", "Automatically marked paid after checkout")}
             </span>
@@ -2009,7 +2009,7 @@ export function CustomQuotesView() {
         </CardHeader>
         <CardContent className="p-0">
           {data.customQuotes.length > 0 ? (
-            <Table>
+            <Table className="min-w-[720px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="px-5">

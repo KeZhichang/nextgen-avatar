@@ -351,7 +351,7 @@ function VersionRefCard({
 
   return (
     <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-      <div className="mt-1.5 flex w-80 max-w-full items-center gap-3 rounded-xl border border-border bg-card p-2.5 shadow-2xs">
+      <div className="mt-1.5 flex w-full max-w-80 items-center gap-3 rounded-xl border border-border bg-card p-2.5 shadow-2xs">
         <DialogTrigger asChild>
           <button
             type="button"
@@ -831,8 +831,8 @@ function ChatPanel({
                             className={cn(
                               "grid max-w-full gap-2",
                               attachments.length > 1
-                                ? "w-100 grid-cols-[repeat(auto-fit,minmax(min(9rem,100%),1fr))]"
-                                : "w-48"
+                                ? "w-full max-w-100 grid-cols-[repeat(auto-fit,minmax(min(9rem,100%),1fr))]"
+                                : "w-48 max-w-full"
                             )}
                           >
                             {attachments.map((attachment) => (
@@ -1112,7 +1112,7 @@ function ReviewPanel({
 
   return (
     <ScrollArea className="min-h-0 flex-1">
-      <div className="flex flex-col gap-5 p-5 sm:p-6">
+      <div className="flex flex-col gap-5 p-3.5 sm:p-6">
         {isMultiVideo && (
           <LayoutGroup id={`review-video-slots-${order.id}`}>
             <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-border/80 bg-card px-4 py-2.5 shadow-2xs">
@@ -1183,7 +1183,10 @@ function ReviewPanel({
               className="min-w-0 gap-4 lg:col-span-8"
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <TabsList aria-label={t("视频版本", "Video versions")}>
+                <TabsList
+                  aria-label={t("视频版本", "Video versions")}
+                  className="max-w-full overflow-x-auto"
+                >
                   {itemVersions.map((item) => (
                     <TabsTrigger key={item.id} value={item.id}>
                       {formatVersionLabel(item.id, item.type, t)}
@@ -1706,7 +1709,7 @@ function ClientOrderHubPage({
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-[1440px] min-h-0 flex-1 gap-4 px-5 py-5 sm:px-8 xl:h-[calc(100dvh-3.5rem)] xl:max-h-[calc(100dvh-3.5rem)] xl:flex-none xl:grid-cols-[288px_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)] xl:overflow-hidden">
+    <div className="mx-auto grid w-full max-w-[1440px] min-h-0 flex-1 gap-4 px-3 py-3.5 sm:px-6 sm:py-5 xl:h-[calc(100dvh-3.5rem)] xl:max-h-[calc(100dvh-3.5rem)] xl:flex-none xl:grid-cols-[288px_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)] xl:overflow-hidden xl:px-8">
       {/* Left: Persistent Client Order Queue Card */}
       <aside className="flex max-h-56 min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs xl:max-h-full">
         <div className="flex flex-col gap-2.5 border-b p-3.5">
@@ -1831,8 +1834,14 @@ function ClientOrderHubPage({
       </aside>
 
       {/* Right: Unified Order Context Header + Switchable Chat / Review Panel Card */}
-      <main className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-card px-5 py-3">
+      <main
+        className={cn(
+          "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs",
+          initialView === "chat" &&
+            "h-[calc(100dvh-10rem)] min-h-[460px] xl:h-auto xl:min-h-0"
+        )}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-card px-3.5 py-3 sm:px-5">
           <div className="flex min-w-0 flex-col gap-0.5">
             <EditableOrderTitle key={order.id} order={order} />
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -2462,7 +2471,7 @@ export function StudioWorkspacePage() {
       activeNav="production"
       heading={<h1>{t("制作协同", "Production")}</h1>}
     >
-      <main className="mx-auto grid w-full max-w-[1440px] min-h-0 flex-1 gap-4 px-5 py-5 sm:px-8 xl:h-[calc(100dvh-3.5rem)] xl:max-h-[calc(100dvh-3.5rem)] xl:flex-none xl:grid-cols-[276px_minmax(0,1fr)_348px] xl:grid-rows-[minmax(0,1fr)] xl:overflow-hidden">
+      <main className="mx-auto grid w-full max-w-[1440px] min-h-0 flex-1 gap-4 px-3 py-3.5 sm:px-6 sm:py-5 xl:h-[calc(100dvh-3.5rem)] xl:max-h-[calc(100dvh-3.5rem)] xl:flex-none xl:grid-cols-[276px_minmax(0,1fr)_348px] xl:grid-rows-[minmax(0,1fr)] xl:overflow-hidden xl:px-8">
         {/* Column 1: Multi-order Inbox Queue Card */}
         <aside className="flex max-h-60 min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs xl:max-h-full">
           <div className="flex flex-col gap-2.5 border-b p-3.5">
@@ -2580,8 +2589,8 @@ export function StudioWorkspacePage() {
         </aside>
 
         {/* Column 2: Active Order Chat Card */}
-        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-card px-5 py-3">
+        <section className="flex h-[65dvh] min-h-[460px] min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xs xl:h-auto xl:min-h-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-card px-3.5 py-3 sm:px-5">
             <div className="flex min-w-0 flex-col gap-0.5">
               <div className="flex flex-wrap items-center gap-2">
                 <strong className="truncate text-sm font-semibold text-foreground">

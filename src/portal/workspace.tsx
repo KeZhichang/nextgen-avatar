@@ -210,10 +210,15 @@ export function ClientConsoleShell() {
       return contextOrder ? (
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate">
-            {t("订单与审片", "Orders & review")} ·{" "}
-            <span className="font-mono text-xs">#{contextOrder.id}</span>
+            {t("订单与审片", "Orders & review")}
+            <span className="hidden sm:inline">
+              {" "}
+              · <span className="font-mono text-xs">#{contextOrder.id}</span>
+            </span>
           </span>
-          <StatusBadge status={contextOrder.status} />
+          <span className="hidden shrink-0 sm:inline-flex">
+            <StatusBadge status={contextOrder.status} />
+          </span>
         </div>
       ) : (
         <h1>{t("订单与审片", "Orders & review")}</h1>
@@ -333,7 +338,7 @@ export function ClientConsoleShell() {
             <PopoverContent
               align="end"
               sideOffset={8}
-              className="w-[360px] gap-0 overflow-hidden rounded-xl p-0 shadow-lg"
+              className="w-[min(360px,calc(100vw-1.5rem))] gap-0 overflow-hidden rounded-xl p-0 shadow-lg"
             >
               <div className="flex items-center justify-between gap-2 border-b bg-card px-4 py-3">
                 <PopoverHeader className="flex-row items-center gap-2">
@@ -455,10 +460,19 @@ export function ClientConsoleShell() {
               </ScrollArea>
             </PopoverContent>
           </Popover>
-          <Button asChild size="sm">
-            <Link to={href("checkout")}>
-              <Plus data-icon="inline-start" aria-hidden="true" />
-              {t("再次购买", "Buy a package")}
+          <Button
+            asChild
+            size="sm"
+            className="size-8 px-0 sm:w-auto sm:px-3"
+          >
+            <Link
+              to={href("checkout")}
+              aria-label={t("再次购买", "Buy a package")}
+            >
+              <Plus aria-hidden="true" className="size-4 sm:size-3.5" />
+              <span className="hidden sm:inline">
+                {t("再次购买", "Buy a package")}
+              </span>
             </Link>
           </Button>
         </>
@@ -557,7 +571,7 @@ function ProfileSettingsView({
         </div>
 
         {/* 2. Overlapping Avatar + Quick Reuse Action + Identity Meta */}
-        <div className="px-6 pb-6">
+        <div className="px-4 pb-5 sm:px-6 sm:pb-6">
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div className="relative -mt-12 flex items-end sm:-mt-14">
               <Avatar className="size-22 rounded-2xl bg-card shadow-md ring-4 ring-card sm:size-24">
@@ -612,7 +626,7 @@ function ProfileSettingsView({
 
         {/* 3. Unified Inline Profile Form + Language Preference */}
         <form onSubmit={(event) => void saveProfile(event)}>
-          <CardContent className="flex flex-col gap-5 p-6">
+          <CardContent className="flex flex-col gap-5 p-4 sm:p-6">
             <FieldGroup className="gap-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field>
@@ -681,7 +695,7 @@ function ProfileSettingsView({
             </div>
           </CardContent>
 
-          <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-6 py-3.5">
+          <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-4 py-3.5 sm:px-6">
             <span className="text-xs text-muted-foreground">
               {isDirty
                 ? t("有尚未保存的更改", "You have unsaved changes")
@@ -770,7 +784,7 @@ export function WorkspacePage() {
   const firstName = (data.account.name || "").trim().split(/\s+/)[0] || ""
 
   return (
-    <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-5 py-6 sm:px-8">
+    <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-3.5 py-4 sm:gap-6 sm:px-8 sm:py-6">
       <div className="flex flex-col gap-6">
         {tab === "overview" && (
           <>
@@ -886,7 +900,7 @@ export function WorkspacePage() {
 
             {/* 3. Refined Orders Table */}
             <Card className="gap-0 overflow-hidden py-0 shadow-xs">
-              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b px-4 py-3.5 sm:px-6 sm:py-4">
                 <div className="flex items-center gap-2">
                   <CardTitle className="text-base font-semibold">
                     <h3>{t("我的订单", "My orders")}</h3>
@@ -914,7 +928,7 @@ export function WorkspacePage() {
               </CardHeader>
               <CardContent className="p-0">
                 <SmoothHeight>
-                  <Table className="table-fixed">
+                  <Table className="min-w-[640px] table-fixed">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[52%] px-6">
@@ -1071,7 +1085,7 @@ export function WorkspacePage() {
             {/* 4. Clean Delivered Videos Gallery (directly on canvas, no nested wrapper box) */}
             {delivered.length > 0 && (
               <section className="flex flex-col gap-3.5">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Film
                       className="size-4 text-muted-foreground"
@@ -1156,7 +1170,7 @@ export function WorkspacePage() {
         {tab === "billing" && (
           <div className="flex flex-col gap-4">
             <Card className="gap-0 overflow-hidden py-0 shadow-xs">
-              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b px-4 py-3.5 sm:px-6 sm:py-4">
                 <div className="flex flex-col gap-0.5">
                   <CardTitle className="text-base font-semibold">
                     <h2>{t("付款与收据记录", "Payment history")}</h2>
@@ -1177,7 +1191,7 @@ export function WorkspacePage() {
               </CardHeader>
               <CardContent className="p-0">
                 {orders.length > 0 ? (
-                  <Table>
+                  <Table className="min-w-[640px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="px-6">

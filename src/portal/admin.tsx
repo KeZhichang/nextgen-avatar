@@ -190,12 +190,12 @@ const workflowStages: {
   zh: string
   en: string
 }[] = [
-  { id: "waiting_assets", zh: "素材", en: "Materials" },
-  { id: "producing", zh: "制作", en: "Production" },
-  { id: "waiting_confirm", zh: "审片", en: "Review" },
-  { id: "approved", zh: "已确认", en: "Approved" },
-  { id: "completed", zh: "已交付", en: "Delivered" },
-]
+    { id: "waiting_assets", zh: "素材", en: "Materials" },
+    { id: "producing", zh: "制作", en: "Production" },
+    { id: "waiting_confirm", zh: "审片", en: "Review" },
+    { id: "approved", zh: "已确认", en: "Approved" },
+    { id: "completed", zh: "已交付", en: "Delivered" },
+  ]
 
 function resolveStageIndex(status: Status): number {
   switch (status) {
@@ -280,23 +280,23 @@ function OrderDetailInspector({
   const recentEntries = [
     ...(order.demo && order.id === sampleOrder && order.entries.length === 0
       ? [
-          {
-            id: "inspector-sample-1",
-            side: "client" as const,
-            text: t(
-              "初稿 v1 00:24 处语速稍快，麻烦调整一下。",
-              "The pacing at 00:24 in v1 is a little fast. Could you slow it down?"
-            ),
-          },
-          {
-            id: "inspector-sample-2",
-            side: "studio" as const,
-            text: t(
-              "收到，修订版 v2 已上传，请在线审片确认或继续提出修改意见。",
-              "Updated pacing and uploaded v2. Please review and approve or leave revision notes."
-            ),
-          },
-        ]
+        {
+          id: "inspector-sample-1",
+          side: "client" as const,
+          text: t(
+            "初稿 v1 00:24 处语速稍快，麻烦调整一下。",
+            "The pacing at 00:24 in v1 is a little fast. Could you slow it down?"
+          ),
+        },
+        {
+          id: "inspector-sample-2",
+          side: "studio" as const,
+          text: t(
+            "收到，修订版 v2 已上传，请在线审片确认或继续提出修改意见。",
+            "Updated pacing and uploaded v2. Please review and approve or leave revision notes."
+          ),
+        },
+      ]
       : []),
     ...order.entries,
   ]
@@ -420,532 +420,533 @@ function OrderDetailInspector({
       {/* Scrollable Inspector Body */}
       <ScrollArea className="min-h-0 flex-1 bg-muted/20">
         <div className="flex flex-col gap-4 px-5 py-4">
-        {/* 2. Workflow Pipeline Stepper */}
-        <section className="rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs">
-          <div className="mb-2.5 flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-foreground">
-              {t("交付流水线进度", "Delivery pipeline")}
-            </span>
-            <span className="font-mono text-xs text-muted-foreground tabular-nums">
-              {stageIndex + 1} / {workflowStages.length}
-            </span>
-          </div>
-          <ol className="grid grid-cols-5 gap-1">
-            {workflowStages.map((stage, idx) => {
-              const done = idx < stageIndex || order.status === "completed"
-              const active = idx === stageIndex && order.status !== "completed"
-              const warn = active && isRevision
-              return (
-                <li key={stage.id} className="flex flex-col items-center gap-1.5">
-                  <div className="flex w-full items-center">
-                    <div
-                      className={cn(
-                        "h-0.5 flex-1",
-                        idx === 0
-                          ? "bg-transparent"
-                          : idx <= stageIndex
-                            ? "bg-primary"
-                            : "bg-border"
-                      )}
-                    />
+          {/* 2. Workflow Pipeline Stepper */}
+          <section className="rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs">
+            <div className="mb-2.5 flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-foreground">
+                {t("交付流水线进度", "Delivery pipeline")}
+              </span>
+              <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                {stageIndex + 1} / {workflowStages.length}
+              </span>
+            </div>
+            <ol className="grid grid-cols-5 gap-1">
+              {workflowStages.map((stage, idx) => {
+                const done = idx < stageIndex || order.status === "completed"
+                const active = idx === stageIndex && order.status !== "completed"
+                const warn = active && isRevision
+                return (
+                  <li key={stage.id} className="flex flex-col items-center gap-1.5">
+                    <div className="flex w-full items-center">
+                      <div
+                        className={cn(
+                          "h-0.5 flex-1",
+                          idx === 0
+                            ? "bg-transparent"
+                            : idx <= stageIndex
+                              ? "bg-primary"
+                              : "bg-border"
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          "flex size-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold transition-colors",
+                          done
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : warn
+                              ? "border-amber-500 bg-amber-500/15 text-amber-700"
+                              : active
+                                ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/20"
+                                : "border-border bg-background text-muted-foreground"
+                        )}
+                      >
+                        {done ? (
+                          <Check className="size-3" aria-hidden="true" />
+                        ) : warn ? (
+                          <AlertTriangle className="size-3" aria-hidden="true" />
+                        ) : (
+                          idx + 1
+                        )}
+                      </span>
+                      <div
+                        className={cn(
+                          "h-0.5 flex-1",
+                          idx === workflowStages.length - 1
+                            ? "bg-transparent"
+                            : idx < stageIndex
+                              ? "bg-primary"
+                              : "bg-border"
+                        )}
+                      />
+                    </div>
                     <span
                       className={cn(
-                        "flex size-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold transition-colors",
-                        done
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : warn
-                            ? "border-amber-500 bg-amber-500/15 text-amber-700"
-                            : active
-                              ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/20"
-                              : "border-border bg-background text-muted-foreground"
+                        "text-center text-[11px] leading-tight",
+                        done || active
+                          ? warn
+                            ? "font-semibold text-amber-800"
+                            : "font-semibold text-foreground"
+                          : "text-muted-foreground"
                       )}
                     >
-                      {done ? (
-                        <Check className="size-3" aria-hidden="true" />
-                      ) : warn ? (
-                        <AlertTriangle className="size-3" aria-hidden="true" />
-                      ) : (
-                        idx + 1
-                      )}
+                      {zh ? stage.zh : stage.en}
                     </span>
-                    <div
-                      className={cn(
-                        "h-0.5 flex-1",
-                        idx === workflowStages.length - 1
-                          ? "bg-transparent"
-                          : idx < stageIndex
-                            ? "bg-primary"
-                            : "bg-border"
-                      )}
-                    />
-                  </div>
-                  <span
-                    className={cn(
-                      "text-center text-[11px] leading-tight",
-                      done || active
-                        ? warn
-                          ? "font-semibold text-amber-800"
-                          : "font-semibold text-foreground"
-                        : "text-muted-foreground"
-                    )}
-                  >
-                    {zh ? stage.zh : stage.en}
-                  </span>
-                </li>
-              )
-            })}
-          </ol>
+                  </li>
+                )
+              })}
+            </ol>
 
-          {order.status === "waiting_assets" && canWork && (
-            <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
-              <span className="text-xs text-foreground">
-                {order.owner
-                  ? t(
+            {order.status === "waiting_assets" && canWork && (
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+                <span className="text-xs text-foreground">
+                  {order.owner
+                    ? t(
                       "已确认素材齐备？可直接推进至制作中。",
                       "Materials ready? Move directly into production."
                     )
-                  : t(
+                    : t(
                       "请先在下方指派负责制作师，再开始制作。",
                       "Assign a producer below before starting production."
                     )}
-              </span>
-              <Button
-                size="xs"
-                disabled={starting || !order.owner}
-                onClick={() => void handleStart()}
-              >
-                <Play data-icon="inline-start" aria-hidden="true" />
-                {starting
-                  ? t("处理中…", "Updating…")
-                  : t("开始制作", "Start production")}
-              </Button>
-            </div>
-          )}
-
-          {order.revision && (
-            <div className="mt-3 rounded-lg border border-brand-gold/40 bg-brand-gold/10 p-3">
-              <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-amber-900">
-                <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
-                {t("最新修改意见", "Latest revision note")}
-              </div>
-              <p className="text-xs leading-relaxed text-amber-950">
-                {order.revision}
-              </p>
-            </div>
-          )}
-        </section>
-
-        {/* 3A. Client & Assignment Card */}
-        <section className="rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs font-semibold text-foreground">
-              {t("客户与负责人", "Client & assignment")}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <Avatar className="size-9 rounded-lg border">
-                <AvatarImage
-                  src={clientAvatar}
-                  alt=""
-                  referrerPolicy="no-referrer"
-                />
-                <AvatarFallback className="rounded-lg text-xs font-semibold">
-                  {order.client.slice(0, 1).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-foreground">
-                  {order.client}
-                </div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {clientCompany ||
-                    (canViewClients && clientEmail
-                      ? clientEmail
-                      : t("个人客户", "Individual client"))}
-                </div>
-              </div>
-            </div>
-
-            {canViewClients && clientEmail && (
-              <Button
-                type="button"
-                variant="outline"
-                size="xs"
-                onClick={() =>
-                  copyValue(
-                    "client-email",
-                    clientEmail,
-                    t("已复制客户邮箱", "Client email copied")
-                  )
-                }
-                title={clientEmail}
-              >
-                {copiedKey === "client-email" ? (
-                  <Check
-                    data-icon="inline-start"
-                    className="text-emerald-600"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <Mail data-icon="inline-start" aria-hidden="true" />
-                )}
-                {t("复制邮箱", "Copy email")}
-              </Button>
-            )}
-          </div>
-
-          <Separator className="my-3" />
-
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <UserCheck className="size-3.5" aria-hidden="true" />
-              <span>{t("负责制作师", "Assigned producer")}</span>
-            </div>
-            {canAssign && order.status !== "completed" ? (
-              <Select
-                value={order.owner || "unassigned"}
-                onValueChange={(value) => onAssign(order.id, value)}
-              >
-                <SelectTrigger size="sm" className="h-8 w-40 bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="unassigned">
-                      {t("待分配", "Unassigned")}
-                    </SelectItem>
-                    {order.owner &&
-                      !assignableMembers.some(
-                        (item) => item.name === order.owner
-                      ) && (
-                        <SelectItem value={order.owner}>
-                          {order.owner}
-                        </SelectItem>
-                      )}
-                    {assignableMembers.map((item) => (
-                      <SelectItem key={item.id} value={item.name}>
-                        {item.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            ) : (
-              <Badge
-                variant="secondary"
-                title={
-                  order.status === "completed"
-                    ? t("订单已交付，已锁定负责人", "Delivered orders cannot be reassigned")
-                    : undefined
-                }
-                className={cn(
-                  "font-medium",
-                  order.status === "completed" &&
-                    "bg-muted/70 text-muted-foreground"
-                )}
-              >
-                {order.owner || t("未指派", "Unassigned")}
-              </Badge>
-            )}
-          </div>
-        </section>
-
-        {/* 3B. Package, Payment & Credits Card */}
-        {canViewFinance && (
-          <section className="rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-foreground">
-                {t("套餐与财务信息", "Package & billing")}
-              </span>
-              <Badge
-                variant="outline"
-                className="border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700"
-              >
-                <CreditCard className="mr-1 size-3" aria-hidden="true" />
-                {paymentChannelLabel(order.method, order.total, t)}
-              </Badge>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="rounded-lg bg-muted/40 px-3 py-2">
-                <div className="text-[11px] text-muted-foreground">
-                  {t("所选套餐", "Package")}
-                </div>
-                <div className="mt-0.5 truncate text-xs font-semibold text-foreground">
-                  {planLabel}
-                </div>
-              </div>
-              <div className="rounded-lg bg-muted/40 px-3 py-2">
-                <div className="text-[11px] text-muted-foreground">
-                  {t("已交付 / 总配额", "Delivered / total")}
-                </div>
-                <div className="mt-0.5 font-mono text-xs font-semibold text-foreground tabular-nums">
-                  {usedCredits} / {order.count} {t("条", "videos")}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-3 flex flex-col gap-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">
-                  {t("剩余可用配额", "Remaining video credits")}
                 </span>
-                <span className="font-mono font-semibold text-foreground tabular-nums">
-                  {remainingCredits} / {order.count}
-                </span>
-              </div>
-              <Progress value={creditPercent} className="h-1.5" />
-            </div>
-
-            {order.paymentSession && (
-              <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2.5 text-xs">
-                <span className="text-muted-foreground">
-                  {t("Stripe 交易号", "Stripe session")}
-                </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    copyValue(
-                      "stripe-session",
-                      order.paymentSession ?? "",
-                      t("已复制交易号", "Stripe session copied")
-                    )
-                  }
-                  className="inline-flex max-w-52 items-center gap-1 truncate font-mono text-[11px] text-foreground hover:text-primary"
+                <Button
+                  size="xs"
+                  disabled={starting || !order.owner}
+                  onClick={() => void handleStart()}
                 >
-                  <span className="truncate">{order.paymentSession}</span>
-                  {copiedKey === "stripe-session" ? (
-                    <Check
-                      className="size-3 shrink-0 text-emerald-600"
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <Copy
-                      className="size-3 shrink-0 text-muted-foreground"
-                      aria-hidden="true"
-                    />
-                  )}
-                </button>
+                  <Play data-icon="inline-start" aria-hidden="true" />
+                  {starting
+                    ? t("处理中…", "Updating…")
+                    : t("开始制作", "Start production")}
+                </Button>
+              </div>
+            )}
+
+            {order.revision && (
+              <div className="mt-3 rounded-lg border border-brand-gold/40 bg-brand-gold/10 p-3">
+                <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-amber-900">
+                  <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />
+                  {t("最新修改意见", "Latest revision note")}
+                </div>
+                <p className="text-xs leading-relaxed text-amber-950">
+                  {order.revision}
+                </p>
               </div>
             )}
           </section>
-        )}
 
-        {/* 4. Deliverables & Materials / Activity Tabs */}
-        <section className="rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs">
-          <Tabs defaultValue="deliverables" className="gap-3">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="deliverables" className="gap-1.5 text-xs">
-                <Film className="size-3.5" aria-hidden="true" />
-                {t("交付版本", "Deliverables")}
-                <span className="font-mono text-[11px] opacity-70">
-                  ({order.versions.length})
-                </span>
-              </TabsTrigger>
-              <TabsTrigger value="activity" className="gap-1.5 text-xs">
-                <Paperclip className="size-3.5" aria-hidden="true" />
-                {t("素材与动态", "Assets & activity")}
-                <span className="font-mono text-[11px] opacity-70">
-                  ({uploadedAssets.length + recentEntries.length})
-                </span>
-              </TabsTrigger>
-            </TabsList>
+          {/* 3A. Client & Assignment Card */}
+          <section className="rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground">
+                {t("客户与负责人", "Client & assignment")}
+              </span>
+            </div>
 
-            <TabsContent value="deliverables" className="m-0">
-              {orderedVersions.length > 0 ? (
-                <div className="flex flex-col gap-2">
-                  {orderedVersions.map((ver) => {
-                    const itemIdx = getVersionItemIndex(ver)
-                    const code = getVersionCode(ver)
-                    return (
-                    <div
-                      key={ver.id}
-                      className="flex items-start justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 p-2.5"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {itemIdx > 1 && (
-                            <Badge
-                              variant="outline"
-                              className="h-5 px-1.5 font-mono text-[10px]"
-                            >
-                              #{itemIdx}
-                            </Badge>
-                          )}
-                          <Badge
-                            variant={
-                              ver.type === "final" ? "default" : "secondary"
-                            }
-                            className="h-5 px-1.5 font-mono text-[10px] uppercase"
-                          >
-                            {ver.type === "final"
-                              ? t("正式版", "Final")
-                              : code}
-                          </Badge>
-                          <span className="truncate text-xs font-medium text-foreground">
-                            {ver.itemTitle ||
-                              ver.file ||
-                              (ver.type === "final"
-                                ? `${order.id}-final.mp4`
-                                : `${order.id}-${code}.mp4`)}
-                          </span>
-                        </div>
-                        {ver.note && (
-                          <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                            {ver.note}
-                          </p>
-                        )}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        className="shrink-0"
-                        title={t("下载视频", "Download video")}
-                        aria-label={t("下载视频", "Download video")}
-                        onClick={() =>
-                          void handleDownloadVersion(
-                            ver.fileId,
-                            ver.file || `${order.id}-${ver.id}.mp4`
-                          )
-                        }
-                      >
-                        <Download className="size-3.5" aria-hidden="true" />
-                      </Button>
-                    </div>
-                  )})}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-6 text-center">
-                  <Film
-                    className="mb-1.5 size-5 text-muted-foreground/60"
-                    aria-hidden="true"
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <Avatar className="size-9 rounded-lg border">
+                  <AvatarImage
+                    src={clientAvatar}
+                    alt=""
+                    referrerPolicy="no-referrer"
                   />
-                  <div className="text-xs font-medium text-foreground">
-                    {t("暂无交付版本", "No video versions yet")}
+                  <AvatarFallback className="rounded-lg text-xs font-semibold">
+                    {order.client.slice(0, 1).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium text-foreground">
+                    {order.client}
                   </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {t(
-                      "进入制作协同工作台即可上传初稿或正式成片。",
-                      "Open studio inbox to upload a draft or final video."
-                    )}
-                  </p>
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="activity" className="m-0 flex flex-col gap-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center justify-between rounded-lg bg-muted/40 px-2.5 py-2 text-xs">
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
-                    <Paperclip className="size-3.5" aria-hidden="true" />
-                    {t("已传素材", "Files")}
-                  </span>
-                  <span className="font-mono font-semibold tabular-nums">
-                    {uploadedAssets.length}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg bg-muted/40 px-2.5 py-2 text-xs">
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
-                    <MessageSquare className="size-3.5" aria-hidden="true" />
-                    {t("沟通记录", "Messages")}
-                  </span>
-                  <span className="font-mono font-semibold tabular-nums">
-                    {recentEntries.length}
-                  </span>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {clientCompany ||
+                      (canViewClients && clientEmail
+                        ? clientEmail
+                        : t("个人客户", "Individual client"))}
+                  </div>
                 </div>
               </div>
 
-              {uploadedAssets.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                    {t("客户上传文件", "Uploaded files")}
+              {canViewClients && clientEmail && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={() =>
+                    copyValue(
+                      "client-email",
+                      clientEmail,
+                      t("已复制客户邮箱", "Client email copied")
+                    )
+                  }
+                  title={clientEmail}
+                >
+                  {copiedKey === "client-email" ? (
+                    <Check
+                      data-icon="inline-start"
+                      className="text-emerald-600"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Mail data-icon="inline-start" aria-hidden="true" />
+                  )}
+                  {t("复制邮箱", "Copy email")}
+                </Button>
+              )}
+            </div>
+
+            <Separator className="my-3" />
+
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <UserCheck className="size-3.5" aria-hidden="true" />
+                <span>{t("负责制作师", "Assigned producer")}</span>
+              </div>
+              {canAssign && order.status !== "completed" ? (
+                <Select
+                  value={order.owner || "unassigned"}
+                  onValueChange={(value) => onAssign(order.id, value)}
+                >
+                  <SelectTrigger size="sm" className="h-8 w-40 bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="unassigned">
+                        {t("待分配", "Unassigned")}
+                      </SelectItem>
+                      {order.owner &&
+                        !assignableMembers.some(
+                          (item) => item.name === order.owner
+                        ) && (
+                          <SelectItem value={order.owner}>
+                            {order.owner}
+                          </SelectItem>
+                        )}
+                      {assignableMembers.map((item) => (
+                        <SelectItem key={item.id} value={item.name}>
+                          {item.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Badge
+                  variant="secondary"
+                  title={
+                    order.status === "completed"
+                      ? t("订单已交付，已锁定负责人", "Delivered orders cannot be reassigned")
+                      : undefined
+                  }
+                  className={cn(
+                    "font-medium",
+                    order.status === "completed" &&
+                    "bg-muted/70 text-muted-foreground"
+                  )}
+                >
+                  {order.owner || t("未指派", "Unassigned")}
+                </Badge>
+              )}
+            </div>
+          </section>
+
+          {/* 3B. Package, Payment & Credits Card */}
+          {canViewFinance && (
+            <section className="rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-foreground">
+                  {t("套餐与财务信息", "Package & billing")}
+                </span>
+                <Badge
+                  variant="outline"
+                  className="border-emerald-200 bg-emerald-50 text-xs font-medium text-emerald-700"
+                >
+                  <CreditCard className="mr-1 size-3" aria-hidden="true" />
+                  {paymentChannelLabel(order.method, order.total, t)}
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="rounded-lg bg-muted/40 px-3 py-2">
+                  <div className="text-[11px] text-muted-foreground">
+                    {t("所选套餐", "Package")}
                   </div>
-                  {uploadedAssets.slice(0, 4).map((asset) => (
-                    <div
-                      key={asset.fileId + asset.name}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-muted/20 px-2.5 py-1.5 text-xs"
-                    >
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        <FileText
-                          className="size-3.5 shrink-0 text-muted-foreground"
-                          aria-hidden="true"
-                        />
-                        <span className="truncate font-medium">
-                          {asset.name}
-                        </span>
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={t("下载文件", "Download file")}
-                        onClick={() =>
-                          void handleDownloadAsset(asset.fileId, asset.name)
-                        }
-                      >
-                        <Download className="size-3" aria-hidden="true" />
-                      </Button>
-                    </div>
-                  ))}
+                  <div className="mt-0.5 truncate text-xs font-semibold text-foreground">
+                    {planLabel}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-muted/40 px-3 py-2">
+                  <div className="text-[11px] text-muted-foreground">
+                    {t("已交付 / 总配额", "Delivered / total")}
+                  </div>
+                  <div className="mt-0.5 font-mono text-xs font-semibold text-foreground tabular-nums">
+                    {usedCredits} / {order.count} {t("条", "videos")}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">
+                    {t("剩余可用配额", "Remaining video credits")}
+                  </span>
+                  <span className="font-mono font-semibold text-foreground tabular-nums">
+                    {remainingCredits} / {order.count}
+                  </span>
+                </div>
+                <Progress value={creditPercent} className="h-1.5" />
+              </div>
+
+              {order.paymentSession && (
+                <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2.5 text-xs">
+                  <span className="text-muted-foreground">
+                    {t("Stripe 交易号", "Stripe session")}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      copyValue(
+                        "stripe-session",
+                        order.paymentSession ?? "",
+                        t("已复制交易号", "Stripe session copied")
+                      )
+                    }
+                    className="inline-flex max-w-52 items-center gap-1 truncate font-mono text-[11px] text-foreground hover:text-primary"
+                  >
+                    <span className="truncate">{order.paymentSession}</span>
+                    {copiedKey === "stripe-session" ? (
+                      <Check
+                        className="size-3 shrink-0 text-emerald-600"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Copy
+                        className="size-3 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </button>
                 </div>
               )}
+            </section>
+          )}
 
-              {recentEntries.length > 0 ? (
-                <div className="flex flex-col gap-1.5">
-                  <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                    {t("最新沟通摘要", "Recent activity")}
+          {/* 4. Deliverables & Materials / Activity Tabs */}
+          <section className="rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs">
+            <Tabs defaultValue="deliverables" className="gap-3">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="deliverables" className="gap-1.5 text-xs">
+                  <Film className="size-3.5" aria-hidden="true" />
+                  {t("交付版本", "Deliverables")}
+                  <span className="font-mono text-[11px] opacity-70">
+                    ({order.versions.length})
+                  </span>
+                </TabsTrigger>
+                <TabsTrigger value="activity" className="gap-1.5 text-xs">
+                  <Paperclip className="size-3.5" aria-hidden="true" />
+                  {t("素材与动态", "Assets & activity")}
+                  <span className="font-mono text-[11px] opacity-70">
+                    ({uploadedAssets.length + recentEntries.length})
+                  </span>
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="deliverables" className="m-0">
+                {orderedVersions.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {orderedVersions.map((ver) => {
+                      const itemIdx = getVersionItemIndex(ver)
+                      const code = getVersionCode(ver)
+                      return (
+                        <div
+                          key={ver.id}
+                          className="flex items-start justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 p-2.5"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {itemIdx > 1 && (
+                                <Badge
+                                  variant="outline"
+                                  className="h-5 px-1.5 font-mono text-[10px]"
+                                >
+                                  #{itemIdx}
+                                </Badge>
+                              )}
+                              <Badge
+                                variant={
+                                  ver.type === "final" ? "default" : "secondary"
+                                }
+                                className="h-5 px-1.5 font-mono text-[10px] uppercase"
+                              >
+                                {ver.type === "final"
+                                  ? t("正式版", "Final")
+                                  : code}
+                              </Badge>
+                              <span className="truncate text-xs font-medium text-foreground">
+                                {ver.itemTitle ||
+                                  ver.file ||
+                                  (ver.type === "final"
+                                    ? `${order.id}-final.mp4`
+                                    : `${order.id}-${code}.mp4`)}
+                              </span>
+                            </div>
+                            {ver.note && (
+                              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                                {ver.note}
+                              </p>
+                            )}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="shrink-0"
+                            title={t("下载视频", "Download video")}
+                            aria-label={t("下载视频", "Download video")}
+                            onClick={() =>
+                              void handleDownloadVersion(
+                                ver.fileId,
+                                ver.file || `${order.id}-${ver.id}.mp4`
+                              )
+                            }
+                          >
+                            <Download className="size-3.5" aria-hidden="true" />
+                          </Button>
+                        </div>
+                      )
+                    })}
                   </div>
-                  {recentEntries.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="rounded-lg border border-border/70 bg-muted/20 px-2.5 py-2 text-xs"
-                    >
-                      <div className="mb-0.5 flex items-center gap-1.5">
-                        <span
-                          className={cn(
-                            "inline-flex size-1.5 rounded-full",
-                            entry.side === "client"
-                              ? "bg-primary"
-                              : "bg-emerald-500"
-                          )}
-                        />
-                        <span className="font-semibold text-foreground">
-                          {entry.side === "client"
-                            ? order.client
-                            : t("制作团队", "Studio team")}
-                        </span>
-                      </div>
-                      <p className="line-clamp-2 leading-relaxed text-muted-foreground">
-                        {entry.text}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                uploadedAssets.length === 0 && (
+                ) : (
                   <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-6 text-center">
-                    <CheckCircle2
+                    <Film
                       className="mb-1.5 size-5 text-muted-foreground/60"
                       aria-hidden="true"
                     />
                     <div className="text-xs font-medium text-foreground">
-                      {t("暂无素材或沟通记录", "No files or messages yet")}
+                      {t("暂无交付版本", "No video versions yet")}
                     </div>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {t(
-                        "客户上传参考素材或留言后会实时同步显示在此。",
-                        "Client uploads and messages will appear here in real time."
+                        "进入制作协同工作台即可上传初稿或正式成片。",
+                        "Open studio inbox to upload a draft or final video."
                       )}
                     </p>
                   </div>
-                )
-              )}
-            </TabsContent>
-          </Tabs>
-        </section>
+                )}
+              </TabsContent>
+
+              <TabsContent value="activity" className="m-0 flex flex-col gap-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex items-center justify-between rounded-lg bg-muted/40 px-2.5 py-2 text-xs">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <Paperclip className="size-3.5" aria-hidden="true" />
+                      {t("已传素材", "Files")}
+                    </span>
+                    <span className="font-mono font-semibold tabular-nums">
+                      {uploadedAssets.length}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg bg-muted/40 px-2.5 py-2 text-xs">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <MessageSquare className="size-3.5" aria-hidden="true" />
+                      {t("沟通记录", "Messages")}
+                    </span>
+                    <span className="font-mono font-semibold tabular-nums">
+                      {recentEntries.length}
+                    </span>
+                  </div>
+                </div>
+
+                {uploadedAssets.length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                      {t("客户上传文件", "Uploaded files")}
+                    </div>
+                    {uploadedAssets.slice(0, 4).map((asset) => (
+                      <div
+                        key={asset.fileId + asset.name}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-muted/20 px-2.5 py-1.5 text-xs"
+                      >
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <FileText
+                            className="size-3.5 shrink-0 text-muted-foreground"
+                            aria-hidden="true"
+                          />
+                          <span className="truncate font-medium">
+                            {asset.name}
+                          </span>
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={t("下载文件", "Download file")}
+                          onClick={() =>
+                            void handleDownloadAsset(asset.fileId, asset.name)
+                          }
+                        >
+                          <Download className="size-3" aria-hidden="true" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {recentEntries.length > 0 ? (
+                  <div className="flex flex-col gap-1.5">
+                    <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                      {t("最新沟通摘要", "Recent activity")}
+                    </div>
+                    {recentEntries.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="rounded-lg border border-border/70 bg-muted/20 px-2.5 py-2 text-xs"
+                      >
+                        <div className="mb-0.5 flex items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "inline-flex size-1.5 rounded-full",
+                              entry.side === "client"
+                                ? "bg-primary"
+                                : "bg-emerald-500"
+                            )}
+                          />
+                          <span className="font-semibold text-foreground">
+                            {entry.side === "client"
+                              ? order.client
+                              : t("制作团队", "Studio team")}
+                          </span>
+                        </div>
+                        <p className="line-clamp-2 leading-relaxed text-muted-foreground">
+                          {entry.text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  uploadedAssets.length === 0 && (
+                    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-6 text-center">
+                      <CheckCircle2
+                        className="mb-1.5 size-5 text-muted-foreground/60"
+                        aria-hidden="true"
+                      />
+                      <div className="text-xs font-medium text-foreground">
+                        {t("暂无素材或沟通记录", "No files or messages yet")}
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {t(
+                          "客户上传参考素材或留言后会实时同步显示在此。",
+                          "Client uploads and messages will appear here in real time."
+                        )}
+                      </p>
+                    </div>
+                  )
+                )}
+              </TabsContent>
+            </Tabs>
+          </section>
         </div>
       </ScrollArea>
 
@@ -1077,9 +1078,9 @@ export function AdminOrdersPage() {
         owner === "unassigned"
           ? t("已取消订单分配", "Assignment removed")
           : t(
-              `订单 #${id} 已派给 ${owner}`,
-              `Order #${id} assigned to ${owner}`
-            )
+            `订单 #${id} 已派给 ${owner}`,
+            `Order #${id} assigned to ${owner}`
+          )
       )
     })
   }
@@ -1112,7 +1113,7 @@ export function AdminOrdersPage() {
         </h1>
       }
     >
-      <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-5 py-6 sm:px-8">
+      <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-3.5 py-4 sm:px-8 sm:py-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div
             role="tablist"
@@ -1181,7 +1182,7 @@ export function AdminOrdersPage() {
         <Card className="gap-0 overflow-hidden py-0 shadow-xs">
           <CardContent className="p-0">
             <SmoothHeight>
-              <Table className="table-fixed">
+              <Table className="min-w-[860px] table-fixed">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[22%] px-5">
@@ -1192,9 +1193,9 @@ export function AdminOrdersPage() {
                     <TableHead className="w-[28%]">
                       {canViewAll
                         ? t(
-                            "客户 / 套餐与配额",
-                            "Client / Package & credits"
-                          )
+                          "客户 / 套餐与配额",
+                          "Client / Package & credits"
+                        )
                         : t("制作项目", "Project")}
                     </TableHead>
                     <TableHead className="w-[14%]">
@@ -1299,13 +1300,13 @@ export function AdminOrdersPage() {
                                   ·{" "}
                                   {isCompleted
                                     ? t(
-                                        `已交付 · ${deliveredCount} 条`,
-                                        `Delivered · ${deliveredCount} video${deliveredCount > 1 ? "s" : ""}`
-                                      )
+                                      `已交付 · ${deliveredCount} 条`,
+                                      `Delivered · ${deliveredCount} video${deliveredCount > 1 ? "s" : ""}`
+                                    )
                                     : t(
-                                        `剩余 ${remaining}/${value.count} 条`,
-                                        `${remaining}/${value.count} credits left`
-                                      )}
+                                      `剩余 ${remaining}/${value.count} 条`,
+                                      `${remaining}/${value.count} credits left`
+                                    )}
                                 </div>
                               )}
                             </TableCell>
@@ -1418,7 +1419,7 @@ export function AdminOrdersPage() {
                                     }
                                     className={cn(
                                       isUrgent &&
-                                        "bg-brand-navy text-white hover:bg-brand-navy/90"
+                                      "bg-brand-navy text-white hover:bg-brand-navy/90"
                                     )}
                                     to={href("admin-workspace", {
                                       order: value.id,
@@ -1545,22 +1546,22 @@ export function AdminSettingsPage() {
     permission: PermissionKey
     label: string
   }[] = [
-    {
-      id: "pricing",
-      permission: "settings:pricing",
-      label: t("套餐与加项定价", "Package pricing & add-ons"),
-    },
-    {
-      id: "quote",
-      permission: "settings:quotes",
-      label: t("定制报价链接", "Custom quote link"),
-    },
-    {
-      id: "clients",
-      permission: "settings:clients",
-      label: t("客户管理与档案", "Clients & profiles"),
-    },
-  ]
+      {
+        id: "pricing",
+        permission: "settings:pricing",
+        label: t("套餐与加项定价", "Package pricing & add-ons"),
+      },
+      {
+        id: "quote",
+        permission: "settings:quotes",
+        label: t("定制报价链接", "Custom quote link"),
+      },
+      {
+        id: "clients",
+        permission: "settings:clients",
+        label: t("客户管理与档案", "Clients & profiles"),
+      },
+    ]
 
   const allowedTabs = allTabs.filter((item) => can(item.permission))
   const requestedTab = query.get("tab") as SettingsTabId | null
@@ -1650,7 +1651,7 @@ export function AdminSettingsPage() {
       activeNav={activeTab as TeamNavKey}
       heading={<h1>{currentTabMeta.label}</h1>}
     >
-      <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-5 py-6 sm:px-8">
+      <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-3.5 py-4 sm:gap-6 sm:px-8 sm:py-6">
         {activeTab === "pricing" && can("settings:pricing") && (
           <PricingCatalogView />
         )}
@@ -1661,14 +1662,14 @@ export function AdminSettingsPage() {
         {activeTab === "clients" && can("settings:clients") && (
           <div className="grid items-start gap-5 lg:grid-cols-12">
             <Card className="gap-0 overflow-hidden py-0 shadow-xs lg:col-span-4">
-              <CardHeader className="flex flex-row items-center justify-between gap-2 border-b px-4 py-3">
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
                 <CardTitle className="shrink-0 text-sm font-semibold">
                   {t(
                     `客户列表 (${filteredClients.length})`,
                     `Clients (${filteredClients.length})`
                   )}
                 </CardTitle>
-                <InputGroup className="h-8 max-w-44 bg-muted/40">
+                <InputGroup className="h-8 w-full bg-muted/40 sm:max-w-44">
                   <InputGroupAddon>
                     <Search aria-hidden="true" className="size-3.5" />
                   </InputGroupAddon>
@@ -1799,20 +1800,20 @@ export function AdminSettingsPage() {
             <Card className="shadow-xs lg:col-span-8">
               {activeClientName ? (
                 <FadeTransition key={activeClientName}>
-                  <CardContent className="flex flex-col gap-6 p-6">
+                  <CardContent className="flex flex-col gap-6 p-4 sm:p-6">
                     <div className="flex flex-wrap items-start justify-between gap-4 border-b pb-5">
-                      <div className="flex flex-col gap-1">
+                      <div className="flex min-w-0 flex-col gap-1">
                         <h2 className="text-base font-semibold text-foreground">
                           {activeClientName} · {activeClientCompany}
                         </h2>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="break-all text-xs text-muted-foreground">
                           {activeClientEmail}
                           {activeClientMeta
                             ? ` · ${activeClientMeta.phone} · ${activeClientMeta.city}`
                             : ""}
                         </p>
                       </div>
-                      <div className="text-right tabular-nums">
+                      <div className="text-left tabular-nums sm:text-right">
                         <div className="text-sm font-semibold text-emerald-700">
                           {t("累计付款", "Total paid")}{" "}
                           {formatDollars(activeClientSpend)}
