@@ -942,27 +942,36 @@ export function CheckoutPage() {
 
           {isQuoteSelected && quotedPlan ? (
             <Card className="gap-0 overflow-hidden py-0 shadow-xs">
-              <div className="relative overflow-hidden px-6 py-5 text-white">
+              <div className="relative overflow-hidden px-5 py-5 text-white sm:px-6 sm:py-6">
                 <img
                   src="/portal-media/quote-header-bg.svg"
                   alt=""
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-0 size-full object-cover"
                 />
-                <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[11px] font-medium tracking-wider text-white/75 uppercase">
-                      {t("专属定制报价单", "Cinematic Custom Quote")} · #{quote}
-                    </span>
-                    <h1 className="text-xl font-bold tracking-tight text-white">
+                <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-medium tracking-wider text-white/75 uppercase">
+                        {t("专属定制报价单", "Cinematic Custom Quote")} · #{quote}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[10px] font-medium text-white/95 backdrop-blur-xs">
+                        <span
+                          className="size-1.5 rounded-full bg-emerald-400"
+                          aria-hidden="true"
+                        />
+                        {t("已锁定报价", "Locked quote")}
+                      </span>
+                    </div>
+                    <h1 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
                       {resolvedQuoteName}
                     </h1>
                   </div>
-                  <div className="text-right tabular-nums">
-                    <div className="text-2xl font-bold tracking-tight text-[#ffe8d1] tabular-nums">
+                  <div className="text-left tabular-nums sm:text-right">
+                    <div className="text-2xl font-bold tracking-tight text-[#ffe8d1] tabular-nums sm:text-3xl">
                       {formatDollars(quotedPlan.price)}
                     </div>
-                    <div className="text-xs text-white/75">
+                    <div className="mt-0.5 text-xs text-white/80">
                       {t(
                         `${quotedPlan.count} 条 1080P 成片 · 约 ${formatDollars(Math.round((quotedPlan.price / quotedPlan.count) * 100) / 100)}/条`,
                         `${quotedPlan.count} × 1080P videos · ~${formatDollars(Math.round((quotedPlan.price / quotedPlan.count) * 100) / 100)}/vid`
@@ -971,11 +980,161 @@ export function CheckoutPage() {
                   </div>
                 </div>
               </div>
-              <CardFooter className="justify-between bg-card px-6 py-3 text-xs text-muted-foreground">
+
+              <CardContent className="flex flex-col gap-6 p-5 sm:p-6">
+                {/* Structured quote summary grid */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1 rounded-xl border border-border/80 bg-muted/25 px-4 py-3">
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      {t("交付配额与均价", "Deliverables & unit rate")}
+                    </span>
+                    <span className="text-sm font-semibold text-foreground tabular-nums">
+                      {t(
+                        `${quotedPlan.count} 条 1080P 正式成片`,
+                        `${quotedPlan.count} × 1080P final videos`
+                      )}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                      {t(
+                        `折合 ${formatDollars(Math.round((quotedPlan.price / quotedPlan.count) * 100) / 100)} / 条`,
+                        `~${formatDollars(Math.round((quotedPlan.price / quotedPlan.count) * 100) / 100)} per video`
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col gap-1 rounded-xl border border-border/80 bg-muted/25 px-4 py-3">
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      {t("专属受邀客户", "Prepared for")}
+                    </span>
+                    <span className="truncate font-mono text-sm font-semibold text-foreground">
+                      {activeDbQuote?.clientEmail ||
+                        data.account.email ||
+                        t("已登录客户账号", "Signed-in account")}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {t(
+                        "单次美元结算 · 无强制自动续费",
+                        "One-time USD payment · No auto-renewal"
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Included deliverables & guarantees */}
+                <div className="flex flex-col gap-3">
+                  <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    {t("本报价单包含服务与保障", "What's included in this quote")}
+                  </span>
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                    {[
+                      {
+                        title: t("1080P 无水印正式成片", "1080P watermark-free finals"),
+                        desc: t(
+                          "每条视频先交付预览版在线审片，确认满意后再导出正式母版。",
+                          "Preview drafts first for online review, then clean 1080P master delivery."
+                        ),
+                      },
+                      {
+                        title: t("专属团队一对一精制", "Dedicated studio production"),
+                        desc: t(
+                          "分配专属制作师全程沟通，支持按时间点提交多轮修改反馈。",
+                          "Direct chat with your producer and multi-round timecoded revisions."
+                        ),
+                      },
+                      {
+                        title: t("人物与声音档案可复用", "Reusable presenter assets"),
+                        desc: t(
+                          "上传的素材自动归档至工作台，后续加单无需重复拍摄录制。",
+                          "Your visual & voice materials stay ready in your workspace for future packs."
+                        ),
+                      },
+                      {
+                        title: t("Stripe 加密支付与收据", "Stripe checkout & receipt"),
+                        desc: t(
+                          "支持主流信用卡与银行转账，付款完成后自动建单并开具官方收据。",
+                          "Encrypted USD checkout with automatic order creation and official receipt."
+                        ),
+                      },
+                    ].map((feature) => (
+                      <div
+                        key={feature.title}
+                        className="flex items-start gap-2.5 rounded-xl border border-border/70 bg-card p-3.5"
+                      >
+                        <CheckCircle2
+                          aria-hidden="true"
+                          className="mt-0.5 size-4 shrink-0 text-primary"
+                        />
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="text-xs font-semibold text-foreground">
+                            {feature.title}
+                          </span>
+                          <span className="text-xs leading-relaxed text-muted-foreground">
+                            {feature.desc}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Post-payment workflow timeline */}
+                <div className="flex flex-col gap-3">
+                  <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    {t("付款后的制作交付流程", "How delivery works after checkout")}
+                  </span>
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                    {[
+                      {
+                        step: "01",
+                        title: t("自动建单入账", "Instant order setup"),
+                        desc: t(
+                          "付款成功后自动生成专属订单并进入工作台。",
+                          "Your order & video credits unlock immediately."
+                        ),
+                      },
+                      {
+                        step: "02",
+                        title: t("上传参考素材", "Share materials"),
+                        desc: t(
+                          "在订单会话中提交人物、声音与口播脚本。",
+                          "Send photos, voice sample, and script in chat."
+                        ),
+                      },
+                      {
+                        step: "03",
+                        title: t("在线审片交付", "Review & download"),
+                        desc: t(
+                          "在线审片确认后下载 1080P 无水印成片。",
+                          "Approve drafts online and download clean finals."
+                        ),
+                      },
+                    ].map((item) => (
+                      <div
+                        key={item.step}
+                        className="flex flex-col gap-1 rounded-xl border border-border/70 bg-muted/20 p-3"
+                      >
+                        <span className="font-mono text-[11px] font-semibold text-primary">
+                          STEP {item.step}
+                        </span>
+                        <span className="text-xs font-semibold text-foreground">
+                          {item.title}
+                        </span>
+                        <span className="text-[11px] leading-relaxed text-muted-foreground">
+                          {item.desc}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+
+              <CardFooter className="flex-wrap justify-between gap-2 border-t bg-muted/20 px-5 py-3 text-xs text-muted-foreground sm:px-6">
                 <span>
                   {t(
-                    "专属定制报价已锁定金额与交付配额。",
-                    "Custom quote pricing and video credits are locked."
+                    "专属定制报价已锁定金额与交付配额 · 出品方 2301 Pictures",
+                    "Custom quote pricing and video credits are locked · Issued by 2301 Pictures"
                   )}
                 </span>
                 {families.length > 0 && !locked && (
